@@ -15,7 +15,8 @@ class Usuario {
         $sql = "SELECT * FROM {$this->table} WHERE email = :email LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':email' => $email]);
-        $user = $stmt->fetch();
+        // Usamos FETCH_OBJ para mantener consistencia con el controlador ($user->id)
+        $user = $stmt->fetch(PDO::FETCH_OBJ);
 
         if ($user && password_verify($password, $user->password)) {
             $this->registrarAcceso($user->id, true);
@@ -26,6 +27,40 @@ class Usuario {
             $this->registrarAcceso($user->id, false);
         }
         return false;
+    }
+
+    // NUEVO: Buscar usuario por email (usado por Google Callback)
+    public function getByEmail($email) {
+        $sql = "SELECT * FROM {$this->table} WHERE email = :email LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':email' => $email]);
+        return $stmt->fetch(PDO::FETCH_OBJ);
+    }
+
+    // NUEVO: Buscar usuario por ID (para refrescar sesión)
+    public function getById($id) {
+        $sql = "SELECT * FROM {$this->table} WHERE id = :id LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':id' => $id]);
+        return $stmt->fetch(PDO::FETCH_OBJ);
+    }
+
+    // NUEVO: Crear usuario desde Google
+    public function crear($data) {
+        $sql = "INSERT INTO {$this->table} (nombre, email, password, rol, google_id) 
+                VALUES (:nombre, :email, :password, :rol, :google_id)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            ':nombre'    => $data['nombre'],
+            ':email'     => $data['email'],
+            ':password'  => $data['password'],
+            ':rol'       => $data['rol'] ?? 'cliente',
+            ':google_id' => $data['google_id'] ?? null
+        ]);
+        
+        $userId = $this->db->lastInsertId();
+        $this->registrarAcceso($userId, true); // Registramos el primer acceso
+        return $userId;
     }
 
     private function registrarAcceso($userId, $exitoso) {

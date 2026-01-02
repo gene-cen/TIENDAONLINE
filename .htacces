@@ -1,0 +1,12 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /tienda-online/
+
+    # Si entran a la raíz, mándalos a public/index.php
+    RewriteRule ^$ public/index.php [L]
+
+    # Si el archivo no existe en la raíz, pásalo como parámetro a public/index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ public/index.php?url=$1 [QSA,L]
+</IfModule>
