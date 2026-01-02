@@ -1,0 +1,8 @@
+RewriteEngine On
+RewriteBase /tienda-online/
+
+# Redirigir a la carpeta public
+RewriteRule ^$ public/index.php [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ public/index.php?url=$1 [QSA,L]
