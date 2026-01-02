@@ -10,7 +10,7 @@ class Database {
     private $host = "localhost";
     private $db_name = "ecommerce_db";
     private $username = "root";
-    private $password = ""; // En XAMPP por defecto es vacío
+    private $password = ""; // En XAMPP por defecto es vacío.
     private $charset = "utf8mb4";
     public $conn;
 
