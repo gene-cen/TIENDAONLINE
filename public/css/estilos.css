@@ -1,0 +1,39 @@
+#wrapper {
+    overflow-x: hidden;
+    display: flex; /* Clave para poner sidebar y contenido lado a lado */
+    min-height: 100vh;
+}
+
+#sidebar-wrapper {
+    min-width: 15rem; /* Ancho del sidebar (aprox 240px) */
+    max-width: 15rem;
+    transition: margin .25s ease-out;
+}
+
+#sidebar-wrapper .sidebar-heading {
+    padding: 0.875rem 1.25rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+#page-content-wrapper {
+    width: 100%; /* Toma el resto del espacio */
+    transition: margin .25s ease-out;
+}
+
+/* Efecto hover en los links */
+.list-group-item-action:hover {
+    background-color: #343a40 !important; /* Un gris un poco más claro */
+    color: #f8f9fa !important;
+}
+
+/* Responsividad: En móbiles ocultamos el sidebar por defecto */
+@media (max-width: 768px) {
+    #sidebar-wrapper {
+        margin-left: -15rem;
+    }
+    /* Clase para mostrarlo con JS */
+    #wrapper.toggled #sidebar-wrapper {
+        margin-left: 0;
+    }
+}

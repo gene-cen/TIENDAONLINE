@@ -1,47 +1,91 @@
 <?php
-// 1. Iniciar sesión es obligatorio para el Login
 session_start();
-
-// 2. Configuración de errores (Desactivar en producción)
+date_default_timezone_set('America/Santiago');
+// Configuración de errores
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// 3. Definir la URL base
-// Asegúrate de que termine con /public/ si tu index está dentro de esa carpeta
+// Definir URL Base
 define('BASE_URL', 'http://localhost/tienda-online/public/');
 
-// 4. Cargar el autoloader de Composer
+// Cargar librerías
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use App\Config\Database;
 use App\Controllers\AuthController;
+use App\Controllers\HomeController;
 
-// 5. Inicializar conexión a Base de Datos
+// Conexión a Base de Datos
 $database = new Database();
 $db = $database->getConnection();
 
-// 6. Instanciar controladores necesarios
+// Instancia de Controladores
 $authController = new AuthController($db);
+$perfilController = new \App\Controllers\PerfilController($db);
+$carritoController = new \App\Controllers\CarritoController();
+$checkoutController = new \App\Controllers\CheckoutController($db);
+$adminController = new \App\Controllers\AdminController($db);
+$homeController = new \App\Controllers\HomeController($db);
 
-// 7. Obtener la URL amigable (.htaccess debe estar configurado)
-$url = $_GET['url'] ?? 'auth/login'; // Por defecto mandamos al login
+// Router Simple
+$url = $_GET['url'] ?? 'auth/login';
 $url = rtrim($url, '/');
-$urlParts = explode('/', $url);
 
-// 8. SISTEMA DE RUTEO MVC
+// =========================================================
+// 1. RUTAS DINÁMICAS (Con parámetros ID)
+// =========================================================
+// IMPORTANTE: Estas van SIEMPRE FUERA del switch
+
+// Ver Pedido
+if (strpos($url, 'admin/pedido/ver/') === 0) {
+    $partes = explode('/', $url);
+    $id = end($partes);
+    $adminController->verDetalle($id);
+    exit();
+}
+
+// --- GESTIÓN DE PRODUCTOS (IDs) ---
+
+// Editar Producto
+if (strpos($url, 'admin/producto/editar/') === 0) {
+    $partes = explode('/', $url);
+    $id = end($partes);
+    $adminController->editarProducto($id);
+    exit();
+}
+
+// Eliminar Producto
+if (strpos($url, 'admin/producto/eliminar/') === 0) {
+    $partes = explode('/', $url);
+    $id = end($partes);
+    $adminController->eliminarProducto($id);
+    exit();
+}
+
+// Toggle (Activar/Desactivar) - AQUÍ ESTABA TU ERROR
+if (strpos($url, 'admin/producto/toggle/') === 0) {
+    $partes = explode('/', $url);
+    $id = end($partes);
+    $adminController->toggleProducto($id);
+    exit();
+}
+
+// =========================================================
+// 2. RUTAS ESTÁTICAS (Switch normal)
+// =========================================================
+
 switch ($url) {
-    // --- RUTAS DE AUTENTICACIÓN ---
+    // --- LOGIN ---
     case 'auth/login':
-        // Si ya está logueado, mandar al home
         if (isset($_SESSION['user_id'])) {
             header("Location: " . BASE_URL . "home");
             exit();
         }
-        // Procesa el login (si es POST) o muestra el formulario
-        $error = $authController->login(); 
+        $error = $authController->login();
         include __DIR__ . '/../views/auth/login.php';
         break;
 
+    // --- GOOGLE ---
     case 'auth/google':
         $authController->googleLogin();
         break;
@@ -50,60 +94,158 @@ switch ($url) {
         $authController->googleCallback();
         break;
 
+    // --- LOGOUT ---
     case 'auth/logout':
         session_destroy();
         header("Location: " . BASE_URL . "auth/login");
         exit();
         break;
 
-    case 'auth/login':
-    if (isset($_SESSION['user_id'])) { header("Location: " . BASE_URL . "home"); exit(); }
-    $authController->login();  // <--- OJO AQUÍ
-    include __DIR__ . '/../views/auth/login.php';
-    break;
-
-    // --- RUTA PRINCIPAL (TIENDA) ---
+    // --- HOME (TIENDA PÚBLICA) ---
     case 'home':
-        // Verificar seguridad: Solo usuarios logueados
-        if (!isset($_SESSION['user_id'])) {
-            header("Location: " . BASE_URL . "auth/login");
-            exit();
-        }
-
-        // Preparamos el contenido dinámico para el Layout
-        // Aquí eventualmente instanciarás un 'ProductController'
-        ob_start(); // Iniciamos buffer para capturar el HTML
-        ?>
-        
-        <div class="row mb-4 align-items-center">
-            <div class="col-md-8">
-                <h2 class="text-primary">Hola, <?= htmlspecialchars($_SESSION['user_nombre']) ?> 👋</h2>
-                <p class="text-muted">Bienvenido a la tienda oficial de CENCOCAL S.A.</p>
-            </div>
-            <div class="col-md-4 text-end">
-                <img src="<?= BASE_URL ?>assets/img/cencocalin.png" alt="Mascota" height="80">
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-12">
-                <div class="alert alert-info">
-                    Aquí cargaremos tus productos pronto.
-                </div>
-            </div>
-        </div>
-
-        <?php
-        $content = ob_get_clean(); // Guardamos el HTML en $content
-        
-        // Cargar el Layout Maestro
-        include __DIR__ . '/../views/layouts/main.php'; 
+        $productoModel = new \App\Models\Producto($db);
+        $productos = $productoModel->obtenerDisponibles(); // Solo activos
+        ob_start();
+        include __DIR__ . '/../views/home.php';
+        $content = ob_get_clean();
+        include __DIR__ . '/../views/layouts/main.php';
         break;
 
-    // --- RUTAS NO ENCONTRADAS ---
+    case 'auth/register':
+        if (isset($_SESSION['user_id'])) {
+            header("Location: " . BASE_URL . "home");
+            exit();
+        }
+        $error = null;
+        $success = false;
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $resultado = $authController->register();
+            if ($resultado === true) {
+                $success = true;
+            } else {
+                $error = $resultado;
+            }
+        }
+        include __DIR__ . '/../views/auth/register.php';
+        break;
+
+    // --- VERIFICACIÓN DE EMAIL ---
+    case 'auth/verificar':
+        $authController->verificar();
+        break;
+
+    // --- PERFIL DE USUARIO ---
+    case 'perfil':
+        $perfilController->index();
+        break;
+
+    case 'perfil/guardar':
+        $perfilController->guardar();
+        break;
+
+    // --- CARRITO DE COMPRAS ---
+    case 'carrito/agregar':
+        $carritoController->agregar();
+        break;
+
+    case 'carrito/vaciar':
+        $carritoController->vaciar();
+        break;
+
+    case 'carrito/ver':
+        $carritoController->ver();
+        break;
+
+    case 'carrito/eliminar':
+        $carritoController->eliminar();
+        break;
+
+    case 'carrito/subir':
+        $carritoController->subir();
+        break;
+
+    case 'carrito/bajar':
+        $carritoController->bajar();
+        break;
+
+    // --- CHECKOUT (CAJA) ---
+    case 'checkout':
+        $checkoutController->index();
+        break;
+
+    case 'checkout/procesar':
+        $checkoutController->procesar();
+        break;
+
+    // --- RECUPERACIÓN DE CONTRASEÑA ---
+    case 'auth/forgot':
+        $authController->forgot();
+        break;
+
+    case 'auth/send-recovery':
+        $authController->sendRecovery();
+        break;
+
+    case 'auth/reset':
+        $authController->reset();
+        break;
+
+    case 'auth/update-password':
+        $authController->updatePassword();
+        break;
+
+    // =====================================================
+    // ZONA ADMIN
+    // =====================================================
+
+    // Dashboard General
+    case 'admin/dashboard':
+        $adminController->dashboard();
+        break;
+
+    // Exportar Pedidos (Excel/JSON)
+    case 'admin/exportar_pedidos':
+        $adminController->exportar();
+        break;
+
+    // Cambiar estado de Pedido
+    case 'admin/pedido/cambiar_estado':
+        $adminController->cambiarEstado();
+        break;
+
+    // --- GESTIÓN DE PRODUCTOS ---
+
+    // 1. Listar Productos (Esta te faltaba)
+    case 'admin/productos':
+        $adminController->productos();
+        break;
+
+    // 2. Importar desde ERP (CSV)
+    case 'admin/importar_erp':
+        $adminController->importarERP();
+        break;
+
+    // 3. Crear Producto Manual
+    case 'admin/producto/crear':
+        $adminController->crearProducto();
+        break;
+
+    // 4. Guardar Producto (Sirve para Crear y Editar)
+    case 'admin/producto/guardar':
+        $adminController->guardarProducto();
+        break;
+
+        // Ejemplo en tu router
+        if ($url_parts[0] === 'categoria' && isset($url_parts[1])) {
+            $controller = new HomeController($db);
+            $controller->categoria($url_parts[1]);
+        }
+
+        // --- 404 ---
     default:
         http_response_code(404);
         echo "<h1>404 - Página no encontrada</h1>";
-        echo "<a href='" . BASE_URL . "home'>Volver al inicio</a>";
+        echo "<p>Ruta buscada: " . htmlspecialchars($url) . "</p>";
+        echo "<a href='" . BASE_URL . "home'>Volver</a>";
         break;
 }

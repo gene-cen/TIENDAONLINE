@@ -1,0 +1,2 @@
+Hola Génesis Contreras, verifica tu cuenta aquí: http://localhost/tienda-online/public/auth/verificar?token=0718187e4ebaf7eb63acfdcad57092024f248f188bf7932650f8e01462cdf2acRECUPERACIÓN: Entra aquí para cambiar tu clave: http://localhost/tienda-online/public/auth/reset?token=f2de30685a3b65da777c680665ad621b35fd26b028149671a04dddddc598c3f7
+RECUPERACIÓN: Entra aquí para cambiar tu clave: http://localhost/tienda-online/public/auth/reset?token=f65eca57aea9049ea083c35777225b22c2552d30ff2ffb945b74b9771ce5a22b
