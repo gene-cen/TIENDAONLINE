@@ -19,8 +19,8 @@ class AuthController
 
         // Configuramos el cliente de Google
         $this->googleClient = new GoogleClient();
-        $this->googleClient->setClientId('TU_CLIENT_ID_FALSO');
-        $this->googleClient->setClientSecret('TU_SECRET_FALSO');
+        $this->googleClient->setClientId($_ENV['GOOGLE_CLIENT_ID']);
+        $this->googleClient->setClientSecret($_ENV['GOOGLE_CLIENT_SECRET']);
         $this->googleClient->setRedirectUri(BASE_URL . "auth/google-callback");
         $this->googleClient->addScope("email");
         $this->googleClient->addScope("profile");

@@ -10,6 +10,8 @@ define('BASE_URL', 'http://localhost/tienda-online/public/');
 
 // Cargar librerías
 require_once __DIR__ . '/../vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
+$dotenv->load();
 require_once __DIR__ . '/../app/helpers.php';
 
 use App\Config\Database;
@@ -349,12 +351,6 @@ switch ($url) {
         $controller = new App\Controllers\PerfilController($db);
         $controller->agregarTelefonoPerfil();
         break;
-
-    case 'admin/exportar_pedidos':
-
-
-
-
 
         // --- 404 NOT FOUND ---
     default:
