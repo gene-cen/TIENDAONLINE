@@ -1,0 +1,9 @@
+# Dependencias de Composer (¡Esto es lo que pesa 70MB!)
+/vendor/
+
+# Archivos de entorno y credenciales ocultas (Como las claves de Google)
+.env
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
