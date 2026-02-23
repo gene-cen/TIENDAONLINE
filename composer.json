@@ -3,9 +3,10 @@
     "type": "project",
     "description": "Ecommerce con PHP, Webpay y Reportes PDF",
     "require": {
-        "phpmailer/phpmailer": "^6.9",
+        "phpmailer/phpmailer": "^7.0",
         "dompdf/dompdf": "^3.0",
-        "transbank/transbank-sdk": "^4.0"
+        "transbank/transbank-sdk": "^4.0",
+        "google/apiclient": "^2.18"
     },
     "autoload": {
         "psr-4": {

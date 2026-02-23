@@ -1,0 +1,11 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # IMPORTANTE: Esto evita el bucle infinito
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Nota que aquí NO escribimos "public/index.php", solo "index.php"
+    # porque ya estamos dentro de la carpeta.
+    RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
+</IfModule>
