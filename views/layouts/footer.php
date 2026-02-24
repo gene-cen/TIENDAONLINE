@@ -142,7 +142,7 @@
             <div class="col-lg-3 col-md-6">
                 <img src="<?= BASE_URL ?>img/logo.png" alt="Cencocal S.A." height="50" class="d-block bg-white rounded-3 p-2 mb-3 shadow-sm" style="width: auto;">
                 <p class="footer-text mb-4">
-                    Tu socio estratégico en distribución. Conectamos calidad y confianza con tu negocio, entregando siempre a tiempo.
+                    Somos tu socio estratégico en distribución. Conectamos calidad y confianza con tu negocio, entregando siempre a tiempo.
                 </p>
 
                 <h6 class="text-uppercase text-white opacity-50 mb-3 small fw-bold ls-1">Síguenos</h6>
@@ -181,7 +181,7 @@
                     <li class="d-flex align-items-start gap-3">
                         <i class="bi bi-geo-alt text-cenco-green fs-5 mt-1"></i>
                         <div>
-                            <span class="d-block fw-semibold text-white">Oficinas Negocios & Transformación Digital</span>
+                            <span class="d-block fw-semibold text-white">Oficinas de Negocios & Transformación Digital</span>
                             <span class="footer-text small">Santiago 884, Villa Alemana<br>Región de Valparaíso.</span>
                         </div>
                     </li>
@@ -211,7 +211,17 @@
                     <div class="trust-badge">
                         <img src="<?= BASE_URL ?>img/soysociocrcp2025.png" alt="CRCP Valparaíso">
                     </div>
+
+                    <div class="trust-badge">
+                        <img src="<?= BASE_URL ?>img/chep.jpg" alt="Smart Movement">
+                    </div>
                 </div>
+
+
+
+
+
+
             </div>
 
         </div>
@@ -323,14 +333,14 @@
 
             </div>
 
-        
 
-        <div class="modal-footer border-0 bg-light p-0 position-relative overflow-hidden d-flex align-items-center justify-content-center" style="height: 70px;">
-            <img src="<?= BASE_URL ?>img/logo.png"
-                alt="Cencocal"
-                class="img-fluid w-100 opacity-25"
-                style="height: 100%; object-fit: contain; filter: grayscale(100%); mix-blend-mode: multiply; transform: scale(0.8);">
-        </div>
+
+            <div class="modal-footer border-0 bg-light p-0 position-relative overflow-hidden d-flex align-items-center justify-content-center" style="height: 70px;">
+                <img src="<?= BASE_URL ?>img/logo.png"
+                    alt="Cencocal"
+                    class="img-fluid w-100 opacity-25"
+                    style="height: 100%; object-fit: contain; filter: grayscale(100%); mix-blend-mode: multiply; transform: scale(0.8);">
+            </div>
 
         </div>
 

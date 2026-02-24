@@ -4,7 +4,7 @@
 window.AccessManager = {
     settings: { activeClasses: [], filter: '', textLevel: 0 },
 
-    init: function() {
+    init: function () {
         const saved = localStorage.getItem('cenco_accessibility');
         if (saved) {
             this.settings = JSON.parse(saved);
@@ -13,23 +13,23 @@ window.AccessManager = {
         }
     },
 
-    toggle: function(className) {
+    toggle: function (className) {
         const body = document.body;
         const fullClass = 'access-' + className;
         if (body.classList.contains(fullClass)) {
             body.classList.remove(fullClass);
             this.settings.activeClasses = this.settings.activeClasses.filter(c => c !== fullClass);
         } else {
-            if(className === 'dark') this.removeExclusive(['access-invert', 'access-high-contrast']);
-            if(className === 'invert') this.removeExclusive(['access-dark', 'access-high-contrast']);
-            if(className === 'high-contrast') this.removeExclusive(['access-dark', 'access-invert']);
+            if (className === 'dark') this.removeExclusive(['access-invert', 'access-high-contrast']);
+            if (className === 'invert') this.removeExclusive(['access-dark', 'access-high-contrast']);
+            if (className === 'high-contrast') this.removeExclusive(['access-dark', 'access-invert']);
             body.classList.add(fullClass);
             this.settings.activeClasses.push(fullClass);
         }
         this.save();
     },
 
-    cycleText: function() {
+    cycleText: function () {
         document.body.classList.remove('access-lvl-1', 'access-lvl-2', 'access-lvl-3');
         this.settings.textLevel++;
         if (this.settings.textLevel > 3) this.settings.textLevel = 0;
@@ -38,47 +38,47 @@ window.AccessManager = {
         this.save();
     },
 
-    updateTextButtonLabel: function() {
+    updateTextButtonLabel: function () {
         const btnLabel = document.getElementById('text-size-label');
         if (!btnLabel) return;
         const labels = ['Texto Normal', 'Texto Grande', 'Texto Muy Grande', 'Texto Gigante'];
         btnLabel.innerText = labels[this.settings.textLevel];
     },
 
-    setFilter: function(filterName) {
+    setFilter: function (filterName) {
         document.body.classList.remove('filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia');
         if (filterName) document.body.classList.add('filter-' + filterName);
         this.settings.filter = filterName;
         this.save();
     },
 
-    removeExclusive: function(ClasesToRemove) {
+    removeExclusive: function (ClasesToRemove) {
         ClasesToRemove.forEach(c => {
             document.body.classList.remove(c);
             this.settings.activeClasses = this.settings.activeClasses.filter(ac => ac !== c);
         });
     },
 
-    applySettings: function() {
+    applySettings: function () {
         this.settings.activeClasses.forEach(c => document.body.classList.add(c));
         if (this.settings.filter) this.setFilter(this.settings.filter);
         if (this.settings.textLevel > 0) document.body.classList.add('access-lvl-' + this.settings.textLevel);
         this.updateTextButtonLabel();
         const select = document.querySelector('#accessibilityModal select');
-        if(select && this.settings.filter) select.value = this.settings.filter;
+        if (select && this.settings.filter) select.value = this.settings.filter;
     },
 
-    reset: function() {
+    reset: function () {
         this.settings = { activeClasses: [], filter: '', textLevel: 0 };
         const classes = ['access-dark', 'access-invert', 'access-high-contrast', 'access-dyslexic', 'access-no-anim', 'filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia', 'access-lvl-1', 'access-lvl-2', 'access-lvl-3'];
         classes.forEach(c => document.body.classList.remove(c));
         const select = document.querySelector('#accessibilityModal select');
-        if(select) select.value = "";
+        if (select) select.value = "";
         this.updateTextButtonLabel();
         this.save();
     },
 
-    save: function() {
+    save: function () {
         localStorage.setItem('cenco_accessibility', JSON.stringify(this.settings));
     }
 };
@@ -103,23 +103,23 @@ function trackEvento(tipo, etiqueta) {
 // =========================================================
 function cambiarModal(idCerrar, idAbrir) {
     const elCerrar = document.getElementById(idCerrar);
-    if(elCerrar) bootstrap.Modal.getInstance(elCerrar).hide();
+    if (elCerrar) bootstrap.Modal.getInstance(elCerrar).hide();
     setTimeout(() => {
         const elAbrir = document.getElementById(idAbrir);
-        if(elAbrir) new bootstrap.Modal(elAbrir).show();
+        if (elAbrir) new bootstrap.Modal(elAbrir).show();
     }, 200);
 }
 
 function reabrirLogin() {
     const errorEl = document.getElementById('loginErrorModal');
-    if(errorEl) bootstrap.Modal.getInstance(errorEl).hide();
+    if (errorEl) bootstrap.Modal.getInstance(errorEl).hide();
     const loginEl = document.getElementById('loginModal');
-    if(loginEl) new bootstrap.Modal(loginEl).show();
+    if (loginEl) new bootstrap.Modal(loginEl).show();
 }
 
 // CARRITO
 function agregarAlCarrito(e, form, idProducto) {
-    if(e) e.preventDefault();
+    if (e) e.preventDefault();
     const btn = form.querySelector('button');
     const original = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
@@ -127,16 +127,16 @@ function agregarAlCarrito(e, form, idProducto) {
 
     const formData = new FormData(form);
     fetch(BASE_URL + 'carrito/agregarAjax', { method: 'POST', body: formData })
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'success') {
-            trackEvento('add_to_cart', 'Producto ID: ' + idProducto);
-            actualizarInterfazGlobal(data);
-            actualizarVistaProducto(idProducto, data.cantidadItem);
-            abrirCarritoLateral();
-        }
-    })
-    .finally(() => { btn.innerHTML = original; btn.disabled = false; });
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                trackEvento('add_to_cart', 'Producto ID: ' + idProducto);
+                actualizarInterfazGlobal(data);
+                actualizarVistaProducto(idProducto, data.cantidadItem);
+                abrirCarritoLateral();
+            }
+        })
+        .finally(() => { btn.innerHTML = original; btn.disabled = false; });
 }
 
 function gestionarClickTarjeta(id, accion) {
@@ -155,12 +155,12 @@ function cambiarCantidad(id, accion, cantidadActual = 0) {
 
     if (accion === 'eliminar') {
         Swal.fire({ ...swalOpts, title: '¿Lo sacamos?', text: "Se eliminará del carro.", showCancelButton: true, confirmButtonText: 'Sí, sacar', cancelButtonText: 'No' })
-        .then(r => { if (r.isConfirmed) procesarCambio(id, accion); });
+            .then(r => { if (r.isConfirmed) procesarCambio(id, accion); });
         return;
     }
     if (accion === 'bajar' && cantidadActual == 1) {
         Swal.fire({ ...swalOpts, title: '¿Descartar?', text: "Queda 1 unidad. ¿Eliminar?", showCancelButton: true, confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Mantener' })
-        .then(r => { if (r.isConfirmed) procesarCambio(id, accion); });
+            .then(r => { if (r.isConfirmed) procesarCambio(id, accion); });
         return;
     }
     procesarCambio(id, accion);
@@ -188,16 +188,16 @@ function actualizarVistaProducto(id, cantidad) {
     const counts = document.querySelectorAll(`#count-${id}, #card-count-${id}`);
 
     if (cantidad > 0) {
-        if(card) { card.classList.remove('border-0'); card.classList.add('border-cenco-green'); }
-        if(badge) badge.classList.remove('d-none');
-        if(form) form.classList.add('d-none');
-        if(ctrls) ctrls.classList.remove('d-none');
+        if (card) { card.classList.remove('border-0'); card.classList.add('border-cenco-green'); }
+        if (badge) badge.classList.remove('d-none');
+        if (form) form.classList.add('d-none');
+        if (ctrls) ctrls.classList.remove('d-none');
         counts.forEach(el => el.innerText = cantidad);
     } else {
-        if(card) { card.classList.add('border-0'); card.classList.remove('border-cenco-green'); }
-        if(badge) badge.classList.add('d-none');
-        if(form) form.classList.remove('d-none');
-        if(ctrls) ctrls.classList.add('d-none');
+        if (card) { card.classList.add('border-0'); card.classList.remove('border-cenco-green'); }
+        if (badge) badge.classList.add('d-none');
+        if (form) form.classList.remove('d-none');
+        if (ctrls) ctrls.classList.add('d-none');
     }
 }
 
@@ -212,8 +212,8 @@ function actualizarCarritoLateral() {
     fetch(BASE_URL + 'carrito/obtenerHtml').then(r => r.json()).then(data => {
         const container = document.getElementById('contenido-carrito-lateral');
         const total = document.getElementById('total-carrito-lateral');
-        if(container) container.innerHTML = data.html;
-        if(total) total.innerText = data.total;
+        if (container) container.innerHTML = data.html;
+        if (total) total.innerText = data.total;
     });
 }
 
@@ -234,8 +234,8 @@ function initMapRegister() {
     mapRegister = L.map('mapa-container').setView([-33.4489, -70.6693], 13);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapRegister);
     markerRegister = L.marker([-33.4489, -70.6693], { draggable: true }).addTo(mapRegister);
-    markerRegister.on('dragend', function(e) { updateCoordsRegister(markerRegister.getLatLng()); });
-    mapRegister.on('click', function(e) { markerRegister.setLatLng(e.latlng); updateCoordsRegister(e.latlng); });
+    markerRegister.on('dragend', function (e) { updateCoordsRegister(markerRegister.getLatLng()); });
+    mapRegister.on('click', function (e) { markerRegister.setLatLng(e.latlng); updateCoordsRegister(e.latlng); });
 }
 
 function updateCoordsRegister(pos) {
@@ -268,14 +268,14 @@ function formatearRut(rutInput) {
 // =========================================================
 // INICIALIZACIÓN GLOBAL (DOM READY)
 // =========================================================
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
     window.AccessManager.init();
 
     // Fix Sidebar Admin
     const sidebarElement = document.getElementById('adminSidebar');
     const btnMenu = document.querySelector('[data-bs-target="#adminSidebar"]');
     if (sidebarElement && btnMenu) {
-        btnMenu.addEventListener('click', function(e) {
+        btnMenu.addEventListener('click', function (e) {
             e.preventDefault(); const bsOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(sidebarElement); bsOffcanvas.show();
         });
     }
@@ -283,7 +283,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // Fix Mapa Registro
     const registerModalEl = document.getElementById('registerModal');
     if (registerModalEl) {
-        registerModalEl.addEventListener('shown.bs.modal', function() {
+        registerModalEl.addEventListener('shown.bs.modal', function () {
             if (document.getElementById('checkDireccion').checked && mapRegister) setTimeout(() => mapRegister.invalidateSize(), 200);
         });
     }
@@ -291,7 +291,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // Validación Términos (Cencocalin Abogado)
     const formRegistro = document.getElementById('formRegistro');
     if (formRegistro) {
-        formRegistro.addEventListener('submit', function(e) {
+        formRegistro.addEventListener('submit', function (e) {
             const checkTerms = document.getElementById('checkTerms');
             if (!checkTerms.checked) {
                 e.preventDefault();
@@ -309,35 +309,45 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     // MENSAJES Y CENCOCALINES DINÁMICOS
+    // MENSAJES Y CENCOCALINES DINÁMICOS (Versión Profesional)
     const urlParams = new URLSearchParams(window.location.search);
     const msg = urlParams.get('msg');
 
     if (msg) {
-        let title = "¡Listo!"; let text = "Acción realizada."; let img = "cencocalin_logrado.png"; let isError = false;
+        let title = ""; let text = ""; let img = "cencocalin_logrado.png";
+        let mostrarModal = true;
 
         switch (msg) {
-            case 'recuperacion_enviada': case 'registro_exito': 
-                title = "¡Revisa tu correo!"; text = "Te hemos enviado las instrucciones."; img = "cencocalin_envio_correo.png"; break;
-            case 'compra_exitosa': 
-                title = "¡Compra Exitosa!"; text = "¡Gracias por preferirnos!"; img = "cencocalin_celebrando_compra.png"; break;
-            case 'pass_actualizada': 
-                title = "Contraseña Actualizada"; text = "Tu cuenta está segura."; img = "cencocalin_seguridad.png"; break;
-            case 'login_exito': 
-                title = "¡Hola de nuevo!"; text = "Estamos felices de tenerte de vuelta!"; img = "cencocalin_bienvenida.png"; break;
-            case 'logout_exito': 
+            case 'compra_exitosa': case 'pago_exitoso':
+                title = "¡Compra Exitosa!";
+                text = "¡Gracias por preferirnos! Tu pedido está en proceso.";
+                img = "cencocalin_celebrando_compra.png";
+                break;
+            case 'pago_rechazado_banco':
+                title = "Pago Rechazado";
+                text = "Tu banco no autorizó la transacción. Prueba con otro medio.";
+                img = "cencocalin_algo_fallo.png";
+                break;
+            case 'pago_anulado_usuario':
+                title = "Pago Cancelado";
+                text = "Has cancelado el proceso de pago.";
+                img = "cencocalin_preocupado.png";
+                break;
+            case 'login_exito':
+                title = "¡Hola de nuevo!"; text = "¡Estamos felices de tenerte de vuelta!"; img = "cencocalin_bienvenida.png"; break;
+            case 'logout_exito':
                 title = "¡Hasta la próxima!"; text = "Esperamos verte pronto."; img = "cencocalin_despidiendo.png"; break;
-            case 'login_error': case 'error_email_duplicado': case 'token_invalido':
-                isError = true; title = "¡Ups! Algo falló"; img = "cencocalin_algo_fallo.png"; 
-                if (msg === 'login_error') text = "Tus credenciales no coinciden.";
-                if (msg === 'error_email_duplicado') text = "Correo ya registrado.";
+            // ... (mantén tus otros casos de contraseña o registro) ...
+            default:
+                // Si el mensaje no está mapeado, NO mostramos el modal por defecto
+                // Esto evita el pop-up de "Acción realizada" que bloquea Webpay
+                mostrarModal = false;
                 break;
         }
 
-        if (msg === 'login_error' && document.getElementById('loginErrorModal')) {
-            new bootstrap.Modal(document.getElementById('loginErrorModal')).show();
-        } else {
+        if (mostrarModal) {
             const modalEl = document.getElementById('successModal');
-            if(modalEl){
+            if (modalEl) {
                 document.getElementById('successTitle').innerText = title;
                 document.getElementById('successMessage').innerText = text;
                 const imgEl = document.getElementById('successImage');
@@ -345,6 +355,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 new bootstrap.Modal(modalEl).show();
             }
         }
+        // Limpiamos la URL para que el mensaje no salga de nuevo al recargar
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 });

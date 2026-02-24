@@ -20,39 +20,32 @@
         </div>
     </div>
 </div>
+
 <div id="carruselPrincipal" class="carousel slide shadow-sm mb-5 rounded-4 overflow-hidden" data-bs-ride="carousel">
+    <?php if (!empty($bannersHome)): ?>
 
-    <div class="carousel-indicators">
-        <button type="button" data-bs-target="#carruselPrincipal" data-bs-slide-to="0" class="active"></button>
-        <button type="button" data-bs-target="#carruselPrincipal" data-bs-slide-to="1"></button>
-        <button type="button" data-bs-target="#carruselPrincipal" data-bs-slide-to="2"></button>
-    </div>
-
-    <div class="carousel-inner">
-
-        <div class="carousel-item active" data-bs-interval="6000">
-            <a href="<?= BASE_URL ?>home/catalogo?categoria=Cuidado Bebé">
-                <img src="<?= BASE_URL ?>img/banner/banner baby.png" class="d-block w-100" alt="Banner Bebé" style="min-height: 300px; object-fit: cover;">
-            </a>
+        <div class="carousel-indicators">
+            <?php foreach ($bannersHome as $index => $banner): ?>
+                <button type="button" data-bs-target="#carruselPrincipal" data-bs-slide-to="<?= $index ?>" class="<?= $index === 0 ? 'active' : '' ?>"></button>
+            <?php endforeach; ?>
         </div>
 
-        <div class="carousel-item" data-bs-interval="6000">
-            <a href="<?= BASE_URL ?>home/catalogo?marca=Cien">
-                <img src="<?= BASE_URL ?>img/banner/banner Cien.png" class="d-block w-100" alt="Banner Cien" style="min-height: 300px; object-fit: cover;">
-            </a>
+        <div class="carousel-inner">
+            <?php foreach ($bannersHome as $index => $banner):
+                $ruta_img = BASE_URL . htmlspecialchars($banner['ruta_imagen']);
+            ?>
+                <div class="carousel-item <?= $index === 0 ? 'active' : '' ?>" data-bs-interval="6000">
+                    <img src="<?= $ruta_img ?>" class="d-block w-100" alt="<?= htmlspecialchars($banner['titulo']) ?>" style="min-height: 300px; object-fit: cover;">
+                </div>
+            <?php endforeach; ?>
         </div>
 
-        <div class="carousel-item" data-bs-interval="6000">
-            <a href="<?= BASE_URL ?>home/locales">
-                <img src="<?= BASE_URL ?>img/banner/banner Despacho.png" class="d-block w-100" alt="Banner Despacho" style="min-height: 300px; object-fit: cover;">
-            </a>
-        </div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#carruselPrincipal" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
+        <button class="carousel-control-next" type="button" data-bs-target="#carruselPrincipal" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
 
-    </div>
-
-    <button class="carousel-control-prev" type="button" data-bs-target="#carruselPrincipal" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
-    <button class="carousel-control-next" type="button" data-bs-target="#carruselPrincipal" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
+    <?php endif; ?>
 </div>
+
 
 <section class="bg-light py-5 border-bottom">
     <div class="container">
@@ -245,6 +238,45 @@
         endif; ?>
     </div>
 </div>
+
+
+<div class="container mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 px-2">
+        <h3 class="fw-black text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">PRECIOS QUE SORPRENDEN, MARCAS QUE CONFÍAS</h3>
+        <a href="<?= BASE_URL ?>home/catalogo" class="btn btn-outline-cenco-indigo btn-sm rounded-pill fw-bold px-3">Ver Todas <i class="bi bi-arrow-right"></i></a>
+    </div>
+
+    <div class="row row-cols-2 row-cols-md-4 g-3 justify-content-center">
+        <?php
+        // Array estático temporal (Luego lo cambiaremos por una consulta a BD)
+        $marcasDestacadas = [
+            'Pampers',
+            'Cotidian',
+            'Coca Cola',
+            'Gourmet',
+            'Nescafe',
+            'Lucchetti',
+            'Omo',
+            'Maggi'
+        ];
+
+        foreach ($marcasDestacadas as $marcaD):
+            // Asumimos que los logos estarán en public/img/marcas_destacadas/
+            $urlImgMarca = BASE_URL . "img/marcas_destacadas/" . urlencode($marcaD) . ".png";
+        ?>
+            <div class="col">
+                <a href="<?= BASE_URL ?>home/catalogo?marca=<?= urlencode($marcaD) ?>" class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm rounded-4 hover-scale transition-hover d-flex align-items-center justify-content-center p-3" style="min-height: 120px;">
+                        <img src="<?= $urlImgMarca ?>" alt="<?= htmlspecialchars($marcaD) ?>" class="img-fluid" style="max-height: 80px; object-fit: contain;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <span style="display:none; font-weight:bold; color: var(--cenco-indigo); text-align: center;">
+                            <?= htmlspecialchars($marcaD) ?>
+                        </span>
+                    </div>
+                </a>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
 <div class="container mb-5 mt-5">
     <div class="rounded-4 overflow-visible shadow-lg position-relative px-4 px-md-5 py-4 d-flex align-items-center" style="background: linear-gradient(135deg, var(--cenco-indigo) 0%, #303f9f 60%, var(--cenco-green) 100%); min-height: 320px;">
         <div class="position-absolute top-0 start-0 translate-middle rounded-circle bg-white opacity-10" style="width: 300px; height: 300px;"></div>
@@ -347,9 +379,9 @@
 </div>
 
 <div class="container mb-5 mt-4">
-   <div class="d-flex justify-content-between align-items-center mb-4 px-2">
-    <h3 class="fw-black text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">NUESTROS PROYECTOS</h3>
-</div>
+    <div class="d-flex justify-content-between align-items-center mb-4 px-2">
+        <h3 class="fw-black text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">NUESTROS PROYECTOS</h3>
+    </div>
     <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-4 justify-content-center">
         <?php
         $proyectosTop = ['Unilever', 'Carozzi', 'Watts', 'Softys', 'Iansa', 'Clorox'];
@@ -367,6 +399,7 @@
         <?php endforeach; ?>
     </div>
 </div>
+
 <style>
     /* Estilos para las líneas divisorias responsivas */
     .info-card-item {
@@ -426,7 +459,7 @@
             <div class="mb-3 text-cenco-indigo"><i class="bi bi-file-earmark-text fs-1"></i></div>
             <h6 class="fw-bold text-cenco-indigo text-uppercase ls-1 mb-2">Atención Personalizada</h6>
             <p class="text-muted small mb-3 px-3">¿Necesitas una cotización especial o ayuda con tu pedido?</p>
-            <a href="https://wa.me/56912345678" target="_blank" class="text-decoration-none fw-bold text-cenco-green small">Contáctanos aquí <i class="bi bi-arrow-right"></i></a>
+            <a href="https://wa.me/56946452516" target="_blank" class="text-decoration-none fw-bold text-cenco-green small">Contáctanos aquí <i class="bi bi-arrow-right"></i></a>
         </div>
 
         <div class="col-md-6 col-lg-3 info-card-item d-flex flex-column align-items-center justify-content-center">

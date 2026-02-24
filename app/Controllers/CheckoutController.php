@@ -83,55 +83,54 @@ class CheckoutController
     }
 
     // Paso 2: Procesar la compra
+  /**
+     * Paso 2: Procesar la compra y derivar a Webpay
+     * Se encarga de la persistencia del pedido en estado "Pendiente" (1) 
+     * y la redirección limpia a la pasarela de pago.
+     */
     public function procesar()
     {
+        // Validamos que la petición sea POST y existan datos de sesión
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['carrito']) && isset($_SESSION['user_id'])) {
+            
+            // 1. SEGURIDAD DE SALIDA (Output Buffering)
+            // Limpiamos cualquier salida accidental previa para asegurar que el header() funcione
+            if (ob_get_level()) ob_end_clean(); 
+            ob_start();
 
             try {
                 $user = $this->userModel->getById($_SESSION['user_id']);
 
-                // 1. LÓGICA DE FECHA Y RANGO HORARIO
+                // 2. LÓGICA DE FECHA Y RANGO HORARIO (Escalable)
                 date_default_timezone_set('America/Santiago');
                 $horaActual = (int)date('H');
-
-                $fechaEntrega = date('Y-m-d');
-                $rangoId = 1;
-
-                if ($horaActual >= 17) {
-                    $fechaEntrega = date('Y-m-d', strtotime('+1 day'));
-                    $rangoId = 1;
-                } else {
+                $fechaEntrega = ($horaActual >= 17) ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d');
+                
+                // Determinamos el ID del rango según la hora de corte
+                if ($horaActual >= 17) $rangoId = 1;
+                else {
                     if ($horaActual < 9) $rangoId = 1;
                     elseif ($horaActual < 11) $rangoId = 2;
                     elseif ($horaActual < 15) $rangoId = 3;
                     else $rangoId = 4;
                 }
 
-                // 2. DATOS DE CONTACTO (Estructura Normalizada)
-                $nombreDestinatario = $user->nombre;
-
-                // --- PROCESAMIENTO DE TELÉFONOS (Titular + Segundo Contacto) ---
-                // El primer teléfono es el del titular (fijo según tu requerimiento)
+                // 3. PROCESAMIENTO DE TELÉFONOS (Agenda o Nuevo)
                 $telefonoContacto = $_POST['telefono_contacto'] ?? '';
-
-                // Lógica para el Segundo Teléfono (Agenda o Nuevo)
                 $segundoSeleccionado = $_POST['telefono_seleccionado_2'] ?? '';
                 $telefonoContacto2 = null;
 
                 if ($segundoSeleccionado === 'nuevo') {
                     $telefonoContacto2 = $_POST['telefono_nuevo_2'] ?? null;
-
-                    // Si el usuario marcó guardar, lo añadimos a la base de datos de usuario_telefonos
                     if (!empty($_POST['guardar_nuevo_2']) && !empty($telefonoContacto2)) {
                         $alias = !empty($_POST['nuevo_alias_2']) ? $_POST['nuevo_alias_2'] : 'Contacto Alternativo';
                         $this->userModel->agregarTelefono($user->id, $telefonoContacto2, $alias, 0);
                     }
                 } elseif (!empty($segundoSeleccionado)) {
-                    // Si eligió uno existente de su lista (marido, santiago, etc.)
                     $telefonoContacto2 = $segundoSeleccionado;
                 }
 
-                // 3. CALCULO DE TOTALES
+                // 4. CÁLCULO DE TOTALES (Neto y Bruto)
                 $totalBruto = 0;
                 $cantidadItems = 0;
                 foreach ($_SESSION['carrito'] as $id => $item) {
@@ -140,89 +139,45 @@ class CheckoutController
                 }
                 $totalNeto = round($totalBruto / 1.19);
 
-                // 4. LÓGICA DE ENTREGA
+                // 5. LÓGICA LOGÍSTICA (Dirección, Comuna y Sucursal)
                 $tipoEntrega = isset($_POST['tipo_entrega']) ? (int)$_POST['tipo_entrega'] : 1;
-                $sucursalCodigo = '10';
+                $sucursalCodigo = '10'; // Por defecto Sucursal La Calera
                 $vendedorCodigo = '0003';
-                $costoEnvio = 0;
-                $direccionTexto = '';
-                $comunaId = null;
-                $latitud = null;
-                $longitud = null;
+                $costoEnvio = ($totalBruto > 49950) ? 0 : 1990;
+
+                // Definimos datos geográficos finales
+                $origenDireccion = $_POST['origen_direccion'] ?? 'perfil';
+                $direccionTexto = $_POST['direccion'] ?? $user->direccion;
+                $comunaId = $_POST['nueva_comuna_id'] ?? $user->comuna_id;
+                $latitud = $_POST['nueva_lat'] ?? null;
+                $longitud = $_POST['nueva_lng'] ?? null;
 
                 if ($tipoEntrega === 2) {
-                    // RETIRO
+                    // Caso Retiro
                     $sucursalCodigo = $_POST['sucursal_codigo'] ?? '10';
                     $direccionTexto = "RETIRO EN TIENDA: Sucursal " . $sucursalCodigo;
                     $comunaId = $user->comuna_id;
                     $costoEnvio = 0;
-                } else {
-                    // DESPACHO
-                    $origenDireccion = $_POST['origen_direccion'] ?? 'perfil';
-
-                    if ($origenDireccion === 'nueva') {
-                        $direccionTexto = $_POST['nueva_direccion'];
-                        $comunaId = $_POST['nueva_comuna_id'];
-                        // Capturar coordenadas del formulario
-                        $latitud = !empty($_POST['nueva_lat']) ? $_POST['nueva_lat'] : null;
-                        $longitud = !empty($_POST['nueva_lng']) ? $_POST['nueva_lng'] : null;
-
-                        // Si no vienen por POST pero es una dirección guardada, las buscamos en la DB
-                        if (empty($latitud) && isset($_POST['origen_direccion']) && is_numeric($_POST['origen_direccion'])) {
-                            $dirGuardada = $this->direccionModel->obtenerPorId($_POST['origen_direccion'], $user->id);
-                            if ($dirGuardada) {
-                                $latitud = $dirGuardada->latitud;
-                                $longitud = $dirGuardada->longitud;
-                            }
-                        }
-
-                        try {
-                            $this->direccionModel->crear([
-                                'usuario_id'      => $user->id,
-                                'nombre_etiqueta' => $_POST['nueva_alias'] ?? 'Nueva',
-                                'direccion'       => $direccionTexto,
-                                'comuna_id'       => $comunaId,
-                                'latitud'         => $latitud,
-                                'longitud'        => $longitud,
-                                'activo'          => 1
-                            ]);
-                        } catch (\Exception $e) {
-                            error_log("Error guardando dirección nueva: " . $e->getMessage());
-                        }
-                    } else {
-                        $dirId = $origenDireccion;
-                        if (is_numeric($dirId)) {
-                            $dirGuardada = $this->direccionModel->obtenerPorId($dirId, $user->id);
-                            if ($dirGuardada) {
-                                $direccionTexto = $dirGuardada->direccion;
-                                $comunaId = $dirGuardada->comuna_id;
-                                $latitud = $dirGuardada->latitud;
-                                $longitud = $dirGuardada->longitud;
-                            } else {
-                                $direccionTexto = $user->direccion;
-                                $comunaId = $user->comuna_id;
-                            }
-                        } else {
-                            $direccionTexto = $user->direccion;
-                            $comunaId = $user->comuna_id;
-                        }
+                } else if (is_numeric($origenDireccion)) {
+                    // Si el usuario eligió una dirección de su agenda, recuperamos sus datos reales
+                    $dirGuardada = $this->direccionModel->obtenerPorId($origenDireccion, $user->id);
+                    if ($dirGuardada) {
+                        $direccionTexto = $dirGuardada->direccion;
+                        $comunaId = $dirGuardada->comuna_id;
+                        $latitud = $dirGuardada->latitud;
+                        $longitud = $dirGuardada->longitud;
                     }
-
-                    $costoEnvio = ($totalBruto > 49950) ? 0 : 1990;
                 }
 
-                // ASIGNACIÓN SUCURSAL LOGÍSTICA (Cencocal Rules)
+                // Reglas de asignación logística según zona (Comunas Interior)
                 $idsComunasInterior = [63, 66, 64, 65, 62, 80];
                 if (in_array((int)$comunaId, $idsComunasInterior)) {
                     if ($tipoEntrega !== 2) $sucursalCodigo = '29';
                     $vendedorCodigo = '2990';
-                } else {
-                    if ($tipoEntrega !== 2) $sucursalCodigo = '10';
-                    $vendedorCodigo = '0003';
                 }
 
-                // 5. PREPARAR DATOS PARA EL MODELO PEDIDO
-                $montoTotalFinal = $totalBruto + $costoEnvio;
+                // 6. PERSISTENCIA ATÓMICA DEL PEDIDO
+                $montoTotalFinal = $totalBruto + (($tipoEntrega === 2) ? 0 : $costoEnvio);
                 $rutLimpio = str_replace(['.', '-'], '', $user->rut);
                 $rutERP = str_pad($rutLimpio, 11, '0', STR_PAD_LEFT);
 
@@ -233,17 +188,17 @@ class CheckoutController
                     'vendedor_codigo'          => $vendedorCodigo,
                     'total_neto'               => $totalNeto,
                     'monto_total'              => $montoTotalFinal,
-                    'costo_envio'              => $costoEnvio,
+                    'costo_envio'              => ($tipoEntrega === 2) ? 0 : $costoEnvio,
                     'direccion_entrega_texto'  => $direccionTexto,
                     'comuna_id'                => $comunaId,
-                    'estado_pedido_id'         => 2, // PAGADO
-                    'forma_pago_id'            => 3,
+                    'estado_pedido_id'         => 1, // 1: PENDIENTE DE PAGO
+                    'forma_pago_id'            => 3, // 3: WEBPAY PLUS
                     'cantidad_items'           => $cantidadItems,
                     'cantidad_total_productos' => count($_SESSION['carrito']),
                     'tipo_entrega_id'          => $tipoEntrega,
                     'latitud'                  => $latitud,
                     'longitud'                 => $longitud,
-                    'nombre_destinatario'      => $nombreDestinatario,
+                    'nombre_destinatario'      => $user->nombre,
                     'fecha_entrega_estimada'   => $fechaEntrega,
                     'rango_horario_id'         => $rangoId,
                     'telefono_contacto'        => $telefonoContacto,
@@ -254,43 +209,39 @@ class CheckoutController
 
                 $resultado = $this->pedidoModel->crear($datosPedido);
                 $pedidoId = $resultado['id'];
-                $tracking = $resultado['tracking'];
 
                 foreach ($_SESSION['carrito'] as $id => $item) {
                     $productoReal = $this->productoModel->getById($id);
                     if ($productoReal) {
-                        $precioBruto = $item['precio'];
-                        $precioNeto = round($precioBruto / 1.19);
                         $this->pedidoModel->agregarDetalle(
                             $pedidoId,
                             $productoReal,
                             $item['cantidad'],
-                            ['neto' => $precioNeto, 'bruto' => $precioBruto]
+                            ['neto' => round($item['precio'] / 1.19), 'bruto' => $item['precio']]
                         );
                     }
                 }
 
                 $this->db->commit();
 
-                // Notificación por Mail
-                try {
-                    $mailService = new \App\Services\MailService();
-                    $mailService->enviarConfirmacionCompra($user->email, $user->nombre, $pedidoId, $montoTotalFinal, $tracking);
-                } catch (\Exception $e) {
-                    error_log("Error mail: " . $e->getMessage());
-                }
-
-                $_SESSION['carrito'] = [];
-                header("Location: " . BASE_URL . "home?msg=compra_exitosa&folio=" . $pedidoId . "&trk=" . $tracking);
+                // 7. REDIRECCIÓN FINAL A WEBPAY
+                // Limpiamos buffer para que no haya salida de texto accidental
+                ob_clean();
+                
+                header("Location: " . BASE_URL . "webpay/pagar?id=" . $pedidoId);
                 exit();
+
             } catch (\Exception $e) {
                 if ($this->db->inTransaction()) $this->db->rollBack();
-                error_log("Error checkout: " . $e->getMessage());
-                header("Location: " . BASE_URL . "checkout?error=" . urlencode($e->getMessage()));
+                error_log("Error crítico en Checkout: " . $e->getMessage());
+                
+                if (ob_get_level()) ob_end_clean();
+                header("Location: " . BASE_URL . "checkout?error=fallo_sistema&info=" . urlencode($e->getMessage()));
                 exit;
             }
         } else {
             header("Location: " . BASE_URL . "home");
+            exit();
         }
     }
 }

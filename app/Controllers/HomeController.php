@@ -40,25 +40,22 @@ class HomeController
     }
 
     // =========================================================
-    // 1. PORTADA (HOME)
-    // =========================================================
-   // =========================================================
-    // 1. PORTADA (HOME) - ACTUALIZADO CON OFERTAS
+    // 1. PORTADA (HOME) - ACTUALIZADO CON BANNERS Y MARCAS
     // =========================================================
     public function index()
     {
         // A. CATEGORÍAS (Sidebar)
         $categorias = $this->cargarCategorias();
 
-        // B. MARCAS
+        // B. MARCAS (Generales para filtros/menú)
         $stmtMarcas = $this->db->query("SELECT * FROM marcas WHERE activo = 1 ORDER BY nombre ASC");
         $marcas = $stmtMarcas->fetchAll(\PDO::FETCH_ASSOC);
 
         // C. NOVEDADES (5 últimos)
         $sqlNovedades = "SELECT p.id, p.cod_producto, p.precio, p.stock, p.imagen, 
-                                piw.nombre_web, 
-                                m.nombre as marca, 
-                                wc.nombre as categoria 
+                                 piw.nombre_web, 
+                                 m.nombre as marca, 
+                                 wc.nombre as categoria 
                          FROM productos p 
                          INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                          LEFT JOIN marcas m ON piw.marca_id = m.id
@@ -68,8 +65,7 @@ class HomeController
         $stmtNovedades = $this->db->query($sqlNovedades);
         $productos = $stmtNovedades->fetchAll(\PDO::FETCH_ASSOC);
 
-        // D. OFERTAS EXCLUSIVAS (NUEVA SECCIÓN)
-        // Traemos 4 productos aleatorios para simular ofertas
+        // D. OFERTAS EXCLUSIVAS
         $sqlOfertas = "SELECT p.id, p.cod_producto, p.precio, p.stock, p.imagen, 
                               piw.nombre_web, m.nombre as marca 
                        FROM productos p 
@@ -90,6 +86,17 @@ class HomeController
                            ORDER BY RAND() LIMIT 5";
         $stmtMasVendidos = $this->db->query($sqlMasVendidos);
         $masVendidos = $stmtMasVendidos->fetchAll(\PDO::FETCH_ASSOC);
+
+        // F. BANNERS DINÁMICOS PARA EL CARRUSEL
+        $sqlBanners = "SELECT * FROM carrusel_banners WHERE estado_activo = 1 ORDER BY orden ASC";
+        $stmtBanners = $this->db->query($sqlBanners);
+        $bannersHome = $stmtBanners->fetchAll(\PDO::FETCH_ASSOC);
+
+        // G. MARCAS DESTACADAS (GRILLA 2x4)
+        // Traemos las primeras 8 marcas activas configuradas en el mantenedor
+        $sqlMarcasDestacadas = "SELECT * FROM marcas_destacadas WHERE estado_activo = 1 ORDER BY orden ASC LIMIT 8";
+        $stmtMD = $this->db->query($sqlMarcasDestacadas);
+        $marcasHome = $stmtMD->fetchAll(\PDO::FETCH_ASSOC);
 
         // --- CARGAR VISTAS ---
         ob_start();
@@ -114,27 +121,21 @@ class HomeController
     // =========================================================
     public function catalogo()
     {
-        // 1. PRIMERO CAPTURAMOS LOS FILTROS (GET)
-        // (Movemos esto al principio para usarlos en las consultas de filtros laterales)
         $catFilter   = $_GET['categoria'] ?? null;
         $marcaFilter = $_GET['marca'] ?? null;
         $busqueda    = $_GET['q'] ?? null;
-        $minPrecio   = $_GET['min_price'] ?? null; // Se define más abajo el default
+        $minPrecio   = $_GET['min_price'] ?? null; 
         $maxPrecio   = $_GET['max_price'] ?? null;
         $orden       = $_GET['orden'] ?? 'relevancia';
 
-        // 2. CARGA DE DATOS PARA FILTROS LATERALES (DINÁMICO)
         $categorias = [];
         $marcasList = [];
         $rangoPrecio = ['min' => 0, 'max' => 1000000];
 
         try {
-            // A. CATEGORÍAS (Siempre mostramos todas para permitir navegar)
             $stmtCat = $this->db->query("SELECT * FROM web_categorias WHERE activo = 1 ORDER BY nombre ASC");
             if ($stmtCat) $categorias = $stmtCat->fetchAll(\PDO::FETCH_ASSOC);
 
-            // B. MARCAS (FILTRADAS POR CATEGORÍA ACTUAL)
-            // Aquí está la magia: Hacemos un JOIN con la categoría para filtrar
             $sqlMarcas = "SELECT DISTINCT m.nombre 
                           FROM marcas m 
                           INNER JOIN productos_info_web piw ON m.id = piw.marca_id 
@@ -143,29 +144,21 @@ class HomeController
                           WHERE p.activo = 1";
             
             $paramsMarcas = [];
-
-            // Si hay una categoría seleccionada, SOLO cargamos marcas de esa categoría
             if ($catFilter) {
                 $sqlMarcas .= " AND wc.nombre = ?";
                 $paramsMarcas[] = $catFilter;
             }
-
-            // Opcional: Si hay búsqueda, también filtramos marcas que coincidan con la búsqueda
             if ($busqueda) {
                 $sqlMarcas .= " AND (piw.nombre_web LIKE ? OR p.nombre LIKE ?)";
                 $paramsMarcas[] = "%$busqueda%";
                 $paramsMarcas[] = "%$busqueda%";
             }
-
             $sqlMarcas .= " ORDER BY m.nombre ASC";
 
             $stmtMarcas = $this->db->prepare($sqlMarcas);
             $stmtMarcas->execute($paramsMarcas);
             $marcasList = $stmtMarcas->fetchAll(\PDO::FETCH_ASSOC);
 
-
-            // C. RANGO DE PRECIOS GLOBAL (O filtrado por categoría si prefieres)
-            // Dejamos global para que el slider siempre tenga sentido base
             $stmtPrecios = $this->db->query("SELECT MIN(precio) as min_p, MAX(precio) as max_p FROM productos WHERE activo = 1");
             $preciosDb = $stmtPrecios->fetch(\PDO::FETCH_ASSOC);
             if ($preciosDb) {
@@ -177,17 +170,14 @@ class HomeController
             error_log("Error filtros catalogo: " . $e->getMessage());
         }
 
-        // Definir defaults de precio si no vienen en GET
         if ($minPrecio === null) $minPrecio = $rangoPrecio['min'];
         if ($maxPrecio === null) $maxPrecio = $rangoPrecio['max'];
 
-        // 3. PAGINACIÓN
         $por_pagina = 25; 
         $pagina     = isset($_GET['p']) ? (int)$_GET['p'] : 1;
         if ($pagina < 1) $pagina = 1;
         $offset = ($pagina - 1) * $por_pagina;
 
-        // 4. CONSTRUCCIÓN SQL PRODUCTOS
         $sqlBase = "FROM productos p 
                     LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                     LEFT JOIN marcas m ON piw.marca_id = m.id
@@ -195,8 +185,6 @@ class HomeController
                     WHERE p.activo = 1";
         
         $params = [];
-
-        // Filtros SQL
         if ($catFilter) {
             $sqlBase .= " AND wc.nombre = ?";
             $params[] = $catFilter;
@@ -210,18 +198,15 @@ class HomeController
             $termino = "%$busqueda%";
             $params[] = $termino; $params[] = $termino; $params[] = $termino;
         }
-        // Filtro Precio
         $sqlBase .= " AND p.precio BETWEEN ? AND ?";
         $params[] = $minPrecio;
         $params[] = $maxPrecio;
 
-        // 5. CONTEO TOTAL
         $stmtCount = $this->db->prepare("SELECT COUNT(*) " . $sqlBase);
         $stmtCount->execute($params);
         $total_registros = $stmtCount->fetchColumn();
         $total_paginas   = ceil($total_registros / $por_pagina);
 
-        // 6. ORDENAMIENTO
         $sqlOrder = "";
         switch ($orden) {
             case 'precio_asc':  $sqlOrder = " ORDER BY p.precio ASC"; break;
@@ -230,7 +215,6 @@ class HomeController
             default:            $sqlOrder = " ORDER BY p.id DESC"; break;
         }
 
-        // 7. OBTENER PRODUCTOS
         $sqlFinal = "SELECT p.*, m.nombre as marca, piw.nombre_web, wc.nombre as cat_web 
                      " . $sqlBase . $sqlOrder . " LIMIT $por_pagina OFFSET $offset";
                       
@@ -238,12 +222,10 @@ class HomeController
         $stmt->execute($params);
         $productos = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // 8. TÍTULO DINÁMICO
         $titulo = "Catálogo Completo";
         if ($catFilter) $titulo = $catFilter;
         if ($busqueda) $titulo = 'Resultados para: "' . htmlspecialchars($busqueda) . '"';
 
-        // 9. RENDERIZADO
         ob_start();
         include __DIR__ . '/../../views/home/catalogo_view.php';
         $content = ob_get_clean();
@@ -278,15 +260,10 @@ class HomeController
        require_once __DIR__ . '/../Models/Sucursal.php';
         $sucursalModel = new \App\Models\Sucursal($this->db);
         
-        // Obtenemos la data lista para la vista
         $sucursales = $sucursalModel->obtenerTodas();
-        // Título de la página
         $titulo = "Nuestras Sucursales";
-
-        // 2. Cargar Categorías (Usamos función auxiliar)
         $categorias = $this->cargarCategorias();
 
-        // 3. Renderizar
         ob_start();
         include __DIR__ . '/../../views/home/locales.php';
         $content = ob_get_clean();
@@ -298,10 +275,7 @@ class HomeController
     // 6. TÉRMINOS Y CONDICIONES
     // =========================================================
     public function terminos() {
-        // 1. Cargar Categorías (Usamos función auxiliar)
         $categorias = $this->cargarCategorias();
-
-        // 2. Renderizar vista
         $titulo = "Términos y Condiciones";
         
         ob_start();
@@ -323,7 +297,6 @@ class HomeController
             exit;
         }
 
-        // A. Obtener datos del producto principal
         $sql = "SELECT p.*, 
                        m.nombre as marca, 
                        piw.nombre_web, 
@@ -341,33 +314,28 @@ class HomeController
         $producto = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if (!$producto) {
-            // Si no existe o está inactivo, volver al catálogo
             header("Location: " . BASE_URL . "home/catalogo");
             exit;
         }
 
-        // B. Obtener Productos Relacionados (Misma categoría)
         $relacionados = [];
         if (!empty($producto['cat_id'])) {
             $sqlRel = "SELECT p.id, p.precio, p.stock, p.imagen, 
-                              piw.nombre_web, m.nombre as marca
+                               piw.nombre_web, m.nombre as marca
                        FROM productos p 
                        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                        LEFT JOIN marcas m ON piw.marca_id = m.id
                        WHERE piw.web_categoria_id = ? 
                        AND p.id != ? 
                        AND p.activo = 1
-                       ORDER BY RAND() LIMIT 4"; // Traemos 4 al azar
+                       ORDER BY RAND() LIMIT 4";
             
             $stmtRel = $this->db->prepare($sqlRel);
             $stmtRel->execute([$producto['cat_id'], $id]);
             $relacionados = $stmtRel->fetchAll(\PDO::FETCH_ASSOC);
         }
 
-        // C. Cargar Categorías para el Sidebar (siempre necesario para main.php)
         $categorias = $this->cargarCategorias();
-
-        // Renderizar
         $titulo = !empty($producto['nombre_web']) ? $producto['nombre_web'] : $producto['nombre'];
         
         ob_start();
@@ -377,22 +345,15 @@ class HomeController
         include __DIR__ . '/../../views/layouts/main.php';
     }
 
-    // En App/Controllers/HomeController.php
-// En App/Controllers/HomeController.php
-
     public function catalogoVisual()
     {
-        // Aumentamos tiempo y memoria límite por si son demasiados productos
         ini_set('memory_limit', '512M'); 
         set_time_limit(300); 
 
         $busqueda = $_GET['q'] ?? '';
-
-        // Obtenemos TODO de una vez
         $productos = $this->productoModel->obtenerTodosPublicos($busqueda);
         $total_registros = count($productos);
 
-        // Variables para la vista (ya no necesitamos $paginas ni $pagina_actual)
         $data = [
             'productos' => $productos,
             'busqueda' => $busqueda,
@@ -400,8 +361,6 @@ class HomeController
         ];
 
         ob_start();
-        // Nota: Como no usas extract($data), asegúrate de que la vista use $productos, $busqueda, etc.
-        // Al hacer include en el mismo ámbito, las variables locales ($productos) pasan.
         require_once __DIR__ . '/../../views/home/catalogo_chorizo.php';
         $content = ob_get_clean();
         

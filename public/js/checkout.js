@@ -362,3 +362,19 @@ function ocultarSegundoTelefono() {
     document.getElementById('btn-add-phone-container').classList.remove('d-none');
     document.getElementById('telefono_2').value = '';
 }
+
+// Manejo del envío final del Checkout
+document.getElementById('formCheckout').addEventListener('submit', function(e) {
+    // No usamos e.preventDefault() porque queremos que viaje al PHP
+    
+   // Swal.fire({
+     //   title: 'Redirigiendo a Webpay',
+       // text: 'Estamos preparando tu pago seguro...',
+       // icon: 'info',
+        //allowOutsideClick: false,
+       // showConfirmButton: false,
+        //didOpen: () => {
+         //   Swal.showLoading();
+       // }
+   // });
+});

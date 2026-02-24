@@ -106,13 +106,12 @@ class Pedido
         $stmt = $this->db->query($sql);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
-    public function obtenerPorId($id)
+public function obtenerPorId($id)
     {
         $sql = "SELECT p.*, 
                        u.nombre as nombre_cliente, 
                        u.email as email_cliente, 
-                       u.telefono as telefono_cliente,
+                       ut.numero as telefono_cliente, /* <--- AHORA LEE DE LA NUEVA TABLA */
                        u.rut as rut_cliente,
                        c.nombre as nombre_comuna,
                        ep_pago.nombre as nombre_estado_pago,
@@ -120,6 +119,7 @@ class Pedido
                        ep_pedido.badge_class as badge_estado
                 FROM pedidos p
                 LEFT JOIN usuarios u ON p.usuario_id = u.id
+                LEFT JOIN usuario_telefonos ut ON u.id = ut.usuario_id AND ut.es_principal = 1 /* <--- CONEXIÓN A LA TABLA */
                 LEFT JOIN comunas c ON p.comuna_id = c.id
                 LEFT JOIN estados_pago ep_pago ON p.estado_pago_id = ep_pago.id
                 LEFT JOIN estados_pedido ep_pedido ON p.estado_pedido_id = ep_pedido.id

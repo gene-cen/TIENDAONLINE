@@ -38,7 +38,7 @@ $carritoController = new \App\Controllers\CarritoController();
 $checkoutController = new \App\Controllers\CheckoutController($db);
 $adminController = new \App\Controllers\AdminController($db); // Usamos este para todo lo admin
 $homeController = new \App\Controllers\HomeController($db);
-
+$webpayController = new \App\Controllers\WebpayController($db);
 // Router Simple
 $url = $_GET['url'] ?? 'auth/login';
 $url = rtrim($url, '/');
@@ -76,6 +76,21 @@ if (strpos($url, 'admin/producto/toggle/') === 0) {
     $partes = explode('/', $url);
     $id = end($partes);
     $adminController->toggleProducto($id);
+    exit();
+}
+
+// Eliminar Banner
+if (strpos($url, 'admin/banners/borrar/') === 0) {
+    $partes = explode('/', $url);
+    $id = end($partes);
+    $adminController->borrarBanner($id);
+    exit();
+}
+
+if (strpos($url, 'admin/marcas/borrar/') === 0) {
+    $partes = explode('/', $url);
+    $id = end($partes);
+    $adminController->borrarMarca($id); // Debes crear esta función similar a borrarBanner
     exit();
 }
 
@@ -352,7 +367,48 @@ switch ($url) {
         $controller->agregarTelefonoPerfil();
         break;
 
-        // --- 404 NOT FOUND ---
+    // webpay
+    case 'webpay/pagar':
+        $webpayController->iniciar($_GET['id'] ?? null);
+        exit(); // Agrega este exit
+        break;
+
+    case 'webpay/confirmar':
+        $webpayController->confirmar();
+        break;
+
+    // Banners (Mantenedor)
+    case 'admin/banners':
+        $adminController->banners();
+        break;
+    case 'admin/banners/guardar':
+        $adminController->guardarBanner();
+        break;
+    case 'admin/banners/borrar': // Solo por si lo necesitas atajar por switch
+        // (Ya lo tienes en la parte de arriba con strpos, así que esto es opcional)
+        break;
+
+    // --- AÑADE ESTAS DOS LÍNEAS NUEVAS ---
+    case 'admin/banners/actualizar':
+        $adminController->actualizarBanner();
+        break;
+    case 'admin/banners/toggleAjax':
+        $adminController->toggleBannerAjax();
+        break;
+
+    case 'admin/marcas':
+        $adminController->marcasDestacadas();
+        break;
+    case 'admin/marcas/guardar':
+        $adminController->guardarMarcaDestacada();
+        break;
+
+    case 'admin/marcas/actualizar':
+        $adminController->actualizarMarcaDestacada();
+        break;
+
+        
+    // --- 404 NOT FOUND ---
     default:
         http_response_code(404);
         // Puedes crear una vista bonita para el 404

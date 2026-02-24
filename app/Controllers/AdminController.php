@@ -523,4 +523,229 @@ class AdminController
         $content = ob_get_clean();
         require_once __DIR__ . '/../../views/layouts/main.php';
     }
+
+    // =========================================================
+    // 🖼️ MANTENEDOR: GESTIÓN DE BANNERS
+    // =========================================================
+    public function banners()
+    {
+        $this->verificarAdmin();
+
+        // 1. Obtener todos los banners de la base de datos
+        $stmt = $this->db->query("SELECT * FROM carrusel_banners ORDER BY orden ASC");
+        $banners = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // 2. Variables obligatorias para que no se rompa el Layout
+        $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
+        $categorias = $listaCategorias;
+        $esAdmin = true;
+
+        // 3. Renderizar la vista que creaste
+        ob_start();
+        require_once __DIR__ . '/../../views/admin/banners.php';
+        $content = ob_get_clean();
+        require_once __DIR__ . '/../../views/layouts/main.php';
+    }
+
+ public function guardarBanner()
+    {
+        $this->verificarAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $titulo = $_POST['titulo'] ?? '';
+            // Si viene vacío, asigna 1 por defecto
+            $orden = !empty($_POST['orden']) ? (int)$_POST['orden'] : 1; 
+            
+            $imagen = $_FILES['imagen'];
+            $directorio_destino = __DIR__ . '/../../public/img/banner/';
+            
+            if (!file_exists($directorio_destino)) {
+                mkdir($directorio_destino, 0777, true);
+            }
+
+            if ($imagen['error'] === UPLOAD_ERR_OK) {
+                $nombre_archivo = time() . '_' . basename($imagen['name']);
+                $ruta_fisica = $directorio_destino . $nombre_archivo;
+                $ruta_bd = 'img/banner/' . $nombre_archivo; 
+                
+                if (move_uploaded_file($imagen['tmp_name'], $ruta_fisica)) {
+                    // Quitamos la URL de la consulta SQL
+                    $stmt = $this->db->prepare("INSERT INTO carrusel_banners (titulo, ruta_imagen, orden) VALUES (?, ?, ?)");
+                    $stmt->execute([$titulo, $ruta_bd, $orden]);
+                }
+            }
+            
+            header("Location: " . BASE_URL . "admin/banners?msg=banner_creado");
+            exit();
+        }
+    }
+
+    // Actualizar Título y Orden desde el Modal
+    public function actualizarBanner()
+    {
+        $this->verificarAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = $_POST['id'];
+            $titulo = $_POST['titulo'] ?? '';
+            $orden = !empty($_POST['orden']) ? (int)$_POST['orden'] : 1;
+
+            $stmt = $this->db->prepare("UPDATE carrusel_banners SET titulo = ?, orden = ? WHERE id = ?");
+            $stmt->execute([$titulo, $orden, $id]);
+
+            header("Location: " . BASE_URL . "admin/banners?msg=banner_actualizado");
+            exit();
+        }
+    }
+
+    // Activar/Desactivar (Ojito) por AJAX
+    public function toggleBannerAjax()
+    {
+        $this->verificarAdmin();
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        $id = $data['id'] ?? null;
+
+        if ($id) {
+            $stmt = $this->db->prepare("SELECT estado_activo FROM carrusel_banners WHERE id = ?");
+            $stmt->execute([$id]);
+            $estado_actual = $stmt->fetchColumn();
+
+            if ($estado_actual !== false) {
+                $nuevo_estado = ($estado_actual == 1) ? 0 : 1;
+                
+                $stmtUp = $this->db->prepare("UPDATE carrusel_banners SET estado_activo = ? WHERE id = ?");
+                $stmtUp->execute([$nuevo_estado, $id]);
+                
+                echo json_encode(['status' => 'success', 'nuevo_estado' => $nuevo_estado]);
+                exit;
+            }
+        }
+        
+        echo json_encode(['status' => 'error']);
+        exit;
+    }
+
+    public function borrarBanner($id)
+    {
+        $this->verificarAdmin();
+        
+        // Buscar el banner para borrar primero el archivo de la carpeta
+        $stmt = $this->db->prepare("SELECT ruta_imagen FROM carrusel_banners WHERE id = ?");
+        $stmt->execute([$id]);
+        $banner = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if ($banner) {
+            $ruta_fisica = __DIR__ . '/../../public/' . $banner['ruta_imagen'];
+            if (file_exists($ruta_fisica) && is_file($ruta_fisica)) {
+                unlink($ruta_fisica); // Elimina la imagen del disco
+            }
+            // Elimina el registro de la BD
+            $stmtDel = $this->db->prepare("DELETE FROM carrusel_banners WHERE id = ?");
+            $stmtDel->execute([$id]);
+        }
+        
+        header("Location: " . BASE_URL . "admin/banners?msg=banner_eliminado");
+        exit();
+    }
+
+    // --- MARCAS DESTACADAS ---
+public function marcasDestacadas() {
+    $this->verificarAdmin();
+    $stmt = $this->db->query("SELECT * FROM marcas_destacadas ORDER BY orden ASC");
+    $marcas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    
+    // Variables para layout
+    $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
+    $categorias = $listaCategorias;
+    $esAdmin = true;
+
+    ob_start();
+    include __DIR__ . '/../../views/admin/marcas_mantenedor.php';
+    $content = ob_get_clean();
+    include __DIR__ . '/../../views/layouts/main.php';
+}
+
+public function guardarMarcaDestacada() {
+    $this->verificarAdmin();
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $nombre = $_POST['nombre'];
+        $orden = $_POST['orden'] ?? 1;
+        $imagen = $_FILES['imagen'];
+
+        if ($imagen['error'] === UPLOAD_ERR_OK) {
+            $nombreArchivo = 'logo_' . time() . '_' . $imagen['name'];
+            $rutaFisica = __DIR__ . '/../../public/img/marcas_destacadas/' . $nombreArchivo;
+            
+            if (!file_exists(dirname($rutaFisica))) mkdir(dirname($rutaFisica), 0777, true);
+
+            if (move_uploaded_file($imagen['tmp_name'], $rutaFisica)) {
+                $rutaBD = 'img/marcas_destacadas/' . $nombreArchivo;
+                $stmt = $this->db->prepare("INSERT INTO marcas_destacadas (nombre, ruta_imagen, orden) VALUES (?, ?, ?)");
+                $stmt->execute([$nombre, $rutaBD, $orden]);
+            }
+        }
+        header("Location: " . BASE_URL . "admin/marcas");
+    }
+}
+
+public function actualizarMarcaDestacada() {
+    $this->verificarAdmin();
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $id = $_POST['id'];
+        $nombre = $_POST['nombre'];
+        $orden = $_POST['orden'] ?? 1;
+        
+        // 1. Actualizar datos básicos
+        $stmt = $this->db->prepare("UPDATE marcas_destacadas SET nombre = ?, orden = ? WHERE id = ?");
+        $stmt->execute([$nombre, $orden, $id]);
+
+        // 2. Si se subió una imagen nueva, procesarla
+        if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
+            // Borrar imagen anterior (opcional pero recomendado)
+            $stmtImg = $this->db->prepare("SELECT ruta_imagen FROM marcas_destacadas WHERE id = ?");
+            $stmtImg->execute([$id]);
+            $vieja = $stmtImg->fetchColumn();
+            if($vieja && file_exists(__DIR__ . '/../../public/' . $vieja)) {
+                unlink(__DIR__ . '/../../public/' . $vieja);
+            }
+
+            $nombreArchivo = 'logo_' . time() . '_' . $_FILES['imagen']['name'];
+            $rutaFisica = __DIR__ . '/../../public/img/marcas_destacadas/' . $nombreArchivo;
+            
+            if (move_uploaded_file($_FILES['imagen']['tmp_name'], $rutaFisica)) {
+                $rutaBD = 'img/marcas_destacadas/' . $nombreArchivo;
+                $stmtUp = $this->db->prepare("UPDATE marcas_destacadas SET ruta_imagen = ? WHERE id = ?");
+                $stmtUp->execute([$rutaBD, $id]);
+            }
+        }
+        header("Location: " . BASE_URL . "admin/marcas?msg=actualizado");
+        exit();
+    }
+}
+public function borrarMarca($id)
+{
+    $this->verificarAdmin();
+    
+    // 1. Buscamos la ruta de la imagen antes de borrar el registro
+    $stmt = $this->db->prepare("SELECT ruta_imagen FROM marcas_destacadas WHERE id = ?");
+    $stmt->execute([$id]);
+    $marca = $stmt->fetch(\PDO::FETCH_ASSOC);
+    
+    if ($marca) {
+        // 2. Intentamos borrar el archivo físico del servidor
+        $rutaFisica = __DIR__ . '/../../public/' . $marca['ruta_imagen'];
+        if (file_exists($rutaFisica) && is_file($rutaFisica)) {
+            unlink($rutaFisica);
+        }
+        
+        // 3. Borramos el registro de la base de datos
+        $stmtDel = $this->db->prepare("DELETE FROM marcas_destacadas WHERE id = ?");
+        $stmtDel->execute([$id]);
+    }
+    
+    header("Location: " . BASE_URL . "admin/marcas?msg=marca_eliminada");
+    exit();
+}
+    
 }
