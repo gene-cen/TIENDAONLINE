@@ -6,31 +6,47 @@ use PDO;
 use PDOException;
 
 class Database {
-    // Configuración para XAMPP local
-    private $host = "localhost";
-    private $db_name = "ecommerce_db";
-    private $username = "root";
-    private $password = ""; // En XAMPP por defecto es vacío.
-    private $charset = "utf8mb4";
     public $conn;
 
     public function getConnection() {
         $this->conn = null;
 
+        // 1. Intentamos obtener la URL de Render
+        $databaseUrl = getenv('DATABASE_URL');
+
         try {
-            // Construcción del DSN (Data Source Name)
-            $dsn = "mysql:host=" . $this->host . ";dbname=" . $this->db_name . ";charset=" . $this->charset;
-            
+            if ($databaseUrl) {
+                // --- CONFIGURACIÓN PARA RENDER (PostgreSQL) ---
+                $dbopts = parse_url($databaseUrl);
+                
+                $host = $dbopts['host'];
+                $port = $dbopts['port'];
+                $user = $dbopts['user'];
+                $pass = $dbopts['pass'];
+                $name = ltrim($dbopts['path'], '/');
+
+                // Nota: Cambiamos "mysql" por "pgsql"
+                $dsn = "pgsql:host=$host;port=$port;dbname=$name";
+                $username = $user;
+                $password = $pass;
+            } else {
+                // --- TU CONFIGURACIÓN LOCAL (XAMPP / MySQL) ---
+                $host = "localhost";
+                $db_name = "ecommerce_db";
+                $username = "root";
+                $password = "";
+                $dsn = "mysql:host=$host;dbname=$db_name;charset=utf8mb4";
+            }
+
             $options = [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION, // Lanza errores si hay fallos
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,       // Devuelve los datos como objetos
-                PDO::ATTR_EMULATE_PREPARES   => false,                // Mayor seguridad contra SQL Injection
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
+                PDO::ATTR_EMULATE_PREPARES   => false,
             ];
 
-            $this->conn = new PDO($dsn, $this->username, $this->password, $options);
+            $this->conn = new PDO($dsn, $username, $password, $options);
             
         } catch(PDOException $exception) {
-            // Si hay error, te lo mostrará en pantalla
             die("Error de conexión: " . $exception->getMessage());
         }
 
