@@ -5,10 +5,12 @@ namespace App\Config;
 use PDO;
 use PDOException;
 
-class Database {
+class Database
+{
     public $conn;
 
-    public function getConnection() {
+    public function getConnection()
+    {
         $this->conn = null;
 
         // 1. Intentamos obtener la URL de Render
@@ -18,14 +20,15 @@ class Database {
             if ($databaseUrl) {
                 // --- CONFIGURACIÓN PARA RENDER (PostgreSQL) ---
                 $dbopts = parse_url($databaseUrl);
-                
+
                 $host = $dbopts['host'];
-                $port = $dbopts['port'];
+                // Si 'port' no existe, usamos 5432 por defecto
+                $port = $dbopts['port'] ?? '5432';
                 $user = $dbopts['user'];
                 $pass = $dbopts['pass'];
                 $name = ltrim($dbopts['path'], '/');
 
-                // Nota: Cambiamos "mysql" por "pgsql"
+                // DSN específico para PostgreSQL
                 $dsn = "pgsql:host=$host;port=$port;dbname=$name";
                 $username = $user;
                 $password = $pass;
@@ -45,8 +48,7 @@ class Database {
             ];
 
             $this->conn = new PDO($dsn, $username, $password, $options);
-            
-        } catch(PDOException $exception) {
+        } catch (PDOException $exception) {
             die("Error de conexión: " . $exception->getMessage());
         }
 
