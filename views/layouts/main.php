@@ -385,6 +385,26 @@ endif;
 <?php if (!isset($esAdmin) || !$esAdmin): ?>
     <script src="<?= BASE_URL ?>js/scripts.js"></script>
 <?php endif; ?>
+<?php if (isset($_SESSION['alerta_carrito'])): ?>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            Swal.fire({
+                icon: 'warning',
+                title: '<?= $_SESSION['alerta_carrito']['titulo'] ?>',
+                html: '<?= $_SESSION['alerta_carrito']['texto'] ?>',
+                confirmButtonColor: '#2A1B5E',
+                confirmButtonText: 'Entendido'
+            }).then(() => {
+                // Opcional: Abrir el carrito lateral para que vea cómo quedó
+                if(typeof abrirCarritoLateral === "function") {
+                    abrirCarritoLateral();
+                }
+            });
+        });
+    </script>
+    <?php unset($_SESSION['alerta_carrito']); // Borramos la alerta para que no salga dos veces ?>
+<?php endif; ?>
+
 
 </body>
 </html>

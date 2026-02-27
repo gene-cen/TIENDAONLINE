@@ -120,23 +120,61 @@ function reabrirLogin() {
 // CARRITO
 function agregarAlCarrito(e, form, idProducto) {
     if (e) e.preventDefault();
+
     const btn = form.querySelector('button');
     const original = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     btn.disabled = true;
 
     const formData = new FormData(form);
-    fetch(BASE_URL + 'carrito/agregarAjax', { method: 'POST', body: formData })
+    // IMPORTANTE: Aseguramos que el ID vaya sí o sí
+    formData.append('id', idProducto);
+
+    fetch(BASE_URL + 'carrito/agregarAjax', {
+        method: 'POST',
+        body: formData
+    })
         .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {
                 trackEvento('add_to_cart', 'Producto ID: ' + idProducto);
+
+                // 1. Actualiza el numerito del carrito en el Navbar
                 actualizarInterfazGlobal(data);
+
+                // 2. Actualiza la tarjeta del catálogo (si existe en la página)
                 actualizarVistaProducto(idProducto, data.cantidadItem);
+
+                // 3. NUEVO: Si estamos en la ficha de producto (detalle), actualizamos sus IDs únicos
+                const badgeDetalle = document.getElementById('badge-llevas-detalle');
+                const countDetalle = document.getElementById('count-detalle');
+                const cardCountDetalle = document.getElementById('card-count-detalle');
+                const controlesDetalle = document.getElementById('controles-detalle');
+                const formDetalle = document.getElementById('form-add-detalle');
+
+                if (badgeDetalle) badgeDetalle.classList.remove('d-none');
+                if (countDetalle) countDetalle.innerText = data.cantidadItem;
+                if (cardCountDetalle) cardCountDetalle.innerText = data.cantidadItem;
+                if (controlesDetalle) controlesDetalle.classList.remove('d-none');
+                if (formDetalle) formDetalle.classList.add('d-none');
+
+                // 4. Abrimos el carrito lateral para dar feedback al usuario
                 abrirCarritoLateral();
+            } else {
+                // Si el controlador blindado detecta precio $0 o sin stock
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Atención',
+                    text: data.mensaje,
+                    confirmButtonColor: '#2A1B5E'
+                });
             }
         })
-        .finally(() => { btn.innerHTML = original; btn.disabled = false; });
+        .catch(err => console.error("Error:", err))
+        .finally(() => {
+            btn.innerHTML = original;
+            btn.disabled = false;
+        });
 }
 
 function gestionarClickTarjeta(id, accion) {
@@ -165,12 +203,36 @@ function cambiarCantidad(id, accion, cantidadActual = 0) {
     }
     procesarCambio(id, accion);
 }
-
 function procesarCambio(id, accion) {
-    const fd = new FormData(); fd.append('id', id); fd.append('accion', accion);
-    fetch(BASE_URL + 'carrito/modificarAjax', { method: 'POST', body: fd }).then(r => r.json()).then(data => {
-        if (data.status === 'success') { actualizarInterfazGlobal(data); actualizarVistaProducto(id, data.cantidadItem); }
-    });
+    const fd = new FormData();
+    fd.append('id', id);
+    fd.append('accion', accion);
+
+    fetch(BASE_URL + 'carrito/modificarAjax', {
+        method: 'POST',
+        body: fd
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                actualizarInterfazGlobal(data);
+                actualizarVistaProducto(id, data.cantidadItem);
+
+                // Actualizar también el contador si estamos en la vista de detalle
+                const detCount = document.getElementById('card-count-detalle');
+                if (detCount) detCount.innerText = data.cantidadItem;
+
+                // Si la cantidad llega a 0 en el detalle, mostrar el formulario de nuevo
+                if (data.cantidadItem === 0) {
+                    const fDet = document.getElementById('form-add-detalle');
+                    const cDet = document.getElementById('controles-detalle');
+                    const bDet = document.getElementById('badge-llevas-detalle');
+                    if (fDet) fDet.classList.remove('d-none');
+                    if (cDet) cDet.classList.add('d-none');
+                    if (bDet) bDet.classList.add('d-none');
+                }
+            }
+        });
 }
 
 function actualizarInterfazGlobal(data) {

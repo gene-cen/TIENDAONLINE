@@ -23,7 +23,7 @@ class WebpayController
     public function iniciar($idPedido)
     {
         $pedido = $this->pedidoModel->obtenerPorId($idPedido);
-        
+
         if (!$pedido) {
             header("Location: " . BASE_URL . "checkout?error=pedido_no_encontrado");
             exit();
@@ -38,12 +38,12 @@ class WebpayController
         try {
             // Configuración con credenciales del .env
             $options = new Options(
-                $_ENV['WEBPAY_API_KEY'], 
-                $_ENV['WEBPAY_COMMERCE_CODE'], 
+                $_ENV['WEBPAY_API_KEY'],
+                $_ENV['WEBPAY_COMMERCE_CODE'],
                 $_ENV['WEBPAY_ENVIRONMENT']
             );
             $tx = new Transaction($options);
-            
+
             $response = $tx->create($buy_order, $session_id, $amount, $return_url);
 
             // INSERT ADAPTADO A TU TABLA ACTUAL
@@ -61,8 +61,7 @@ class WebpayController
                     <p>Por favor no cierres esta ventana.</p>
                   </div>
                   <script>document.getElementById("webpay-form").submit();</script>';
-            exit(); 
-
+            exit();
         } catch (\Exception $e) {
             error_log("Error inicializando Webpay: " . $e->getMessage());
             header("Location: " . BASE_URL . "checkout?msg=error_webpay_init");
@@ -84,12 +83,12 @@ class WebpayController
 
         try {
             $options = new Options(
-                $_ENV['WEBPAY_API_KEY'], 
-                $_ENV['WEBPAY_COMMERCE_CODE'], 
+                $_ENV['WEBPAY_API_KEY'],
+                $_ENV['WEBPAY_COMMERCE_CODE'],
                 $_ENV['WEBPAY_ENVIRONMENT']
             );
             $tx = new Transaction($options);
-            
+
             // Confirmamos la transacción con Transbank
             $result = $tx->commit($token);
 
@@ -105,6 +104,10 @@ class WebpayController
 
                     $this->pedidoModel->actualizarEstado($idPedido, 2); // 2 = Pagado
                     $this->pedidoModel->registrarHistorial($idPedido, 2, 'Pago aprobado vía Webpay Plus. Orden: ' . $result->getBuyOrder());
+
+                    // --- MAGIA: RESERVAMOS EL STOCK PARA EVITAR SOBREVENTAS ---
+                    $this->pedidoModel->reservarStock($idPedido);
+                    // -----------------------------------------------------------
 
                     // UPDATE ADAPTADO A TU TABLA ACTUAL
                     $update = "UPDATE transacciones_webpay 
@@ -128,8 +131,8 @@ class WebpayController
 
                 header("Location: " . BASE_URL . "perfil?msg=pago_exitoso&orden=" . $result->getBuyOrder());
                 exit();
-
             } else {
+                // ... (el resto del código de pago rechazado sigue igual) ...
                 // Pago rechazado
                 if ($idPedido) {
                     // UPDATE ADAPTADO A TU TABLA ACTUAL
@@ -138,14 +141,13 @@ class WebpayController
                                    response_code = ? 
                                WHERE token_ws = ?";
                     $this->db->prepare($update)->execute([$result->getResponseCode(), $token]);
-                    
+
                     $this->pedidoModel->registrarHistorial($idPedido, 1, 'Intento de pago rechazado por el banco.');
                 }
-                
+
                 header("Location: " . BASE_URL . "checkout?msg=pago_rechazado_banco");
                 exit();
             }
-
         } catch (\Exception $e) {
             error_log("Error en Confirmación Webpay: " . $e->getMessage());
             header("Location: " . BASE_URL . "checkout?msg=error_tecnico_webpay");

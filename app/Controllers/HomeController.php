@@ -17,98 +17,87 @@ class HomeController
         $this->db = $db;
         $this->productoModel = new Producto($db);
         $this->categoriaModel = new Categoria($db);
+
+        // ASEGURAR QUE SIEMPRE HAYA UNA SUCURSAL ACTIVA
+        if (!isset($_SESSION['sucursal_activa'])) {
+            $_SESSION['sucursal_activa'] = 29; // La Calera por defecto
+            $_SESSION['comuna_nombre'] = 'La Calera';
+        }
     }
 
-    /**
-     * MÉTODO PRIVADO AUXILIAR
-     * Carga las categorías para el Sidebar en main.php
-     * Evita repetir código y asegura que el menú siempre funcione.
-     */
-    private function cargarCategorias() {
+    private function cargarCategorias()
+    {
         $categorias = [];
         try {
-            // Usamos la tabla 'web_categorias' y ordenamos por nombre
             $stmt = $this->db->query("SELECT * FROM web_categorias WHERE activo = 1 ORDER BY nombre ASC");
             if ($stmt) {
                 $categorias = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             }
         } catch (\Exception $e) {
-            // Log de error silencioso para no romper la web
             error_log("Error cargando categorías sidebar: " . $e->getMessage());
         }
         return $categorias;
     }
 
     // =========================================================
-    // 1. PORTADA (HOME) - ACTUALIZADO CON BANNERS Y MARCAS
+    // 1. PORTADA (HOME) - SOLO PRODUCTOS CON STOCK Y PRECIO
     // =========================================================
     public function index()
     {
-        // A. CATEGORÍAS (Sidebar)
         $categorias = $this->cargarCategorias();
+        $sucursal_id = $_SESSION['sucursal_activa'];
 
-        // B. MARCAS (Generales para filtros/menú)
         $stmtMarcas = $this->db->query("SELECT * FROM marcas WHERE activo = 1 ORDER BY nombre ASC");
         $marcas = $stmtMarcas->fetchAll(\PDO::FETCH_ASSOC);
 
-        // C. NOVEDADES (5 últimos)
-        $sqlNovedades = "SELECT p.id, p.cod_producto, p.precio, p.stock, p.imagen, 
-                                 piw.nombre_web, 
-                                 m.nombre as marca, 
-                                 wc.nombre as categoria 
+        // --- CORRECCIÓN: AGREGADO ps.stock > 0 A TODAS LAS CONSULTAS ---
+
+        // C. NOVEDADES (Solo con stock > 0)
+        $sqlNovedades = "SELECT p.id, p.cod_producto, ps.precio, ps.stock, p.imagen, 
+                                 piw.nombre_web, m.nombre as marca, wc.nombre as categoria 
                          FROM productos p 
+                         INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
                          INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                          LEFT JOIN marcas m ON piw.marca_id = m.id
                          LEFT JOIN web_categorias wc ON piw.web_categoria_id = wc.id
-                         WHERE p.activo = 1 
+                         WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
+                         AND ps.precio > 0 AND ps.stock > 0 
                          ORDER BY p.id DESC LIMIT 5";
-        $stmtNovedades = $this->db->query($sqlNovedades);
-        $productos = $stmtNovedades->fetchAll(\PDO::FETCH_ASSOC);
+        $productos = $this->db->query($sqlNovedades)->fetchAll(\PDO::FETCH_ASSOC);
 
-        // D. OFERTAS EXCLUSIVAS
-        $sqlOfertas = "SELECT p.id, p.cod_producto, p.precio, p.stock, p.imagen, 
+        // D. OFERTAS EXCLUSIVAS (Solo con stock > 0)
+        $sqlOfertas = "SELECT p.id, p.cod_producto, ps.precio, ps.stock, p.imagen, 
                               piw.nombre_web, m.nombre as marca 
                        FROM productos p 
+                       INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
                        INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                        LEFT JOIN marcas m ON piw.marca_id = m.id
-                       WHERE p.activo = 1 
+                       WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
+                       AND ps.precio > 0 AND ps.stock > 0 
                        ORDER BY RAND() LIMIT 4";
-        $stmtOfertas = $this->db->query($sqlOfertas);
-        $ofertas = $stmtOfertas->fetchAll(\PDO::FETCH_ASSOC);
+        $ofertas = $this->db->query($sqlOfertas)->fetchAll(\PDO::FETCH_ASSOC);
 
-        // E. MÁS VENDIDOS (Aleatorio 5)
-        $sqlMasVendidos = "SELECT p.id, p.cod_producto, p.precio, p.stock, p.imagen, 
-                                  piw.nombre_web, m.nombre as marca 
+        // E. MÁS VENDIDOS (Solo con stock > 0)
+        $sqlMasVendidos = "SELECT p.id, p.cod_producto, ps.precio, ps.stock, p.imagen, 
+                                 piw.nombre_web, m.nombre as marca 
                            FROM productos p 
+                           INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
                            INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                            LEFT JOIN marcas m ON piw.marca_id = m.id
-                           WHERE p.activo = 1 
+                           WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
+                           AND ps.precio > 0 AND ps.stock > 0 
                            ORDER BY RAND() LIMIT 5";
-        $stmtMasVendidos = $this->db->query($sqlMasVendidos);
-        $masVendidos = $stmtMasVendidos->fetchAll(\PDO::FETCH_ASSOC);
+        $masVendidos = $this->db->query($sqlMasVendidos)->fetchAll(\PDO::FETCH_ASSOC);
 
-        // F. BANNERS DINÁMICOS PARA EL CARRUSEL
-        $sqlBanners = "SELECT * FROM carrusel_banners WHERE estado_activo = 1 ORDER BY orden ASC";
-        $stmtBanners = $this->db->query($sqlBanners);
-        $bannersHome = $stmtBanners->fetchAll(\PDO::FETCH_ASSOC);
+        $bannersHome = $this->db->query("SELECT * FROM carrusel_banners WHERE estado_activo = 1 ORDER BY orden ASC")->fetchAll(\PDO::FETCH_ASSOC);
+        $marcasHome = $this->db->query("SELECT * FROM marcas_destacadas WHERE estado_activo = 1 ORDER BY orden ASC LIMIT 8")->fetchAll(\PDO::FETCH_ASSOC);
 
-        // G. MARCAS DESTACADAS (GRILLA 2x4)
-        // Traemos las primeras 8 marcas activas configuradas en el mantenedor
-        $sqlMarcasDestacadas = "SELECT * FROM marcas_destacadas WHERE estado_activo = 1 ORDER BY orden ASC LIMIT 8";
-        $stmtMD = $this->db->query($sqlMarcasDestacadas);
-        $marcasHome = $stmtMD->fetchAll(\PDO::FETCH_ASSOC);
-
-        // --- CARGAR VISTAS ---
         ob_start();
         require __DIR__ . '/../../views/home/home.php';
         $content = ob_get_clean();
-
         require __DIR__ . '/../../views/layouts/main.php';
     }
 
-    // =========================================================
-    // 2. BUSCADOR
-    // =========================================================
     public function buscar()
     {
         $q = $_GET['q'] ?? '';
@@ -117,73 +106,67 @@ class HomeController
     }
 
     // =========================================================
-    // 3. CATÁLOGO GENERAL (CON MARCAS DINÁMICAS)
+    // 3. CATÁLOGO GENERAL (CON FILTRO DE SUCURSAL Y STOCK)
     // =========================================================
     public function catalogo()
     {
+        $sucursal_id = $_SESSION['sucursal_activa'];
         $catFilter   = $_GET['categoria'] ?? null;
         $marcaFilter = $_GET['marca'] ?? null;
         $busqueda    = $_GET['q'] ?? null;
-        $minPrecio   = $_GET['min_price'] ?? null; 
+        $minPrecio   = $_GET['min_price'] ?? null;
         $maxPrecio   = $_GET['max_price'] ?? null;
         $orden       = $_GET['orden'] ?? 'relevancia';
 
-        $categorias = [];
+        $categorias = $this->cargarCategorias();
         $marcasList = [];
         $rangoPrecio = ['min' => 0, 'max' => 1000000];
 
         try {
-            $stmtCat = $this->db->query("SELECT * FROM web_categorias WHERE activo = 1 ORDER BY nombre ASC");
-            if ($stmtCat) $categorias = $stmtCat->fetchAll(\PDO::FETCH_ASSOC);
-
+            // Ajuste Marcas: Solo marcas que tengan productos con precio y stock en esta sucursal
             $sqlMarcas = "SELECT DISTINCT m.nombre 
                           FROM marcas m 
                           INNER JOIN productos_info_web piw ON m.id = piw.marca_id 
-                          INNER JOIN productos p ON piw.cod_producto = p.cod_producto 
-                          LEFT JOIN web_categorias wc ON piw.web_categoria_id = wc.id
-                          WHERE p.activo = 1";
-            
+                          INNER JOIN productos_sucursales ps ON piw.cod_producto = ps.cod_producto
+                          WHERE ps.sucursal_id = $sucursal_id AND ps.precio > 0 AND ps.stock > 0";
+
             $paramsMarcas = [];
             if ($catFilter) {
-                $sqlMarcas .= " AND wc.nombre = ?";
+                $sqlMarcas .= " AND piw.web_categoria_id = (SELECT id FROM web_categorias WHERE nombre = ? LIMIT 1)";
                 $paramsMarcas[] = $catFilter;
             }
-            if ($busqueda) {
-                $sqlMarcas .= " AND (piw.nombre_web LIKE ? OR p.nombre LIKE ?)";
-                $paramsMarcas[] = "%$busqueda%";
-                $paramsMarcas[] = "%$busqueda%";
-            }
-            $sqlMarcas .= " ORDER BY m.nombre ASC";
+            $marcasList = $this->db->prepare($sqlMarcas . " ORDER BY m.nombre ASC");
+            $marcasList->execute($paramsMarcas);
+            $marcasList = $marcasList->fetchAll(\PDO::FETCH_ASSOC);
 
-            $stmtMarcas = $this->db->prepare($sqlMarcas);
-            $stmtMarcas->execute($paramsMarcas);
-            $marcasList = $stmtMarcas->fetchAll(\PDO::FETCH_ASSOC);
-
-            $stmtPrecios = $this->db->query("SELECT MIN(precio) as min_p, MAX(precio) as max_p FROM productos WHERE activo = 1");
+            // Rango de precios dinámico por sucursal (solo productos con stock)
+            $stmtPrecios = $this->db->prepare("SELECT MIN(precio) as min_p, MAX(precio) as max_p FROM productos_sucursales WHERE sucursal_id = ? AND precio > 0 AND stock > 0");
+            $stmtPrecios->execute([$sucursal_id]);
             $preciosDb = $stmtPrecios->fetch(\PDO::FETCH_ASSOC);
             if ($preciosDb) {
                 $rangoPrecio['min'] = floor($preciosDb['min_p']);
                 $rangoPrecio['max'] = ceil($preciosDb['max_p']);
             }
-
-        } catch (\Exception $e) { 
-            error_log("Error filtros catalogo: " . $e->getMessage());
+        } catch (\Exception $e) {
+            error_log($e->getMessage());
         }
 
         if ($minPrecio === null) $minPrecio = $rangoPrecio['min'];
         if ($maxPrecio === null) $maxPrecio = $rangoPrecio['max'];
 
-        $por_pagina = 25; 
-        $pagina     = isset($_GET['p']) ? (int)$_GET['p'] : 1;
+        $por_pagina = 25;
+        $pagina = isset($_GET['p']) ? (int)$_GET['p'] : 1;
         if ($pagina < 1) $pagina = 1;
         $offset = ($pagina - 1) * $por_pagina;
 
+        // SQL BASE: Uniendo con productos_sucursales Y EXIGIENDO STOCK > 0
         $sqlBase = "FROM productos p 
+                    INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
                     LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                     LEFT JOIN marcas m ON piw.marca_id = m.id
                     LEFT JOIN web_categorias wc ON piw.web_categoria_id = wc.id
-                    WHERE p.activo = 1";
-        
+                    WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id AND ps.precio > 0 AND ps.stock > 0";
+
         $params = [];
         if ($catFilter) {
             $sqlBase .= " AND wc.nombre = ?";
@@ -196,46 +179,39 @@ class HomeController
         if ($busqueda) {
             $sqlBase .= " AND (piw.nombre_web LIKE ? OR p.nombre LIKE ? OR m.nombre LIKE ?)";
             $termino = "%$busqueda%";
-            $params[] = $termino; $params[] = $termino; $params[] = $termino;
+            $params[] = $termino;
+            $params[] = $termino;
+            $params[] = $termino;
         }
-        $sqlBase .= " AND p.precio BETWEEN ? AND ?";
+        $sqlBase .= " AND ps.precio BETWEEN ? AND ?";
         $params[] = $minPrecio;
         $params[] = $maxPrecio;
 
         $stmtCount = $this->db->prepare("SELECT COUNT(*) " . $sqlBase);
         $stmtCount->execute($params);
         $total_registros = $stmtCount->fetchColumn();
-        $total_paginas   = ceil($total_registros / $por_pagina);
+        $total_paginas = ceil($total_registros / $por_pagina);
 
-        $sqlOrder = "";
-        switch ($orden) {
-            case 'precio_asc':  $sqlOrder = " ORDER BY p.precio ASC"; break;
-            case 'precio_desc': $sqlOrder = " ORDER BY p.precio DESC"; break;
-            case 'nombre_asc':  $sqlOrder = " ORDER BY piw.nombre_web ASC"; break;
-            default:            $sqlOrder = " ORDER BY p.id DESC"; break;
-        }
+        $sqlOrder = match ($orden) {
+            'precio_asc' => " ORDER BY ps.precio ASC",
+            'precio_desc' => " ORDER BY ps.precio DESC",
+            'nombre_asc' => " ORDER BY piw.nombre_web ASC",
+            default => " ORDER BY p.id DESC"
+        };
 
-        $sqlFinal = "SELECT p.*, m.nombre as marca, piw.nombre_web, wc.nombre as cat_web 
-                     " . $sqlBase . $sqlOrder . " LIMIT $por_pagina OFFSET $offset";
-                      
+        $sqlFinal = "SELECT p.*, ps.precio, ps.stock, m.nombre as marca, piw.nombre_web, wc.nombre as cat_web " . $sqlBase . $sqlOrder . " LIMIT $por_pagina OFFSET $offset";
         $stmt = $this->db->prepare($sqlFinal);
         $stmt->execute($params);
         $productos = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        $titulo = "Catálogo Completo";
-        if ($catFilter) $titulo = $catFilter;
-        if ($busqueda) $titulo = 'Resultados para: "' . htmlspecialchars($busqueda) . '"';
+        $titulo = $busqueda ? 'Resultados para: "' . htmlspecialchars($busqueda) . '"' : ($catFilter ?? "Catálogo Completo");
 
         ob_start();
         include __DIR__ . '/../../views/home/catalogo_view.php';
         $content = ob_get_clean();
-
         include __DIR__ . '/../../views/layouts/main.php';
     }
 
-    // =========================================================
-    // 4. AUTOCOMPLETADO
-    // =========================================================
     public function autocomplete()
     {
         header('Content-Type: application/json');
@@ -244,70 +220,56 @@ class HomeController
             echo json_encode([]);
             exit;
         }
-
-        $sql = "SELECT DISTINCT nombre_web FROM productos_info_web WHERE nombre_web LIKE ? LIMIT 6";
-        $stmt = $this->db->prepare($sql);
+        // Solo autocompletar si el producto está activo (puedes añadir filtro por sucursal aquí también si quieres, pero suele ser más ligero así)
+        $stmt = $this->db->prepare("SELECT DISTINCT nombre_web FROM productos_info_web WHERE nombre_web LIKE ? LIMIT 6");
         $stmt->execute(["%$q%"]);
         echo json_encode($stmt->fetchAll(\PDO::FETCH_ASSOC));
         exit;
     }
 
-    // =========================================================
-    // 5. LOCALES Y HORARIOS
-    // =========================================================
     public function locales()
     {
-       require_once __DIR__ . '/../Models/Sucursal.php';
+        require_once __DIR__ . '/../Models/Sucursal.php';
         $sucursalModel = new \App\Models\Sucursal($this->db);
-        
         $sucursales = $sucursalModel->obtenerTodas();
         $titulo = "Nuestras Sucursales";
         $categorias = $this->cargarCategorias();
-
         ob_start();
         include __DIR__ . '/../../views/home/locales.php';
         $content = ob_get_clean();
-
         include __DIR__ . '/../../views/layouts/main.php';
     }
 
-    // =========================================================
-    // 6. TÉRMINOS Y CONDICIONES
-    // =========================================================
-    public function terminos() {
+    public function terminos()
+    {
         $categorias = $this->cargarCategorias();
         $titulo = "Términos y Condiciones";
-        
         ob_start();
         include __DIR__ . '/../../views/home/terminos.php';
         $content = ob_get_clean();
-        
         include __DIR__ . '/../../views/layouts/main.php';
     }
 
     // =========================================================
-    // 7. FICHA DE PRODUCTO (DETALLE)
+    // 7. FICHA DE PRODUCTO (CON PRECIO DE SUCURSAL Y STOCK)
     // =========================================================
     public function producto()
     {
         $id = $_GET['id'] ?? null;
-        
+        $sucursal_id = $_SESSION['sucursal_activa'];
         if (!$id) {
             header("Location: " . BASE_URL . "home/catalogo");
             exit;
         }
 
-        $sql = "SELECT p.*, 
-                       m.nombre as marca, 
-                       piw.nombre_web, 
-                       piw.subcategoria,
-                       wc.nombre as categoria_web,
-                       wc.id as cat_id
+        // Aquí NO filtramos por stock > 0, porque si entran por link directo y no hay, queremos que vean el cartel de "Agotado"
+        $sql = "SELECT p.*, ps.precio, ps.stock, m.nombre as marca, piw.nombre_web, piw.subcategoria, wc.nombre as categoria_web, wc.id as cat_id
                 FROM productos p 
+                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
                 LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                 LEFT JOIN marcas m ON piw.marca_id = m.id
                 LEFT JOIN web_categorias wc ON piw.web_categoria_id = wc.id
-                WHERE p.id = ? AND p.activo = 1";
+                WHERE p.id = ? AND ps.sucursal_id = $sucursal_id AND p.activo = 1";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$id]);
@@ -320,50 +282,37 @@ class HomeController
 
         $relacionados = [];
         if (!empty($producto['cat_id'])) {
-            $sqlRel = "SELECT p.id, p.precio, p.stock, p.imagen, 
-                               piw.nombre_web, m.nombre as marca
+            // Relacionados SÍ deben tener stock
+            $sqlRel = "SELECT p.id, ps.precio, ps.stock, p.imagen, piw.nombre_web, m.nombre as marca
                        FROM productos p 
+                       INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
                        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                        LEFT JOIN marcas m ON piw.marca_id = m.id
-                       WHERE piw.web_categoria_id = ? 
-                       AND p.id != ? 
-                       AND p.activo = 1
+                       WHERE piw.web_categoria_id = ? AND p.id != ? AND ps.sucursal_id = $sucursal_id AND ps.precio > 0 AND ps.stock > 0 AND p.activo = 1
                        ORDER BY RAND() LIMIT 4";
-            
             $stmtRel = $this->db->prepare($sqlRel);
             $stmtRel->execute([$producto['cat_id'], $id]);
             $relacionados = $stmtRel->fetchAll(\PDO::FETCH_ASSOC);
         }
 
         $categorias = $this->cargarCategorias();
-        $titulo = !empty($producto['nombre_web']) ? $producto['nombre_web'] : $producto['nombre'];
-        
+        $titulo = $producto['nombre_web'] ?? $producto['nombre'];
         ob_start();
         include __DIR__ . '/../../views/home/producto.php';
         $content = ob_get_clean();
-        
         include __DIR__ . '/../../views/layouts/main.php';
     }
 
     public function catalogoVisual()
     {
-        ini_set('memory_limit', '512M'); 
-        set_time_limit(300); 
-
+        ini_set('memory_limit', '512M');
         $busqueda = $_GET['q'] ?? '';
         $productos = $this->productoModel->obtenerTodosPublicos($busqueda);
         $total_registros = count($productos);
-
-        $data = [
-            'productos' => $productos,
-            'busqueda' => $busqueda,
-            'total_registros' => $total_registros
-        ];
-
+        $data = ['productos' => $productos, 'busqueda' => $busqueda, 'total_registros' => $total_registros];
         ob_start();
         require_once __DIR__ . '/../../views/home/catalogo_chorizo.php';
         $content = ob_get_clean();
-        
         require_once __DIR__ . '/../../views/layouts/main.php';
     }
 }

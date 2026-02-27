@@ -34,7 +34,7 @@ class AdminController
     // =========================================================
     // 📊 DASHBOARD
     // =========================================================
-   // En App/Controllers/AdminController.php
+    // En App/Controllers/AdminController.php
 
     public function dashboard()
     {
@@ -51,7 +51,7 @@ class AdminController
         // ======================================================
         // 2. OBTENCIÓN DE DATOS (KPIs)
         // ======================================================
-        
+
         // A. VENTA TOTAL (Solo pedidos pagados/completados en el rango)
         // Ajusta los IDs de estado según tu DB (ej: 2=Pagado, 3=En Ruta, 4=Entregado)
         $sqlVenta = "SELECT COALESCE(SUM(monto_total), 0) FROM pedidos 
@@ -187,9 +187,9 @@ class AdminController
         $content = ob_get_clean();
         include __DIR__ . '/../../views/layouts/main.php';
     }
-// En AdminController.php
+    // En AdminController.php
 
-   public function cambiarEstado()
+    public function cambiarEstado()
     {
         // 1. Verificación básica de seguridad (Solo admin)
         if (!isset($_SESSION['user_rol']) || $_SESSION['user_rol'] !== 'admin') {
@@ -215,7 +215,7 @@ class AdminController
             try {
                 // A. Obtenemos los datos del pedido
                 $pedido = $this->pedidoModel->obtenerPorId($idPedido);
-                
+
                 // B. Obtenemos el nombre "bonito" del estado para el correo
                 $stmt = $this->db->prepare("SELECT nombre FROM estados_pedido WHERE id = ?");
                 $stmt->execute([$nuevoEstadoId]);
@@ -275,7 +275,7 @@ class AdminController
         $total_paginas = ceil($total_registros / $por_pagina);
 
         $productos = $this->productoModel->obtenerPaginados($por_pagina, $offset, $busqueda, $filtroCategoriaId);
-        
+
         // CORRECCIÓN: Definimos ambas variables
         $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
         $categorias = $listaCategorias;
@@ -302,7 +302,7 @@ class AdminController
     {
         $this->verificarAdmin();
         $producto = null;
-        
+
         // CORRECCIÓN: También aquí
         $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
         $categorias = $listaCategorias;
@@ -374,55 +374,100 @@ class AdminController
         header("Location: " . BASE_URL . "admin/productos");
         exit();
     }
-
     public function importarERP()
     {
         $this->verificarAdmin();
         $ruta_base = dirname(__DIR__, 2);
-        $archivo = $ruta_base . '/erp_data/29_productos_web2.csv';
+        $directorio_erp = $ruta_base . '/erp_data/';
 
-        if (!file_exists($archivo)) die("Error: Archivo CSV no encontrado");
+        // 1. Buscar archivos con tu nomenclatura específica
+        $archivos = glob($directorio_erp . '*_productos_web2.csv');
 
-        $handle = fopen($archivo, "r");
-        $fila = 0;
-        while (($linea = fgets($handle)) !== false) {
-            $fila++;
-            if ($fila === 1) continue;
-            $linea = trim($linea);
-            if (empty($linea)) continue;
-            $partes = explode(',', $linea);
-            $total_partes = count($partes);
-            if ($total_partes < 7) continue;
-
-            $category_ids_raw = $partes[$total_partes - 1];
-            $imagen_url  = $partes[$total_partes - 3];
-            $stock       = (int) $partes[$total_partes - 4];
-            $precio      = (int) $partes[$total_partes - 5];
-            $sku         = trim($partes[$total_partes - 6]);
-            $categoria   = trim($partes[$total_partes - 7]);
-            $nombre_parts = array_slice($partes, 0, $total_partes - 7);
-            $nombre       = trim(implode(',', $nombre_parts));
-            $nombre       = mb_convert_encoding($nombre, 'UTF-8', 'ISO-8859-1');
-
-            $datos = [
-                'cod_producto' => $sku, 'nombre' => $nombre, 'categoria' => $categoria,
-                'precio' => $precio, 'stock' => $stock, 'imagen' => $imagen_url, 'descripcion' => ''
-            ];
-
-            try {
-                $this->db->beginTransaction();
-                $producto_id = $this->productoModel->sincronizar($datos);
-                if ($producto_id && method_exists($this->productoModel, 'sincronizarCategorias')) {
-                    $this->productoModel->sincronizarCategorias($producto_id, $category_ids_raw);
-                }
-                $this->db->commit();
-            } catch (Exception $e) {
-                $this->db->rollBack();
-            }
+        if (empty($archivos)) {
+            die("Error: No se encontraron archivos CSV (ej: 10_productos_web2.csv) en erp_data.");
         }
-        fclose($handle);
-        header("Location: " . BASE_URL . "admin/dashboard?msg=sync_ok");
-        exit();
+
+        $totalProcesados = 0;
+
+        try {
+            foreach ($archivos as $archivo) {
+                $nombre_archivo = basename($archivo);
+                $partes_nombre = explode('_', $nombre_archivo);
+                $sucursal_id = (int)$partes_nombre[0];
+
+                if ($sucursal_id <= 0) continue;
+
+                // --- MEJORA PROFESIONAL: LIMPIEZA PREVIA ---
+                // Ponemos en stock 0 TODO lo de esta sucursal antes de leer el nuevo archivo.
+                // Así, lo que no venga en el CSV nuevo quedará automáticamente como "Agotado".
+                $stmtClear = $this->db->prepare("UPDATE productos_sucursales SET stock = 0 WHERE sucursal_id = ?");
+                $stmtClear->execute([$sucursal_id]);
+
+                // Iniciamos transacción por cada archivo para seguridad
+                $this->db->beginTransaction();
+
+                $handle = fopen($archivo, "r");
+                $fila = 0;
+
+                // Preparar consultas
+                $stmtMaestro = $this->db->prepare("INSERT IGNORE INTO productos (cod_producto, nombre, categoria, imagen, activo) VALUES (?, ?, ?, ?, 1)");
+                $stmtInfoWeb = $this->db->prepare("INSERT IGNORE INTO productos_info_web (cod_producto, nombre_web, visible_web, stock_seguridad) VALUES (?, ?, 0, 5)");
+
+                // Actualizado: Ahora pisa precio y stock, asegurando que si el ERP mandó un cambio, se refleje.
+                $stmtDetalle = $this->db->prepare("INSERT INTO productos_sucursales (cod_producto, sucursal_id, precio, stock, stock_reservado) 
+                                                   VALUES (?, ?, ?, ?, 0) 
+                                                   ON DUPLICATE KEY UPDATE precio = VALUES(precio), stock = VALUES(stock)");
+
+                while (($linea = fgets($handle)) !== false) {
+                    $fila++;
+                    if ($fila === 1) continue;
+
+                    $linea = trim($linea);
+                    if (empty($linea)) continue;
+
+                    // Usamos str_getcsv para manejar mejor si hay nombres con comas protegidas por comillas
+                    $partes = str_getcsv($linea, ",");
+                    $total_partes = count($partes);
+                    if ($total_partes < 5) continue;
+
+                    // Tu lógica de búsqueda de índices (mantenida porque es robusta para tu CSV)
+                    $stock_index = -1;
+                    for ($i = $total_partes - 1; $i >= 2; $i--) {
+                        if (is_numeric(trim($partes[$i])) && is_numeric(trim($partes[$i - 1]))) {
+                            $stock_index = $i;
+                            break;
+                        }
+                    }
+
+                    if ($stock_index === -1) continue;
+
+                    $stock     = (int) trim($partes[$stock_index]);
+                    $precio    = (int) trim($partes[$stock_index - 1]);
+                    $sku       = trim($partes[$stock_index - 2]);
+                    $categoria = trim($partes[$stock_index - 3]);
+                    $imagen_url = isset($partes[$stock_index + 1]) ? trim($partes[$stock_index + 1]) : '';
+
+                    $nombre_parts = array_slice($partes, 0, $stock_index - 3);
+                    $nombre       = trim(implode(',', $nombre_parts));
+
+                    // Solo procesamos si el SKU no está vacío
+                    if (!empty($sku)) {
+                        $stmtMaestro->execute([$sku, $nombre, $categoria, $imagen_url]);
+                        $stmtInfoWeb->execute([$sku, $nombre]);
+                        $stmtDetalle->execute([$sku, $sucursal_id, $precio, $stock]);
+                        $totalProcesados++;
+                    }
+                }
+                fclose($handle);
+                $this->db->commit();
+            }
+
+            header("Location: " . BASE_URL . "admin/dashboard?msg=sync_ok&procesados=" . $totalProcesados);
+            exit();
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            die("Error crítico: " . $e->getMessage());
+        }
     }
 
     public function buscarProductosAjax()
@@ -430,7 +475,7 @@ class AdminController
         $this->verificarAdmin();
         $busqueda = $_GET['q'] ?? '';
         $categoriaId = $_GET['categoria'] ?? '';
-        
+
         $productos = $this->productoModel->obtenerPaginados(50, 0, $busqueda, $categoriaId);
 
         if (empty($productos)) {
@@ -452,26 +497,26 @@ class AdminController
             elseif (strpos($imgRaw, 'http') === 0) $rutaImagen = $imgRaw;
             else $rutaImagen = BASE_URL . 'img/productos/' . $imgRaw;
 
-            if ($stock > 10) $badgeStock = '<span class="badge bg-success bg-opacity-10 text-success border border-success px-2 rounded-pill">'.$stock.' un.</span>';
-            elseif ($stock > 0) $badgeStock = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning px-2 rounded-pill">'.$stock.' un.</span>';
+            if ($stock > 10) $badgeStock = '<span class="badge bg-success bg-opacity-10 text-success border border-success px-2 rounded-pill">' . $stock . ' un.</span>';
+            elseif ($stock > 0) $badgeStock = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning px-2 rounded-pill">' . $stock . ' un.</span>';
             else $badgeStock = '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 rounded-pill">Agotado</span>';
 
-            $badgeEstado = $activo 
-                ? '<span class="badge rounded-pill bg-success px-3">Visible</span>' 
+            $badgeEstado = $activo
+                ? '<span class="badge rounded-pill bg-success px-3">Visible</span>'
                 : '<span class="badge rounded-pill bg-secondary px-3">Oculto</span>';
-            
+
             $iconoOjo = $activo ? 'bi-eye-fill text-success' : 'bi-eye-slash-fill text-muted';
 
             echo '<tr>
-                <td class="ps-4 py-2"><div class="bg-white border rounded-3 p-1 shadow-sm position-relative" style="width: 50px; height: 50px;"><img src="'.$rutaImagen.'" class="w-100 h-100 object-fit-contain" onerror="this.src=\''.BASE_URL.'img/no-image.png\'"></div></td>
-                <td><div class="fw-bold text-dark text-truncate" style="max-width: 300px;" title="'.htmlspecialchars($nombre).'">'.htmlspecialchars($nombre).'</div><div class="d-flex align-items-center gap-2 mt-1"><span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.7rem;"><i class="bi bi-upc-scan me-1"></i>'.htmlspecialchars($codigo).'</span><span class="badge bg-cenco-indigo bg-opacity-10 text-cenco-indigo fw-bold" style="font-size: 0.7rem;">'.htmlspecialchars($catNombre).'</span></div></td>
-                <td class="fw-bold text-cenco-indigo">$'.number_format($precio, 0, ',', '.').'</td>
-                <td class="text-center">'.$badgeStock.'</td>
-                <td class="text-center">'.$badgeEstado.'</td>
+                <td class="ps-4 py-2"><div class="bg-white border rounded-3 p-1 shadow-sm position-relative" style="width: 50px; height: 50px;"><img src="' . $rutaImagen . '" class="w-100 h-100 object-fit-contain" onerror="this.src=\'' . BASE_URL . 'img/no-image.png\'"></div></td>
+                <td><div class="fw-bold text-dark text-truncate" style="max-width: 300px;" title="' . htmlspecialchars($nombre) . '">' . htmlspecialchars($nombre) . '</div><div class="d-flex align-items-center gap-2 mt-1"><span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.7rem;"><i class="bi bi-upc-scan me-1"></i>' . htmlspecialchars($codigo) . '</span><span class="badge bg-cenco-indigo bg-opacity-10 text-cenco-indigo fw-bold" style="font-size: 0.7rem;">' . htmlspecialchars($catNombre) . '</span></div></td>
+                <td class="fw-bold text-cenco-indigo">$' . number_format($precio, 0, ',', '.') . '</td>
+                <td class="text-center">' . $badgeStock . '</td>
+                <td class="text-center">' . $badgeEstado . '</td>
                 <td class="text-end pe-4"><div class="btn-group">
-                    <button onclick="toggleProducto('.$id.', this)" class="btn btn-sm btn-light border shadow-sm" title="'.($activo ? 'Ocultar' : 'Mostrar').'"><i class="bi '.$iconoOjo.'"></i></button>
-                    <a href="'.BASE_URL.'admin/producto/editar/'.$id.'" class="btn btn-sm btn-light border shadow-sm text-primary"><i class="bi bi-pencil-fill"></i></a>
-                    <button onclick="confirmarEliminar('.$id.')" class="btn btn-sm btn-light border shadow-sm text-danger"><i class="bi bi-trash-fill"></i></button>
+                    <button onclick="toggleProducto(' . $id . ', this)" class="btn btn-sm btn-light border shadow-sm" title="' . ($activo ? 'Ocultar' : 'Mostrar') . '"><i class="bi ' . $iconoOjo . '"></i></button>
+                    <a href="' . BASE_URL . 'admin/producto/editar/' . $id . '" class="btn btn-sm btn-light border shadow-sm text-primary"><i class="bi bi-pencil-fill"></i></a>
+                    <button onclick="confirmarEliminar(' . $id . ')" class="btn btn-sm btn-light border shadow-sm text-danger"><i class="bi bi-trash-fill"></i></button>
                 </div></td>
             </tr>';
         }
@@ -511,7 +556,7 @@ class AdminController
 
         // 2. Obtener Pedidos con el método blindado del Modelo
         $pedidos = $this->pedidoModel->obtenerFiltrados($fechaInicio, $fechaFin, $busqueda, $estado);
-        
+
         // 3. Variables para la vista
         $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
         $categorias = $listaCategorias; // Para el sidebar
@@ -519,7 +564,7 @@ class AdminController
 
         ob_start();
         // OJO: Crearemos este archivo en el paso 3
-        require_once __DIR__ . '/../../views/admin/pedidos_index.php'; 
+        require_once __DIR__ . '/../../views/admin/pedidos_index.php';
         $content = ob_get_clean();
         require_once __DIR__ . '/../../views/layouts/main.php';
     }
@@ -547,18 +592,18 @@ class AdminController
         require_once __DIR__ . '/../../views/layouts/main.php';
     }
 
- public function guardarBanner()
+    public function guardarBanner()
     {
         $this->verificarAdmin();
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $titulo = $_POST['titulo'] ?? '';
             // Si viene vacío, asigna 1 por defecto
-            $orden = !empty($_POST['orden']) ? (int)$_POST['orden'] : 1; 
-            
+            $orden = !empty($_POST['orden']) ? (int)$_POST['orden'] : 1;
+
             $imagen = $_FILES['imagen'];
             $directorio_destino = __DIR__ . '/../../public/img/banner/';
-            
+
             if (!file_exists($directorio_destino)) {
                 mkdir($directorio_destino, 0777, true);
             }
@@ -566,15 +611,15 @@ class AdminController
             if ($imagen['error'] === UPLOAD_ERR_OK) {
                 $nombre_archivo = time() . '_' . basename($imagen['name']);
                 $ruta_fisica = $directorio_destino . $nombre_archivo;
-                $ruta_bd = 'img/banner/' . $nombre_archivo; 
-                
+                $ruta_bd = 'img/banner/' . $nombre_archivo;
+
                 if (move_uploaded_file($imagen['tmp_name'], $ruta_fisica)) {
                     // Quitamos la URL de la consulta SQL
                     $stmt = $this->db->prepare("INSERT INTO carrusel_banners (titulo, ruta_imagen, orden) VALUES (?, ?, ?)");
                     $stmt->execute([$titulo, $ruta_bd, $orden]);
                 }
             }
-            
+
             header("Location: " . BASE_URL . "admin/banners?msg=banner_creado");
             exit();
         }
@@ -602,7 +647,7 @@ class AdminController
     public function toggleBannerAjax()
     {
         $this->verificarAdmin();
-        
+
         $data = json_decode(file_get_contents('php://input'), true);
         $id = $data['id'] ?? null;
 
@@ -613,15 +658,15 @@ class AdminController
 
             if ($estado_actual !== false) {
                 $nuevo_estado = ($estado_actual == 1) ? 0 : 1;
-                
+
                 $stmtUp = $this->db->prepare("UPDATE carrusel_banners SET estado_activo = ? WHERE id = ?");
                 $stmtUp->execute([$nuevo_estado, $id]);
-                
+
                 echo json_encode(['status' => 'success', 'nuevo_estado' => $nuevo_estado]);
                 exit;
             }
         }
-        
+
         echo json_encode(['status' => 'error']);
         exit;
     }
@@ -629,12 +674,12 @@ class AdminController
     public function borrarBanner($id)
     {
         $this->verificarAdmin();
-        
+
         // Buscar el banner para borrar primero el archivo de la carpeta
         $stmt = $this->db->prepare("SELECT ruta_imagen FROM carrusel_banners WHERE id = ?");
         $stmt->execute([$id]);
         $banner = $stmt->fetch(\PDO::FETCH_ASSOC);
-        
+
         if ($banner) {
             $ruta_fisica = __DIR__ . '/../../public/' . $banner['ruta_imagen'];
             if (file_exists($ruta_fisica) && is_file($ruta_fisica)) {
@@ -644,108 +689,110 @@ class AdminController
             $stmtDel = $this->db->prepare("DELETE FROM carrusel_banners WHERE id = ?");
             $stmtDel->execute([$id]);
         }
-        
+
         header("Location: " . BASE_URL . "admin/banners?msg=banner_eliminado");
         exit();
     }
 
     // --- MARCAS DESTACADAS ---
-public function marcasDestacadas() {
-    $this->verificarAdmin();
-    $stmt = $this->db->query("SELECT * FROM marcas_destacadas ORDER BY orden ASC");
-    $marcas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-    
-    // Variables para layout
-    $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
-    $categorias = $listaCategorias;
-    $esAdmin = true;
+    public function marcasDestacadas()
+    {
+        $this->verificarAdmin();
+        $stmt = $this->db->query("SELECT * FROM marcas_destacadas ORDER BY orden ASC");
+        $marcas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-    ob_start();
-    include __DIR__ . '/../../views/admin/marcas_mantenedor.php';
-    $content = ob_get_clean();
-    include __DIR__ . '/../../views/layouts/main.php';
-}
+        // Variables para layout
+        $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
+        $categorias = $listaCategorias;
+        $esAdmin = true;
 
-public function guardarMarcaDestacada() {
-    $this->verificarAdmin();
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $nombre = $_POST['nombre'];
-        $orden = $_POST['orden'] ?? 1;
-        $imagen = $_FILES['imagen'];
-
-        if ($imagen['error'] === UPLOAD_ERR_OK) {
-            $nombreArchivo = 'logo_' . time() . '_' . $imagen['name'];
-            $rutaFisica = __DIR__ . '/../../public/img/marcas_destacadas/' . $nombreArchivo;
-            
-            if (!file_exists(dirname($rutaFisica))) mkdir(dirname($rutaFisica), 0777, true);
-
-            if (move_uploaded_file($imagen['tmp_name'], $rutaFisica)) {
-                $rutaBD = 'img/marcas_destacadas/' . $nombreArchivo;
-                $stmt = $this->db->prepare("INSERT INTO marcas_destacadas (nombre, ruta_imagen, orden) VALUES (?, ?, ?)");
-                $stmt->execute([$nombre, $rutaBD, $orden]);
-            }
-        }
-        header("Location: " . BASE_URL . "admin/marcas");
+        ob_start();
+        include __DIR__ . '/../../views/admin/marcas_mantenedor.php';
+        $content = ob_get_clean();
+        include __DIR__ . '/../../views/layouts/main.php';
     }
-}
 
-public function actualizarMarcaDestacada() {
-    $this->verificarAdmin();
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $id = $_POST['id'];
-        $nombre = $_POST['nombre'];
-        $orden = $_POST['orden'] ?? 1;
-        
-        // 1. Actualizar datos básicos
-        $stmt = $this->db->prepare("UPDATE marcas_destacadas SET nombre = ?, orden = ? WHERE id = ?");
-        $stmt->execute([$nombre, $orden, $id]);
+    public function guardarMarcaDestacada()
+    {
+        $this->verificarAdmin();
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $nombre = $_POST['nombre'];
+            $orden = $_POST['orden'] ?? 1;
+            $imagen = $_FILES['imagen'];
 
-        // 2. Si se subió una imagen nueva, procesarla
-        if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
-            // Borrar imagen anterior (opcional pero recomendado)
-            $stmtImg = $this->db->prepare("SELECT ruta_imagen FROM marcas_destacadas WHERE id = ?");
-            $stmtImg->execute([$id]);
-            $vieja = $stmtImg->fetchColumn();
-            if($vieja && file_exists(__DIR__ . '/../../public/' . $vieja)) {
-                unlink(__DIR__ . '/../../public/' . $vieja);
+            if ($imagen['error'] === UPLOAD_ERR_OK) {
+                $nombreArchivo = 'logo_' . time() . '_' . $imagen['name'];
+                $rutaFisica = __DIR__ . '/../../public/img/marcas_destacadas/' . $nombreArchivo;
+
+                if (!file_exists(dirname($rutaFisica))) mkdir(dirname($rutaFisica), 0777, true);
+
+                if (move_uploaded_file($imagen['tmp_name'], $rutaFisica)) {
+                    $rutaBD = 'img/marcas_destacadas/' . $nombreArchivo;
+                    $stmt = $this->db->prepare("INSERT INTO marcas_destacadas (nombre, ruta_imagen, orden) VALUES (?, ?, ?)");
+                    $stmt->execute([$nombre, $rutaBD, $orden]);
+                }
             }
-
-            $nombreArchivo = 'logo_' . time() . '_' . $_FILES['imagen']['name'];
-            $rutaFisica = __DIR__ . '/../../public/img/marcas_destacadas/' . $nombreArchivo;
-            
-            if (move_uploaded_file($_FILES['imagen']['tmp_name'], $rutaFisica)) {
-                $rutaBD = 'img/marcas_destacadas/' . $nombreArchivo;
-                $stmtUp = $this->db->prepare("UPDATE marcas_destacadas SET ruta_imagen = ? WHERE id = ?");
-                $stmtUp->execute([$rutaBD, $id]);
-            }
+            header("Location: " . BASE_URL . "admin/marcas");
         }
-        header("Location: " . BASE_URL . "admin/marcas?msg=actualizado");
+    }
+
+    public function actualizarMarcaDestacada()
+    {
+        $this->verificarAdmin();
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = $_POST['id'];
+            $nombre = $_POST['nombre'];
+            $orden = $_POST['orden'] ?? 1;
+
+            // 1. Actualizar datos básicos
+            $stmt = $this->db->prepare("UPDATE marcas_destacadas SET nombre = ?, orden = ? WHERE id = ?");
+            $stmt->execute([$nombre, $orden, $id]);
+
+            // 2. Si se subió una imagen nueva, procesarla
+            if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
+                // Borrar imagen anterior (opcional pero recomendado)
+                $stmtImg = $this->db->prepare("SELECT ruta_imagen FROM marcas_destacadas WHERE id = ?");
+                $stmtImg->execute([$id]);
+                $vieja = $stmtImg->fetchColumn();
+                if ($vieja && file_exists(__DIR__ . '/../../public/' . $vieja)) {
+                    unlink(__DIR__ . '/../../public/' . $vieja);
+                }
+
+                $nombreArchivo = 'logo_' . time() . '_' . $_FILES['imagen']['name'];
+                $rutaFisica = __DIR__ . '/../../public/img/marcas_destacadas/' . $nombreArchivo;
+
+                if (move_uploaded_file($_FILES['imagen']['tmp_name'], $rutaFisica)) {
+                    $rutaBD = 'img/marcas_destacadas/' . $nombreArchivo;
+                    $stmtUp = $this->db->prepare("UPDATE marcas_destacadas SET ruta_imagen = ? WHERE id = ?");
+                    $stmtUp->execute([$rutaBD, $id]);
+                }
+            }
+            header("Location: " . BASE_URL . "admin/marcas?msg=actualizado");
+            exit();
+        }
+    }
+    public function borrarMarca($id)
+    {
+        $this->verificarAdmin();
+
+        // 1. Buscamos la ruta de la imagen antes de borrar el registro
+        $stmt = $this->db->prepare("SELECT ruta_imagen FROM marcas_destacadas WHERE id = ?");
+        $stmt->execute([$id]);
+        $marca = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if ($marca) {
+            // 2. Intentamos borrar el archivo físico del servidor
+            $rutaFisica = __DIR__ . '/../../public/' . $marca['ruta_imagen'];
+            if (file_exists($rutaFisica) && is_file($rutaFisica)) {
+                unlink($rutaFisica);
+            }
+
+            // 3. Borramos el registro de la base de datos
+            $stmtDel = $this->db->prepare("DELETE FROM marcas_destacadas WHERE id = ?");
+            $stmtDel->execute([$id]);
+        }
+
+        header("Location: " . BASE_URL . "admin/marcas?msg=marca_eliminada");
         exit();
     }
-}
-public function borrarMarca($id)
-{
-    $this->verificarAdmin();
-    
-    // 1. Buscamos la ruta de la imagen antes de borrar el registro
-    $stmt = $this->db->prepare("SELECT ruta_imagen FROM marcas_destacadas WHERE id = ?");
-    $stmt->execute([$id]);
-    $marca = $stmt->fetch(\PDO::FETCH_ASSOC);
-    
-    if ($marca) {
-        // 2. Intentamos borrar el archivo físico del servidor
-        $rutaFisica = __DIR__ . '/../../public/' . $marca['ruta_imagen'];
-        if (file_exists($rutaFisica) && is_file($rutaFisica)) {
-            unlink($rutaFisica);
-        }
-        
-        // 3. Borramos el registro de la base de datos
-        $stmtDel = $this->db->prepare("DELETE FROM marcas_destacadas WHERE id = ?");
-        $stmtDel->execute([$id]);
-    }
-    
-    header("Location: " . BASE_URL . "admin/marcas?msg=marca_eliminada");
-    exit();
-}
-    
 }

@@ -89,6 +89,13 @@ class AuthController
     private function setSession($user)
     {
         $_SESSION['user_id'] = $user->id;
+        // Magia Logística: Detectar su sucursal según la comuna registrada
+        $stmtComuna = $this->db->prepare("SELECT sucursal_id FROM comunas WHERE id = ?");
+        $stmtComuna->execute([$usuario->comuna_id]); // Asume que la variable del usuario se llama $usuario o $user
+        $suc_asignada = $stmtComuna->fetchColumn();
+
+        // Si tiene sucursal asignada (10 o 29) la usamos, sino, Prat por defecto.
+        $_SESSION['sucursal_activa'] = $suc_asignada ? $suc_asignada : 29;
         $_SESSION['user_nombre'] = $user->nombre;
         $_SESSION['user_rol'] = $user->rol;
     }

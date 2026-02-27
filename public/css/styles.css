@@ -882,3 +882,12 @@ body.filter-tritanopia #wrapper {
         transform: translateY(-3px);
     }
 }
+
+@keyframes ping {
+    0% { transform: scale(1); opacity: 1; }
+    70% { transform: scale(2); opacity: 0; }
+    100% { transform: scale(1); opacity: 0; }
+}
+.animate-ping {
+    animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}

@@ -142,7 +142,7 @@
             <div class="col-lg-3 col-md-6">
                 <img src="<?= BASE_URL ?>img/logo.png" alt="Cencocal S.A." height="50" class="d-block bg-white rounded-3 p-2 mb-3 shadow-sm" style="width: auto;">
                 <p class="footer-text mb-4">
-                    Somos tu socio estratégico en distribución. Conectamos calidad y confianza con tu negocio, entregando siempre a tiempo.
+                    Transformamos la forma de comprar y vender, integrando tecnología, logística y experiencia en una nueva unidad de negocios digital.
                 </p>
 
                 <h6 class="text-uppercase text-white opacity-50 mb-3 small fw-bold ls-1">Síguenos</h6>
@@ -191,7 +191,7 @@
                     </li>
                     <li class="d-flex align-items-center gap-3">
                         <i class="bi bi-envelope text-cenco-green fs-5"></i>
-                        <span class="footer-text small">ecommerce@cencocal.cl</span>
+                        <span class="footer-text small">tiendaonline@cencocal.cl * hacer el ajuste del correo</span>
                     </li>
                 </ul>
             </div>
@@ -214,6 +214,9 @@
 
                     <div class="trust-badge">
                         <img src="<?= BASE_URL ?>img/chep.jpg" alt="Smart Movement">
+                    </div>
+                    <div class="trust-badge">
+                        <img src="<?= BASE_URL ?>img/almasend.jpg" alt="Smart Movement">
                     </div>
                 </div>
 

@@ -34,7 +34,7 @@ if (!isset($_GET['url']) || strpos($_GET['url'], 'admin') === false) {
 // Instancia de Controladores
 $authController = new AuthController($db);
 $perfilController = new \App\Controllers\PerfilController($db);
-$carritoController = new \App\Controllers\CarritoController();
+$carritoController = new \App\Controllers\CarritoController($db);
 $checkoutController = new \App\Controllers\CheckoutController($db);
 $adminController = new \App\Controllers\AdminController($db); // Usamos este para todo lo admin
 $homeController = new \App\Controllers\HomeController($db);
@@ -407,7 +407,23 @@ switch ($url) {
         $adminController->actualizarMarcaDestacada();
         break;
 
-        
+    // Rutas de Ubicación Geográfica
+    case 'location/actualizar':
+        $locController = new \App\Controllers\LocationController($db);
+        $locController->actualizar();
+        break;
+
+    case 'location/detectar':
+        $locController = new \App\Controllers\LocationController($db);
+        $locController->detectar();
+        break;
+
+    case 'location/actualizar_por_nombre':
+        $locController = new \App\Controllers\LocationController($db);
+        $locController->actualizar_por_nombre();
+        break;
+
+
     // --- 404 NOT FOUND ---
     default:
         http_response_code(404);
