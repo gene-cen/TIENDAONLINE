@@ -6,12 +6,18 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
 // URL base
-define('BASE_URL', 'http://localhost/tienda-online/public/');
+if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'render.com') !== false) {
+    define('BASE_URL', 'https://' . $_SERVER['HTTP_HOST'] . '/');
+} else {
+    define('BASE_URL', 'http://localhost/tienda-online/public/');
+}
 
 // Cargar librerías
 require_once __DIR__ . '/../vendor/autoload.php';
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
-$dotenv->load();
+if (file_exists(__DIR__ . '/../.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
+    $dotenv->load();
+}
 require_once __DIR__ . '/../app/helpers.php';
 
 use App\Config\Database;
