@@ -47,7 +47,7 @@ $adminController = new \App\Controllers\AdminController($db); // Usamos este par
 $homeController = new \App\Controllers\HomeController($db);
 $webpayController = new \App\Controllers\WebpayController($db);
 // Router Simple
-$url = $_GET['url'] ?? 'auth/login';
+$url = $_GET['url'] ?? 'home'; //lo primero que se carga es home, luego se va cambiando por lo que se le indique en el navegador
 $url = rtrim($url, '/');
 
 // =========================================================
