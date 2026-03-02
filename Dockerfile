@@ -18,15 +18,15 @@ RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 # 4. Habilitamos el mod_rewrite de Apache
 RUN a2enmod rewrite
 
-# 5. Definimos el directorio de trabajo y copiamos el código
+# 5. Definimos el directorio de trabajo
 WORKDIR /var/www/html
-COPY . .
 
-# 6. INSTALACIÓN DE LIBRERÍAS (Esto crea la carpeta /vendor)
-# Usamos --no-dev para que sea más ligero para el testeo
+# 6. COPIA OPTIMIZADA: Copiamos el código y asignamos el dueño en un solo paso súper rápido
+COPY --chown=www-data:www-data . .
+
+# 7. Instalamos las librerías de Composer
 RUN composer install --no-interaction --optimize-autoloader --no-dev
 
-# 7. ASIGNACIÓN DE PERMISOS (Vital para que Apache lea la carpeta vendor)
-RUN chown -R www-data:www-data /var/www/html && chmod -R 755 /var/www/html
+# ¡ELIMINAMOS la línea del chown -R y chmod -R que colapsaba el servidor!
 
 EXPOSE 80
