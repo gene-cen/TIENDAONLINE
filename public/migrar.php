@@ -11,10 +11,10 @@ use App\Config\Database;
 $database = new Database();
 $db = $database->getConnection();
 
-$sqlFile = __DIR__ . '/../database.sql';
+$sqlFile = __DIR__ . '/../ecommerce_db (25).sql';
 
 if (!file_exists($sqlFile)) {
-    die("❌ Error: No se encontró el archivo database.sql");
+    die("❌ Error: No se encontró el archivo ecommerce_db.sql");
 }
 
 $sql = file_get_contents($sqlFile);
