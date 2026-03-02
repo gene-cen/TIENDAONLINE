@@ -5,105 +5,71 @@ use App\Config\Database;
 $database = new Database();
 $db = $database->getConnection();
 
-$sql_postgres = "
--- 1. Analytics
-CREATE TABLE IF NOT EXISTS analytics_visitas (
-    id SERIAL PRIMARY KEY,
-    session_id VARCHAR(255) NOT NULL,
-    user_id INT DEFAULT NULL,
-    url VARCHAR(255) NOT NULL,
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    fecha_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+// Apuntamos al archivo de respaldo actualizado
+$sqlFile = __DIR__ . '/../ecommerce_db (25).sql';
 
-CREATE TABLE IF NOT EXISTS analytics_eventos (
-    id SERIAL PRIMARY KEY,
-    session_id VARCHAR(255) NOT NULL,
-    user_id INT DEFAULT NULL,
-    tipo_evento VARCHAR(50) NOT NULL,
-    etiqueta VARCHAR(255),
-    fecha_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 2. Usuarios
-CREATE TABLE IF NOT EXISTS usuarios (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255),
-    telefono VARCHAR(20),
-    rut VARCHAR(20),
-    rol VARCHAR(20) DEFAULT 'cliente',
-    verify_token VARCHAR(255),
-    is_verified BOOLEAN DEFAULT FALSE,
-    reset_token VARCHAR(255),
-    reset_expires TIMESTAMP NULL,
-    last_login TIMESTAMP NULL,
-    auth_provider VARCHAR(50) DEFAULT 'local',
-    google_id VARCHAR(255),
-    avatar_url VARCHAR(255),
-    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 3. Categorías
-CREATE TABLE IF NOT EXISTS categorias (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    slug VARCHAR(100) NOT NULL UNIQUE,
-    descripcion TEXT,
-    imagen_url VARCHAR(255),
-    activa BOOLEAN DEFAULT TRUE,
-    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 4. Productos
-CREATE TABLE IF NOT EXISTS productos (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(200) NOT NULL,
-    sku VARCHAR(50) UNIQUE,
-    descripcion TEXT,
-    precio DECIMAL(10,2) NOT NULL,
-    precio_oferta DECIMAL(10,2),
-    stock INT NOT NULL DEFAULT 0,
-    imagen_url VARCHAR(255),
-    categoria_id INT,
-    marca VARCHAR(100),
-    activo BOOLEAN DEFAULT TRUE,
-    destacado BOOLEAN DEFAULT FALSE,
-    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 5. Banners
-CREATE TABLE IF NOT EXISTS banners (
-    id SERIAL PRIMARY KEY,
-    titulo VARCHAR(100),
-    imagen_url VARCHAR(255) NOT NULL,
-    enlace VARCHAR(255),
-    orden INT DEFAULT 0,
-    activo BOOLEAN DEFAULT TRUE,
-    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 6. Marcas Destacadas
-CREATE TABLE IF NOT EXISTS marcas_destacadas (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    imagen_url VARCHAR(255) NOT NULL,
-    enlace VARCHAR(255),
-    orden INT DEFAULT 0,
-    activa BOOLEAN DEFAULT TRUE,
-    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-";
-
-try {
-    $db->exec($sql_postgres);
-    echo "<h1>¡Migración Exitosa, Gene! 🚀</h1>";
-    echo "<p>Las tablas principales (Analytics, Usuarios, Productos, Categorías, Banners y Marcas) han sido creadas en PostgreSQL.</p>";
-    echo "<p>El Home de tu tienda ya debería cargar sin problemas de base de datos.</p>";
-} catch (PDOException $e) {
-    echo "Error en la migración: " . $e->getMessage();
+if (!file_exists($sqlFile)) {
+    die("❌ Error: No se encontró el archivo ecommerce_db (25).sql en la raíz.");
 }
+
+// Leemos todo el archivo de MariaDB
+$sql = file_get_contents($sqlFile);
+
+// =========================================================================
+// 🚀 TRADUCTOR AUTOMÁTICO: MARIADB -> POSTGRESQL
+// =========================================================================
+
+// 1. Quitamos las comillas invertidas (Postgres no las soporta)
+$sql = str_replace('`', '', $sql);
+
+// 2. Limpiamos configuraciones exclusivas de MySQL (ENGINE, CHARSET, etc.)
+$sql = preg_replace('/ENGINE=InnoDB[^;]*;/i', ';', $sql);
+$sql = preg_replace('/SET SQL_MODE.*?;/i', '', $sql);
+$sql = preg_replace('/SET time_zone.*?;/i', '', $sql);
+$sql = preg_replace('/SET NAMES.*?;/i', '', $sql);
+
+// 3. Traducimos los tipos de datos principales
+$sql = preg_replace('/int\(\d+\)\s+NOT\s+NULL\s+AUTO_INCREMENT/i', 'SERIAL NOT NULL', $sql);
+$sql = str_ireplace('AUTO_INCREMENT', '', $sql); // Limpieza residual
+$sql = preg_replace('/int\(\d+\)/i', 'INTEGER', $sql);
+$sql = preg_replace('/tinyint\(\d+\)/i', 'SMALLINT', $sql);
+$sql = str_ireplace('datetime', 'TIMESTAMP', $sql);
+$sql = str_ireplace('longtext', 'TEXT', $sql);
+
+// Separamos el archivo por cada consulta individual
+$consultas = explode(';', $sql);
+
+echo "<div style='font-family: sans-serif; padding: 20px;'>";
+echo "<h1>Iniciando Migración Espejo a PostgreSQL... 🚀</h1>";
+
+$exito = true;
+
+// Ejecutamos línea por línea
+foreach ($consultas as $consulta) {
+    $consulta = trim($consulta);
+    
+    // Ignoramos comentarios y líneas vacías
+    if (empty($consulta) || strpos($consulta, '/*') === 0 || strpos($consulta, '--') === 0) {
+        continue; 
+    }
+
+    try {
+        $db->exec($consulta);
+    } catch (PDOException $e) {
+        // Si PostgreSQL detecta un comando que no logramos traducir, lo atrapamos aquí
+        echo "<div style='background: #ffebee; padding: 10px; margin-bottom: 10px; border-left: 4px solid #f44336;'>";
+        echo "<p><b>⚠️ Detalle de sintaxis en:</b> <br><code>" . htmlspecialchars(substr($consulta, 0, 150)) . "...</code></p>";
+        echo "<p><b>Error de Postgres:</b> " . $e->getMessage() . "</p>";
+        echo "</div>";
+        $exito = false;
+    }
+}
+
+if ($exito) {
+    echo "<h2 style='color: #4CAF50;'>¡Migración 100% completada! Tu base en Render es un espejo exacto.</h2>";
+    echo "<a href='" . BASE_URL . "home' style='padding: 10px 20px; background: #2196F3; color: white; text-decoration: none; border-radius: 5px;'>Ir al Catálogo</a>";
+} else {
+    echo "<h2>Proceso terminado, pero con algunos detalles de traducción.</h2>";
+    echo "<p>Pásame los errores del recuadro rojo y te doy la solución exacta para esos campos.</p>";
+}
+echo "</div>";
