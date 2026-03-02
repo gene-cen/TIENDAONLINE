@@ -27,7 +27,7 @@ use App\Controllers\HomeController;
 // Conexión a Base de Datos
 $database = new Database();
 $db = $database->getConnection();
-
+/*
 // Analytics Tracking (Ignorar Admin)
 if (!isset($_GET['url']) || strpos($_GET['url'], 'admin') === false) {
     require_once __DIR__ . '/../app/Models/Analytics.php';
@@ -36,6 +36,7 @@ if (!isset($_GET['url']) || strpos($_GET['url'], 'admin') === false) {
     $userId = $_SESSION['user_id'] ?? null;
     $analytics->registrarVisita($urlActual, $userId);
 }
+    */
 
 // Instancia de Controladores
 $authController = new AuthController($db);
@@ -345,7 +346,7 @@ switch ($url) {
         }
         break;
 
-    // ... dentro del switch de admin ...
+ 
 
     case 'admin/producto/toggleAjax':
         // AQUI ESTABA EL ERROR: Antes decia $controller->..., debe ser $adminController->...
