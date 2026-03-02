@@ -37,8 +37,7 @@ $sql = str_ireplace('datetime', 'TIMESTAMP', $sql);
 $sql = str_ireplace('longtext', 'TEXT', $sql);
 
 // Separamos el archivo por cada consulta individual
-$consultas = explode(';', $sql);
-
+$consultas = preg_split("/;+(?=(?:(?:[^']*'){2})*[^']*$)/", $sql);
 echo "<div style='font-family: sans-serif; padding: 20px;'>";
 echo "<h1>Iniciando Migración Espejo a PostgreSQL... 🚀</h1>";
 
