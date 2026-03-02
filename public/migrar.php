@@ -1,74 +1,83 @@
 <?php
+// 1. QUITAMOS LOS FRENOS DEL SERVIDOR
+set_time_limit(0); 
+ini_set('memory_limit', '-1');
+
+if (ob_get_level() == 0) ob_start();
+
 require_once __DIR__ . '/../vendor/autoload.php';
 use App\Config\Database;
 
 $database = new Database();
 $db = $database->getConnection();
 
-// Apuntamos al archivo de respaldo actualizado
-$sqlFile = __DIR__ . '/../ecommerce_db (25).sql';
+$sqlFile = __DIR__ . '/../database.sql';
 
 if (!file_exists($sqlFile)) {
-    die("❌ Error: No se encontró el archivo ecommerce_db (25).sql en la raíz.");
+    die("❌ Error: No se encontró el archivo database.sql");
 }
 
-// Leemos todo el archivo de MariaDB
 $sql = file_get_contents($sqlFile);
 
-// =========================================================================
-// 🚀 TRADUCTOR AUTOMÁTICO: MARIADB -> POSTGRESQL
-// =========================================================================
-
-// 1. Quitamos las comillas invertidas (Postgres no las soporta)
+// Limpieza general
 $sql = str_replace('`', '', $sql);
-
-// 2. Limpiamos configuraciones exclusivas de MySQL (ENGINE, CHARSET, etc.)
 $sql = preg_replace('/ENGINE=InnoDB[^;]*;/i', ';', $sql);
 $sql = preg_replace('/SET SQL_MODE.*?;/i', '', $sql);
 $sql = preg_replace('/SET time_zone.*?;/i', '', $sql);
 $sql = preg_replace('/SET NAMES.*?;/i', '', $sql);
 
-// 3. Traducimos los tipos de datos principales
+// Traducción MariaDB -> Postgres
 $sql = preg_replace('/int\(\d+\)\s+NOT\s+NULL\s+AUTO_INCREMENT/i', 'SERIAL NOT NULL', $sql);
-$sql = str_ireplace('AUTO_INCREMENT', '', $sql); // Limpieza residual
+$sql = str_ireplace('AUTO_INCREMENT', '', $sql);
 $sql = preg_replace('/int\(\d+\)/i', 'INTEGER', $sql);
 $sql = preg_replace('/tinyint\(\d+\)/i', 'SMALLINT', $sql);
 $sql = str_ireplace('datetime', 'TIMESTAMP', $sql);
 $sql = str_ireplace('longtext', 'TEXT', $sql);
 
-// Separamos el archivo por cada consulta individual
-$consultas = preg_split("/;+(?=(?:(?:[^']*'){2})*[^']*$)/", $sql);
-echo "<div style='font-family: sans-serif; padding: 20px;'>";
-echo "<h1>Iniciando Migración Espejo a PostgreSQL... 🚀</h1>";
+// CORTE INTELIGENTE Y LIGERO: Punto y coma + Salto de línea
+$sql = str_replace("\r\n", "\n", $sql); // Normalizamos saltos de línea
+$consultas = explode(";\n", $sql);
+$total = count($consultas);
+
+echo "<div style='font-family: sans-serif; padding: 20px; background-color: #f8f9fa;'>";
+echo "<h1 style='color: #2c3e50;'>Procesando Base de Datos... ⏳</h1>";
+echo "<p>Total de consultas a procesar: <b>$total</b></p>";
+echo "<div style='height: 300px; overflow-y: auto; background: #1e1e1e; color: #00ff00; padding: 10px; font-family: monospace;'>";
 
 $exito = true;
+$contador = 0;
 
-// Ejecutamos línea por línea
 foreach ($consultas as $consulta) {
     $consulta = trim($consulta);
-    
-    // Ignoramos comentarios y líneas vacías
     if (empty($consulta) || strpos($consulta, '/*') === 0 || strpos($consulta, '--') === 0) {
         continue; 
     }
 
+    $contador++;
     try {
         $db->exec($consulta);
+        if ($contador % 20 === 0) {
+            echo "✅ Procesadas $contador / $total...<br>";
+            ob_flush(); flush();
+        }
     } catch (PDOException $e) {
-        // Si PostgreSQL detecta un comando que no logramos traducir, lo atrapamos aquí
-        echo "<div style='background: #ffebee; padding: 10px; margin-bottom: 10px; border-left: 4px solid #f44336;'>";
-        echo "<p><b>⚠️ Detalle de sintaxis en:</b> <br><code>" . htmlspecialchars(substr($consulta, 0, 150)) . "...</code></p>";
-        echo "<p><b>Error de Postgres:</b> " . $e->getMessage() . "</p>";
-        echo "</div>";
+        echo "<span style='color: #ff5555;'>⚠️ Error en línea $contador: " . $e->getMessage() . "</span><br>";
         $exito = false;
+        ob_flush(); flush();
     }
 }
 
-if ($exito) {
-    echo "<h2 style='color: #4CAF50;'>¡Migración 100% completada! Tu base en Render es un espejo exacto.</h2>";
-    echo "<a href='" . BASE_URL . "home' style='padding: 10px 20px; background: #2196F3; color: white; text-decoration: none; border-radius: 5px;'>Ir al Catálogo</a>";
-} else {
-    echo "<h2>Proceso terminado, pero con algunos detalles de traducción.</h2>";
-    echo "<p>Pásame los errores del recuadro rojo y te doy la solución exacta para esos campos.</p>";
-}
 echo "</div>";
+
+if ($exito) {
+    echo "<h2 style='color: #27ae60;'>¡Estructura migrada con éxito! 🚀</h2>";
+} else {
+    echo "<h2 style='color: #e67e22;'>Migración completada con advertencias.</h2>";
+    echo "<p>Las tablas ya deberían existir, los errores suelen ser datos específicos incompatibles.</p>";
+}
+
+// CORRECCIÓN DEL FATAL ERROR: Usamos un link relativo en lugar de BASE_URL
+echo "<br><a href='/home' style='padding: 10px 20px; background: #2980b9; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;'>Ir al Catálogo de la Tienda</a>";
+echo "</div>";
+ob_end_flush();
+?>
