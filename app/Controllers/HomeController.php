@@ -42,10 +42,17 @@ class HomeController
     // =========================================================
     // 1. PORTADA (HOME) - SOLO PRODUCTOS CON STOCK Y PRECIO
     // =========================================================
+    // =========================================================
+    // 1. PORTADA (HOME) - SOLO PRODUCTOS CON STOCK Y PRECIO
+    // =========================================================
     public function index()
     {
         $categorias = $this->cargarCategorias();
         $sucursal_id = $_SESSION['sucursal_activa'];
+
+        // --- DETECTOR HÍBRIDO DE MOTOR DE BASE DE DATOS ---
+        $motor = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME);
+        $fnRand = ($motor === 'pgsql') ? 'RANDOM()' : 'RAND()';
 
         $stmtMarcas = $this->db->query("SELECT * FROM marcas WHERE activo = 1 ORDER BY nombre ASC");
         $marcas = $stmtMarcas->fetchAll(\PDO::FETCH_ASSOC);
@@ -74,7 +81,7 @@ class HomeController
                        LEFT JOIN marcas m ON piw.marca_id = m.id
                        WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
                        AND ps.precio > 0 AND ps.stock > 0 
-                       ORDER BY RAND() LIMIT 4";
+                       ORDER BY " . $fnRand . " LIMIT 4";
         $ofertas = $this->db->query($sqlOfertas)->fetchAll(\PDO::FETCH_ASSOC);
 
         // E. MÁS VENDIDOS (Solo con stock > 0)
@@ -86,7 +93,7 @@ class HomeController
                            LEFT JOIN marcas m ON piw.marca_id = m.id
                            WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
                            AND ps.precio > 0 AND ps.stock > 0 
-                           ORDER BY RAND() LIMIT 5";
+                           ORDER BY " . $fnRand . " LIMIT 5";
         $masVendidos = $this->db->query($sqlMasVendidos)->fetchAll(\PDO::FETCH_ASSOC);
 
         $bannersHome = $this->db->query("SELECT * FROM carrusel_banners WHERE estado_activo = 1 ORDER BY orden ASC")->fetchAll(\PDO::FETCH_ASSOC);
@@ -253,6 +260,9 @@ class HomeController
     // =========================================================
     // 7. FICHA DE PRODUCTO (CON PRECIO DE SUCURSAL Y STOCK)
     // =========================================================
+    // =========================================================
+    // 7. FICHA DE PRODUCTO (CON PRECIO DE SUCURSAL Y STOCK)
+    // =========================================================
     public function producto()
     {
         $id = $_GET['id'] ?? null;
@@ -280,6 +290,10 @@ class HomeController
             exit;
         }
 
+        // --- DETECTOR HÍBRIDO DE MOTOR DE BASE DE DATOS ---
+        $motor = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME);
+        $fnRand = ($motor === 'pgsql') ? 'RANDOM()' : 'RAND()';
+
         $relacionados = [];
         if (!empty($producto['cat_id'])) {
             // Relacionados SÍ deben tener stock
@@ -289,7 +303,7 @@ class HomeController
                        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                        LEFT JOIN marcas m ON piw.marca_id = m.id
                        WHERE piw.web_categoria_id = ? AND p.id != ? AND ps.sucursal_id = $sucursal_id AND ps.precio > 0 AND ps.stock > 0 AND p.activo = 1
-                       ORDER BY RAND() LIMIT 4";
+                       ORDER BY " . $fnRand . " LIMIT 4";
             $stmtRel = $this->db->prepare($sqlRel);
             $stmtRel->execute([$producto['cat_id'], $id]);
             $relacionados = $stmtRel->fetchAll(\PDO::FETCH_ASSOC);
