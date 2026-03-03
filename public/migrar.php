@@ -9,7 +9,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 $sqlFile = __DIR__ . '/../ecommerce_db (25).sql';
-if (!file_exists($sqlFile)) die("❌ No se encontró database.sql");
+if (!file_exists($sqlFile)) die(" No se encontró database.sql");
 
 $sql = file_get_contents($sqlFile);
 
