@@ -333,7 +333,7 @@ switch ($url) {
 
 
     // --- ANALYTICS (Registro de eventos JS) ---
-    case 'analytics/registrar-evento':
+    /*case 'analytics/registrar-evento':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/../app/Models/Analytics.php';
             // Usamos la variable $db que ya definimos arriba
@@ -344,7 +344,7 @@ switch ($url) {
             }
             exit();
         }
-        break;
+        break;*/
 
  
 
