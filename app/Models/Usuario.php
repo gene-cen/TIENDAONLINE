@@ -114,9 +114,26 @@ class Usuario
 
         return ['id' => $usuarioId, 'token' => $token];
     }
+
+    /* version local
     private function registrarAcceso($userId, $exitoso)
     {
         $sql = "INSERT INTO log_accesos (usuario_id, ip_address, user_agent, exitoso) 
+                VALUES (:uid, :ip, :ua, :exito)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            ':uid'   => $userId,
+            ':ip'    => $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
+            ':ua'    => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+            ':exito' => $exitoso ? 1 : 0
+        ]);
+    }
+        */
+
+    private function registrarAcceso($userId, $exitoso)
+    {
+        // CAMBIAMOS "exitoso" por "exito" EN EL INSERT
+        $sql = "INSERT INTO log_accesos (usuario_id, ip_address, user_agent, exito) 
                 VALUES (:uid, :ip, :ua, :exito)";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
