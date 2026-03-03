@@ -94,20 +94,31 @@ class AuthController
         }
     }
 
+    // Reemplaza toda tu función setSession por esta:
     private function setSession($user)
     {
         $_SESSION['user_id'] = $user->id;
-        // Magia Logística: Detectar su sucursal según la comuna registrada
-        $stmtComuna = $this->db->prepare("SELECT sucursal_id FROM comunas WHERE id = ?");
-        $stmtComuna->execute([$usuario->comuna_id]); // Asume que la variable del usuario se llama $usuario o $user
-        $suc_asignada = $stmtComuna->fetchColumn();
-
-        // Si tiene sucursal asignada (10 o 29) la usamos, sino, Prat por defecto.
-        $_SESSION['sucursal_activa'] = $suc_asignada ? $suc_asignada : 29;
         $_SESSION['user_nombre'] = $user->nombre;
         $_SESSION['user_rol'] = $user->rol;
-    }
 
+        $suc_asignada = null;
+
+        // Magia Logística Segura: Solo buscamos si el usuario realmente tiene una comuna_id
+        if (isset($user->comuna_id) && !empty($user->comuna_id)) {
+            try {
+                // CORRECCIÓN: Usamos $user->comuna_id en lugar de $usuario
+                $stmtComuna = $this->db->prepare("SELECT sucursal_id FROM comunas WHERE id = ?");
+                $stmtComuna->execute([$user->comuna_id]);
+                $suc_asignada = $stmtComuna->fetchColumn();
+            } catch (\PDOException $e) {
+                // Si la tabla comunas no existe, guardamos el error en silencio y seguimos adelante
+                error_log("Aviso: No se pudo verificar la sucursal de la comuna. " . $e->getMessage());
+            }
+        }
+
+        // Si tiene sucursal asignada en BD la usamos, sino, La Calera por defecto (29).
+        $_SESSION['sucursal_activa'] = $suc_asignada ? $suc_asignada : 29;
+    }
     // REGISTRO DE USUARIO (Actualizado con Email Real)
     // REGISTRO DE USUARIO (Adaptado para Modales)
     public function register()
