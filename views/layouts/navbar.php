@@ -304,5 +304,5 @@
                 }
             })
             .catch(err => console.error("Error cambiando comuna:", err));
-    }s
+    }
 </script>

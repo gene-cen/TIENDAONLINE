@@ -303,9 +303,28 @@ foreach ($sucursales as $s) {
                     </div>
                 </div>
 
+                <?php if (isset($usuario->es_cliente_confianza) && $usuario->es_cliente_confianza == 1): ?>
+                    <div class="bg-light rounded-3 p-3 mb-4 border border-cenco-green">
+                        <h6 class="fw-bold text-cenco-indigo mb-3"><i class="bi bi-wallet2 me-2"></i>Método de Pago</h6>
+
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="metodo_pago" id="pago_webpay" value="webpay" checked form="formCheckout">
+                            <label class="form-check-label small fw-bold" for="pago_webpay">
+                                Webpay Plus (Débito/Crédito)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="metodo_pago" id="pago_contra_entrega" value="contra_entrega" form="formCheckout">
+                            <label class="form-check-label small fw-bold text-cenco-green" for="pago_contra_entrega">
+                                Pago Contra Entrega (Transferencia/Transbank al recibir)
+                            </label>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 <button type="submit" form="formCheckout" class="btn btn-cenco-green w-100 py-3 fw-bold shadow-sm rounded-pill fs-5 transition-hover">
                     CONFIRMAR COMPRA <i class="bi bi-arrow-right-circle ms-2"></i>
                 </button>
+
             </div>
         </div>
     </div>

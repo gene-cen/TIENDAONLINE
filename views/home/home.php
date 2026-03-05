@@ -46,8 +46,7 @@
     <?php endif; ?>
 </div>
 
-
-<section class="bg-light py-5 border-bottom">
+'<section class="bg-light py-5 border-bottom">
     <div class="container">
 
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -63,12 +62,20 @@
         </div>
 
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
-            <?php foreach ($ofertas as $oferta):
+            
+            <?php 
+            // Iniciamos el bucle para recorrer el array de $ofertas enviado desde el controlador
+            foreach ($ofertas as $oferta):
+                // Extraemos datos básicos del producto
                 $id = $oferta['id'];
                 $nombre = $oferta['nombre_web'];
                 $precioReal = $oferta['precio'];
-                // Simulación de "Precio Antes" (le sumamos un 20% falso para que se vea el descuento)
+
+                // Lógica de Marketing: Calculamos un precio inflado (25%) para simular un descuento del 20%
                 $precioAntes = $precioReal * 1.25;
+
+                // Validación de imagen: Si empieza con http es externa, si no, se busca en la carpeta local. 
+                // Si está vacía, muestra una imagen por defecto.
                 $img = !empty($oferta['imagen']) ? (strpos($oferta['imagen'], 'http') === 0 ? $oferta['imagen'] : BASE_URL . 'img/productos/' . $oferta['imagen']) : BASE_URL . 'img/no-image.png';
             ?>
                 <div class="col">
@@ -108,11 +115,13 @@
                         </div>
                     </div>
                 </div>
-            <?php endforeach; ?>
+            <?php endforeach; // Fin del bucle de ofertas ?>
+            
         </div>
-
     </div>
 </section>
+
+
 <div class="container mb-5 mt-5">
     <div class="d-flex align-items-center mb-4">
         <h3 class="fw-black text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">CATEGORÍAS DESTACADAS</h3>

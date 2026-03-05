@@ -35,78 +35,116 @@ class AdminController
     // 📊 DASHBOARD
     // =========================================================
     // En App/Controllers/AdminController.php
-
     public function dashboard()
     {
-        // 1. Verificación de Seguridad
-        if (!isset($_SESSION['user_rol']) || $_SESSION['user_rol'] !== 'admin') {
-            header("Location: " . BASE_URL . "auth/login");
-            exit();
-        }
+        $this->verificarAdmin();
 
         // --- FILTROS DE FECHA (Por defecto: Mes Actual) ---
         $desde = $_GET['desde'] ?? date('Y-m-01');
         $hasta = $_GET['hasta'] ?? date('Y-m-d');
 
+        // --- MAGIA MULTI-SUCURSAL ---
+        $sucursalAsignada = $_SESSION['admin_sucursal'] ?? null;
+        $filtroSucursal = "";
+        $filtroSucursalTop = "";
+        $paramsBase = [':desde' => $desde, ':hasta' => $hasta];
+
+        if (!empty($sucursalAsignada)) {
+            $filtroSucursal = " AND sucursal_codigo = :sucursal";
+            $filtroSucursalTop = " AND ped.sucursal_codigo = :sucursal";
+            $paramsBase[':sucursal'] = strval($sucursalAsignada);
+        }
+        // -----------------------------
+
         // ======================================================
         // 2. OBTENCIÓN DE DATOS (KPIs)
         // ======================================================
 
-        // A. VENTA TOTAL (Solo pedidos pagados/completados en el rango)
-        // Ajusta los IDs de estado según tu DB (ej: 2=Pagado, 3=En Ruta, 4=Entregado)
+        // A. VENTA TOTAL (Ignoramos 1=Pendiente y 6=Anulado)
         $sqlVenta = "SELECT COALESCE(SUM(monto_total), 0) FROM pedidos 
-                     WHERE estado_pedido_id IN (2,3,4) 
-                     AND DATE(fecha_creacion) BETWEEN ? AND ?";
-        $stmt = $this->db->prepare($sqlVenta);
-        $stmt->execute([$desde, $hasta]);
-        $ventaPeriodo = $stmt->fetchColumn();
+                     WHERE estado_pedido_id NOT IN (1, 6) 
+                     $filtroSucursal
+                     AND DATE(fecha_creacion) BETWEEN :desde AND :hasta";
+        $stmtVenta = $this->db->prepare($sqlVenta);
+        $stmtVenta->execute($paramsBase);
+        $ventaPeriodo = $stmtVenta->fetchColumn();
 
-        // B. PEDIDOS PENDIENTES (Total histórico, no solo del rango, porque es trabajo acumulado)
-        $sqlPend = "SELECT COUNT(*) FROM pedidos WHERE estado_pedido_id = 1"; // 1 = Pendiente
-        $pendientes = $this->db->query($sqlPend)->fetchColumn();
+        // B. PEDIDOS PENDIENTES
+        $paramsPend = [];
+        $sqlPend = "SELECT COUNT(*) FROM pedidos WHERE estado_pedido_id = 1";
+        if (!empty($sucursalAsignada)) {
+            $sqlPend .= " AND sucursal_codigo = :sucursal";
+            $paramsPend[':sucursal'] = strval($sucursalAsignada);
+        }
+        $stmtPend = $this->db->prepare($sqlPend);
+        $stmtPend->execute($paramsPend);
+        $pendientes = $stmtPend->fetchColumn();
 
         // C. PRODUCTOS BAJO STOCK (Stock Crítico < 10)
-        $sqlStock = "SELECT nombre, stock, imagen FROM productos WHERE stock < 10 AND activo = 1 ORDER BY stock ASC LIMIT 5";
-        $stockCritico = $this->db->query($sqlStock)->fetchAll(\PDO::FETCH_ASSOC);
+        if (!empty($sucursalAsignada)) {
+            $sqlStock = "SELECT p.nombre, ps.stock, p.imagen 
+                         FROM productos_sucursales ps 
+                         JOIN productos p ON ps.cod_producto = p.cod_producto 
+                         WHERE ps.stock < 10 AND ps.sucursal_id = :sucursal
+                         ORDER BY ps.stock ASC LIMIT 5";
+            $stmtStock = $this->db->prepare($sqlStock);
+            $stmtStock->execute([':sucursal' => $sucursalAsignada]);
+            $stockCritico = $stmtStock->fetchAll(\PDO::FETCH_ASSOC);
+        } else {
+            $sqlStock = "SELECT p.nombre, SUM(ps.stock) as stock, p.imagen 
+                         FROM productos_sucursales ps 
+                         JOIN productos p ON ps.cod_producto = p.cod_producto 
+                         GROUP BY p.id
+                         HAVING stock < 10
+                         ORDER BY stock ASC LIMIT 5";
+            $stockCritico = $this->db->query($sqlStock)->fetchAll(\PDO::FETCH_ASSOC);
+        }
 
         // ======================================================
         // 3. DATOS PARA GRÁFICOS Y TABLAS
         // ======================================================
 
-        // D. VENTAS ÚLTIMOS 7 DÍAS (Para el gráfico)
+        // D. VENTAS ÚLTIMOS 7 DÍAS (Corregido para usar el rango de fechas seleccionado)
         $sqlChart = "SELECT DATE_FORMAT(fecha_creacion, '%d/%m') as fecha, SUM(monto_total) as total 
                      FROM pedidos 
-                     WHERE estado_pedido_id IN (2,3,4) 
-                     AND fecha_creacion >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                     WHERE estado_pedido_id NOT IN (1, 6)
+                     $filtroSucursal
+                     AND DATE(fecha_creacion) BETWEEN :desde AND :hasta
                      GROUP BY DATE(fecha_creacion) 
                      ORDER BY fecha_creacion ASC";
-        $datosGrafico = $this->db->query($sqlChart)->fetchAll(\PDO::FETCH_ASSOC);
+        $stmtChart = $this->db->prepare($sqlChart);
+        $stmtChart->execute($paramsBase);
+        $datosGrafico = $stmtChart->fetchAll(\PDO::FETCH_ASSOC);
 
-        // E. TOP 5 PRODUCTOS MÁS VENDIDOS (En el periodo seleccionado)
+        // E. TOP 5 PRODUCTOS MÁS VENDIDOS
         $sqlTop = "SELECT p.nombre, SUM(dp.cantidad) as vendidos 
                    FROM pedidos_detalle dp
                    JOIN pedidos ped ON dp.pedido_id = ped.id
                    JOIN productos p ON dp.producto_id = p.id
-                   WHERE ped.estado_pedido_id IN (2,3,4)
-                   AND DATE(ped.fecha_creacion) BETWEEN ? AND ?
+                   WHERE ped.estado_pedido_id NOT IN (1, 6)
+                   $filtroSucursalTop
+                   AND DATE(ped.fecha_creacion) BETWEEN :desde AND :hasta
                    GROUP BY p.id 
                    ORDER BY vendidos DESC 
                    LIMIT 5";
         $stmtTop = $this->db->prepare($sqlTop);
-        $stmtTop->execute([$desde, $hasta]);
+        $stmtTop->execute($paramsBase);
         $topProductos = $stmtTop->fetchAll(\PDO::FETCH_ASSOC);
 
-        // F. ÚLTIMOS 5 PEDIDOS (Resumen rápido)
-        $pedidoModel = new \App\Models\Pedido($this->db);
-        // Reusamos obtenerFiltrados pero limitamos a 5 para no cargar todo
-        // Nota: Si obtenerFiltrados no tiene LIMIT, mejor hacemos una query simple aquí:
+        // F. ÚLTIMOS 5 PEDIDOS
         $sqlRecientes = "SELECT p.*, u.nombre as nombre_cliente, ep.nombre as estado, ep.badge_class as color_estado 
                          FROM pedidos p 
                          LEFT JOIN usuarios u ON p.usuario_id = u.id
                          LEFT JOIN estados_pedido ep ON p.estado_pedido_id = ep.id
+                         WHERE 1=1 $filtroSucursal
                          ORDER BY p.id DESC LIMIT 5";
-        $ultimosPedidos = $this->db->query($sqlRecientes)->fetchAll(\PDO::FETCH_ASSOC);
-
+        $stmtRecientes = $this->db->prepare($sqlRecientes);
+        $paramsRecientes = [];
+        if (!empty($sucursalAsignada)) {
+            $paramsRecientes[':sucursal'] = strval($sucursalAsignada);
+        }
+        $stmtRecientes->execute($paramsRecientes);
+        $ultimosPedidos = $stmtRecientes->fetchAll(\PDO::FETCH_ASSOC);
 
         // ======================================================
         // 4. RENDERIZAR VISTA
@@ -114,7 +152,7 @@ class AdminController
         ob_start();
         include __DIR__ . '/../../views/admin/dashboard.php';
         $content = ob_get_clean();
-        include __DIR__ . '/../../views/layouts/main.php'; // <--- ESTO ES LO CORRECTO
+        include __DIR__ . '/../../views/layouts/main.php';
     }
     // =========================================================
     // 📈 ANALÍTICA WEB
@@ -122,6 +160,13 @@ class AdminController
     public function analytics()
     {
         $this->verificarAdmin();
+
+        // --- CANDADO SOLO PARA BIG BOSS ---
+        // Si el admin tiene una sucursal asignada (ej: 10 o 29), lo pateamos al dashboard
+        if (!empty($_SESSION['admin_sucursal'])) {
+            header("Location: " . BASE_URL . "admin/dashboard?msg=acceso_denegado");
+            exit();
+        }
 
         // 1. Capturar Filtros
         $fechaInicio = $_GET['desde'] ?? date('Y-m-01'); // 1ro del mes actual
@@ -164,6 +209,16 @@ class AdminController
     {
         $this->verificarAdmin();
         $pedido = $this->pedidoModel->obtenerPorId($id);
+
+        // --- CANDADO MULTI-SUCURSAL ---
+        $sucursalAsignada = $_SESSION['admin_sucursal'] ?? null;
+        if ($pedido && $sucursalAsignada !== null) {
+            if ((int)$pedido['sucursal_codigo'] !== (int)$sucursalAsignada) {
+                // Si el pedido no es de su sucursal, lo pateamos fuera
+                header("Location: " . BASE_URL . "admin/pedidos?msg=acceso_denegado");
+                exit();
+            }
+        }
 
         if (method_exists($this->pedidoModel, 'obtenerDetalleProductos')) {
             $detalles = $this->pedidoModel->obtenerDetalleProductos($id);
@@ -266,17 +321,20 @@ class AdminController
         $busqueda = $_GET['q'] ?? '';
         $filtroCategoriaId = $_GET['categoria'] ?? '';
 
+        // --- MAGIA MULTI-SUCURSAL ---
+        $sucursalAsignada = $_SESSION['admin_sucursal'] ?? null;
+        // -----------------------------
+
         $por_pagina = 20;
         $pagina_actual = isset($_GET['page']) ? (int)$_GET['page'] : 1;
         if ($pagina_actual < 1) $pagina_actual = 1;
         $offset = ($pagina_actual - 1) * $por_pagina;
 
-        $total_registros = $this->productoModel->contarTotal($busqueda, $filtroCategoriaId);
+        $total_registros = $this->productoModel->contarTotal($busqueda, $filtroCategoriaId, $sucursalAsignada);
         $total_paginas = ceil($total_registros / $por_pagina);
 
-        $productos = $this->productoModel->obtenerPaginados($por_pagina, $offset, $busqueda, $filtroCategoriaId);
+        $productos = $this->productoModel->obtenerPaginados($por_pagina, $offset, $busqueda, $filtroCategoriaId, $sucursalAsignada);
 
-        // CORRECCIÓN: Definimos ambas variables
         $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
         $categorias = $listaCategorias;
 
@@ -287,7 +345,6 @@ class AdminController
         $content = ob_get_clean();
         require_once __DIR__ . '/../../views/layouts/main.php';
     }
-
     public function toggleProducto($id)
     {
         $this->verificarAdmin();
@@ -476,13 +533,16 @@ class AdminController
         $busqueda = $_GET['q'] ?? '';
         $categoriaId = $_GET['categoria'] ?? '';
 
-        $productos = $this->productoModel->obtenerPaginados(50, 0, $busqueda, $categoriaId);
+        // --- MAGIA MULTI-SUCURSAL ---
+        $sucursalAsignada = $_SESSION['admin_sucursal'] ?? null;
+        // -----------------------------
+
+        $productos = $this->productoModel->obtenerPaginados(50, 0, $busqueda, $categoriaId, $sucursalAsignada);
 
         if (empty($productos)) {
             echo '<tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-emoji-frown fs-1 d-block mb-2 opacity-50"></i>No se encontraron coincidencias.</td></tr>';
             return;
         }
-
         foreach ($productos as $prod) {
             $nombre = $prod->nombre_mostrar ?? $prod->nombre ?? 'Sin Nombre';
             $codigo = $prod->cod_producto ?? '---';
@@ -540,35 +600,41 @@ class AdminController
         echo json_encode(['status' => 'error']);
         exit;
     }
-
     // =========================================================
     // 🛒 VISTA DEDICADA DE PEDIDOS
     // =========================================================
     public function pedidos()
     {
-        $this->verificarAdmin();
+        $this->verificarAdmin(); // Siempre es buena práctica verificar que sea admin
 
-        // 1. Capturar Filtros (Igual que en Dashboard)
-        $fechaInicio = $_GET['desde'] ?? date('Y-m-01');
-        $fechaFin    = $_GET['hasta'] ?? date('Y-m-d');
-        $busqueda    = $_GET['q'] ?? '';
-        $estado      = $_GET['estado'] ?? '';
+        // 1. Obtener filtros
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+        $q = $_GET['q'] ?? '';
+        $estado = $_GET['estado'] ?? '';
 
-        // 2. Obtener Pedidos con el método blindado del Modelo
-        $pedidos = $this->pedidoModel->obtenerFiltrados($fechaInicio, $fechaFin, $busqueda, $estado);
+        // --- INICIO DE LA LÓGICA MULTI-SUCURSAL ---
+        $sucursalAsignada = $_SESSION['admin_sucursal'] ?? null;
+        // --- FIN DE LA LÓGICA ---
 
-        // 3. Variables para la vista
-        $listaCategorias = $this->productoModel->obtenerCategoriasUnicas();
-        $categorias = $listaCategorias; // Para el sidebar
-        $esAdmin = true;
+        // 2. Configurar Paginación
+        $limite = 25; // 25 filas máximo
+        $paginaActual = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        if ($paginaActual < 1) $paginaActual = 1;
+        $offset = ($paginaActual - 1) * $limite;
 
+        // 3. Consultar Base de Datos (Enviando la sucursal asignada)
+        $totalRegistros = $this->pedidoModel->contarFiltrados($desde, $hasta, $q, $estado, $sucursalAsignada);
+        $totalPaginas = ceil($totalRegistros / $limite);
+
+        $pedidos = $this->pedidoModel->obtenerFiltrados($desde, $hasta, $q, $estado, $limite, $offset, $sucursalAsignada);
+
+        // 4. Renderizar vista 
         ob_start();
-        // OJO: Crearemos este archivo en el paso 3
-        require_once __DIR__ . '/../../views/admin/pedidos_index.php';
+        include __DIR__ . '/../../views/admin/pedidos_index.php'; // ASEGÚRATE DE QUE EL NOMBRE SEA CORRECTO AQUÍ
         $content = ob_get_clean();
-        require_once __DIR__ . '/../../views/layouts/main.php';
+        include __DIR__ . '/../../views/layouts/main.php';
     }
-
     // =========================================================
     // 🖼️ MANTENEDOR: GESTIÓN DE BANNERS
     // =========================================================

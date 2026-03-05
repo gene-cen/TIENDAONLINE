@@ -37,6 +37,12 @@
                     <i class="bi bi-speedometer2 fs-5"></i> Dashboard
                 </a>
 
+                <?php if (empty($_SESSION['admin_sucursal'])): ?>
+                    <a href="<?= BASE_URL ?>admin/analytics"
+                        class="list-group-item list-group-item-action border-0 px-4 py-3 mb-1 d-flex align-items-center gap-3 fw-bold rounded-end-pill me-2 <?= isActiveAdmin('admin/analytics', $currentUrl) ?>">
+                        <i class="bi bi-graph-up-arrow fs-5"></i> Data Analytics
+                    </a>
+                <?php endif; ?>
                 <div class="small fw-bold text-uppercase text-muted px-4 mt-4 mb-2 ls-1 border-top pt-3" style="font-size: 0.75rem;">Gestión</div>
 
                 <a href="<?= BASE_URL ?>admin/productos"

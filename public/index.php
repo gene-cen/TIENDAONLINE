@@ -346,7 +346,7 @@ switch ($url) {
         }
         break;*/
 
- 
+
 
     case 'admin/producto/toggleAjax':
         // AQUI ESTABA EL ERROR: Antes decia $controller->..., debe ser $adminController->...
@@ -382,6 +382,11 @@ switch ($url) {
 
     case 'webpay/confirmar':
         $webpayController->confirmar();
+        break;
+
+    case 'pedido/exito':
+        $pedidoController = new \App\Controllers\PedidoController($db);
+        $pedidoController->exito();
         break;
 
     // Banners (Mantenedor)

@@ -271,46 +271,48 @@ class Producto
         $stmt->execute($params);
         return $stmt->fetchColumn();
     }
-
-    public function obtenerPaginados($limit, $offset, $busqueda = '', $categoriaId = '')
+    // Agregamos $sucursalAdmin como parámetro
+    public function obtenerPaginados($limit, $offset, $busqueda = '', $categoria = '', $sucursalAdmin = null)
     {
-        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
-        $sql = "SELECT 
-                    p.id, p.cod_producto, p.nombre, p.descripcion, p.imagen, p.activo,
-                    COALESCE(pi.nombre_web, p.nombre) as nombre_mostrar,
-                    wc.nombre as categoria_nombre,
-                    wc.id as categoria_id,
-                    ps.precio,
-                    ps.stock,
-                    pi.visible_web
-                FROM productos p
-                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = $sucursal_id
-                LEFT JOIN productos_info_web pi ON p.cod_producto = pi.cod_producto
-                LEFT JOIN web_categorias wc ON pi.web_categoria_id = wc.id
+        $params = [];
+
+        // --- JOIN MULTI-SUCURSAL ---
+        // Si hay un admin asignado, filtramos por esa sucursal. Si es Big Boss, usamos 29 por defecto.
+        $sucursalJoin = "LEFT JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = :sucursal_admin";
+        $params[':sucursal_admin'] = $sucursalAdmin ? $sucursalAdmin : 29;
+
+        // Leemos p.categoria como categoria_nombre directamente desde la tabla productos
+        $sql = "SELECT p.*, ps.stock, ps.precio, p.categoria as categoria_nombre 
+                FROM productos p 
+                $sucursalJoin
                 WHERE 1=1";
 
-        $params = [];
         if (!empty($busqueda)) {
-            $sql .= " AND (pi.nombre_web LIKE :q1 OR p.nombre LIKE :q2 OR p.cod_producto LIKE :q3)";
-            $term = "%$busqueda%";
-            $params[':q1'] = $term;
-            $params[':q2'] = $term;
-            $params[':q3'] = $term;
-        }
-        if (!empty($categoriaId)) {
-            $sql .= " AND wc.id = :catId";
-            $params[':catId'] = $categoriaId;
+            $sql .= " AND (p.nombre LIKE :busqueda OR p.cod_producto LIKE :codigo)";
+            $params[':busqueda'] = "%$busqueda%";
+            $params[':codigo'] = "%$busqueda%";
         }
 
-        $sql .= " ORDER BY p.id DESC LIMIT $limit OFFSET $offset";
+        if (!empty($categoria)) {
+            $sql .= " AND p.categoria = :categoria";
+            $params[':categoria'] = $categoria;
+        }
+
+        $sql .= " ORDER BY p.id DESC LIMIT :limit OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value);
+
+        foreach ($params as $key => $val) {
+            $stmt->bindValue($key, $val);
         }
+
+        $stmt->bindValue(':limit', (int) $limit, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', (int) $offset, \PDO::PARAM_INT);
+
         $stmt->execute();
         return $stmt->fetchAll(\PDO::FETCH_OBJ);
     }
+
 
     // ====================================================================
     // 6. ESCRITURA (Admin / ERP)

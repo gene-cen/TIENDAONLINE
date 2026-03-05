@@ -102,8 +102,14 @@ class WebpayController
                 if ($idPedido) {
                     $this->db->beginTransaction();
 
-                    $this->pedidoModel->actualizarEstado($idPedido, 2); // 2 = Pagado
-                    $this->pedidoModel->registrarHistorial($idPedido, 2, 'Pago aprobado vía Webpay Plus. Orden: ' . $result->getBuyOrder());
+                    // 1. Estado de la orden (Logístico)
+                    $this->pedidoModel->actualizarEstado($idPedido, 2);
+
+                    // 2. CAMBIO CLAVE: Estado del pago (2 = Pagado)
+                    // Asegúrate que en tu tabla 'estados_pago' el ID 2 sea 'Pagado'
+                    $this->pedidoModel->actualizarEstadoPago($idPedido, 2);
+
+                    $this->pedidoModel->registrarHistorial($idPedido, 2, 'Pago aprobado vía Webpay Plus.');
 
                     // --- MAGIA: RESERVAMOS EL STOCK PARA EVITAR SOBREVENTAS ---
                     $this->pedidoModel->reservarStock($idPedido);
@@ -129,7 +135,8 @@ class WebpayController
                     unset($_SESSION['carrito']);
                 }
 
-                header("Location: " . BASE_URL . "perfil?msg=pago_exitoso&orden=" . $result->getBuyOrder());
+                // Redirigimos a la hermosa vista de éxito
+                header("Location: " . BASE_URL . "pedido/exito?id=" . $idPedido);
                 exit();
             } else {
                 // ... (el resto del código de pago rechazado sigue igual) ...

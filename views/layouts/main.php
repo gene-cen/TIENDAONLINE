@@ -1,33 +1,52 @@
 <?php
-// 1. CONFIGURACIÓN INICIAL Y HELPER DE VISTA
-if (session_status() === PHP_SESSION_NONE) session_start();
+/**
+ * ARCHIVO: layout_main.php (Estructura principal)
+ * Descripción: Contenedor global que incluye Header, Navbar, Sidebar (si es admin) y Modals.
+ */
 
-// Detección de Admin
-if (!isset($esAdmin)) {
-    $esAdmin = (isset($_SESSION['user_rol']) && $_SESSION['user_rol'] === 'admin');
+// 1. CONFIGURACIÓN INICIAL
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
-// Helper para menú activo
+// Definición de URL base si no existe (Asegúrate de tenerla en tu config)
+if (!defined('BASE_URL')) define('BASE_URL', '/');
+
+// Detección de Rol de Administrador
+$esAdmin = (isset($_SESSION['user_rol']) && $_SESSION['user_rol'] === 'admin');
+
+// Helper para menú activo en Sidebar Admin
 if (!function_exists('isActiveAdmin')) {
-    function isActiveAdmin($ruta)
-    {
+    function isActiveAdmin($ruta) {
         $current = $_GET['url'] ?? 'admin/dashboard';
         return (strpos($current, $ruta) === 0) ? 'bg-cenco-indigo text-white shadow-sm' : 'text-secondary hover-bg-light';
     }
 }
 
+// Variables de vista
 $categoriasMenu = $listaCategorias ?? [];
-include __DIR__ . '/header.php';
+
+// Inclusión del Header (Abre <html> y <head>)
+include __DIR__ . '/header.php'; 
 ?>
 
 <div class="d-flex" id="wrapper">
+    
+    <?php if ($esAdmin): ?>
+        <?php include __DIR__ . '/sidebar.php'; ?>
+    <?php endif; ?>
+
     <div id="page-content-wrapper" class="d-flex flex-column min-vh-100 w-100">
+        
         <?php include __DIR__ . '/navbar.php'; ?>
         
         <main class="container-fluid px-0 flex-grow-1">
             <?php
-            if (isset($content)) echo $content;
-            else echo "<div class='container py-5 text-center'>No content selected</div>";
+            if (isset($content)) {
+                echo $content;
+            } else {
+                echo "<div class='container py-5 text-center'><i class='bi bi-exclamation-circle fs-1 text-muted'></i><p class='mt-3'>No se ha seleccionado contenido para mostrar.</p></div>";
+            }
             ?>
         </main>
         
@@ -45,7 +64,7 @@ include __DIR__ . '/header.php';
                 Ver Todo el Catálogo
             </a>
             <hr class="my-2 mx-4 opacity-25">
-            <?php if (isset($categorias) && !empty($categorias)): foreach ($categorias as $cat):
+            <?php if (!empty($categoriasMenu)): foreach ($categoriasMenu as $cat):
                     $catNombre = is_object($cat) ? $cat->nombre : $cat['nombre'];
                     $icono = function_exists('obtenerIconoCategoria') ? obtenerIconoCategoria($catNombre) : 'fa-solid fa-tag';
             ?>
@@ -91,13 +110,6 @@ include __DIR__ . '/header.php';
     </div>
 </div>
 
-<?php 
-// Incluir el Sidebar de Administrador si corresponde
-if (isset($esAdmin) && $esAdmin): 
-    include __DIR__ . '/sidebar.php'; 
-endif; 
-?>
-
 <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 shadow-lg border-0 overflow-hidden">
@@ -120,14 +132,14 @@ endif;
                 <form action="<?= BASE_URL ?>auth/login" method="POST">
                     <div class="form-floating mb-3">
                         <input type="email" name="email" class="form-control rounded-3 bg-light border-0" id="loginEmail" placeholder="name@example.com" required>
-                        <label for="loginEmail" class="text-muted">Correo electrónico</label>
+                        <label for="loginEmail">Correo electrónico</label>
                     </div>
                     <div class="form-floating mb-2">
                         <input type="password" name="password" class="form-control rounded-3 bg-light border-0" id="loginPass" placeholder="Password" required>
-                        <label for="loginPass" class="text-muted">Contraseña</label>
+                        <label for="loginPass">Contraseña</label>
                     </div>
                     <div class="text-end mb-4">
-                        <a href="#" class="small text-cenco-green fw-bold text-decoration-none hover-underline" onclick="cambiarModal('loginModal', 'forgotModal')">¿Olvidaste tu contraseña?</a>
+                        <a href="#" class="small text-cenco-green fw-bold text-decoration-none" onclick="cambiarModal('loginModal', 'forgotModal')">¿Olvidaste tu contraseña?</a>
                     </div>
                     <button type="submit" class="btn btn-cenco-indigo w-100 rounded-pill py-3 fw-bold shadow-sm transition-hover">Iniciar Sesión</button>
                 </form>
@@ -186,44 +198,13 @@ endif;
 
                         <div class="col-12 mt-4">
                             <div class="form-check p-3 bg-light rounded-3">
-                                <input class="form-check-input" type="checkbox" name="terms" id="checkTerms">
+                                <input class="form-check-input" type="checkbox" name="terms" id="checkTerms" required>
                                 <label class="form-check-label small" for="checkTerms">He leído y acepto los <a href="#" class="text-cenco-indigo fw-bold" onclick="cambiarModal('registerModal', 'termsModal')">Términos y Condiciones</a></label>
                             </div>
                         </div>
                         <div class="mt-4"><button type="submit" class="btn btn-cenco-green w-100 rounded-pill py-3 fw-bold shadow-sm">¡Registrarme!</button></div>
                     </div>
                 </form>
-            </div>
-            <div class="modal-footer border-0 justify-content-center"><small>¿Ya tienes cuenta? <a href="#" class="fw-bold text-cenco-indigo" onclick="cambiarModal('registerModal', 'loginModal')">Ingresa aquí</a></small></div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg text-center p-4 bg-gradient-success-light">
-            <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal"></button>
-            <div class="mt-n5 mb-3">
-                <img id="successImage" src="<?= BASE_URL ?>img/cencocalin/cencocalin_logrado.png" alt="Éxito" class="img-fluid img-mascota-modal">
-            </div>
-            <h3 class="fw-black text-cenco-green mb-2" id="successTitle">¡Excelente!</h3>
-            <p class="text-muted fs-5" id="successMessage">Acción completada.</p>
-            <button type="button" class="btn btn-cenco-indigo rounded-pill px-5 fw-bold mt-3 shadow-sm" data-bs-dismiss="modal">Entendido</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="loginErrorModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg text-center p-4">
-            <div class="modal-body p-2">
-                <div class="mb-3 position-relative d-inline-block">
-                    <div class="position-absolute top-50 start-50 translate-middle bg-danger bg-opacity-10 rounded-circle" style="width: 120px; height: 120px; filter: blur(15px);"></div>
-                    <img src="<?= BASE_URL ?>img/cencocalin/cencocalin_algo_fallo.png" alt="Ups" style="width: 140px; position: relative; z-index: 2;">
-                </div>
-                <h3 class="fw-black text-cenco-red mb-2">¡Ups! Algo falló</h3>
-                <p class="text-muted fw-bold mb-1">Usuario o contraseña inválidos.</p>
-                <button type="button" class="btn btn-cenco-indigo rounded-pill px-5 py-2 fw-bold shadow-sm" onclick="reabrirLogin()">Entendido, probar de nuevo</button>
             </div>
         </div>
     </div>
@@ -250,89 +231,19 @@ endif;
     </div>
 </div>
 
-<div class="modal fade" id="termsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-        <div class="modal-content rounded-4 border-0">
-            <div class="modal-header border-0 pb-0 bg-light">
-                <h5 class="modal-title fw-bold text-cenco-indigo"><i class="bi bi-file-text me-2"></i>Términos y Condiciones</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-4 text-justify bg-white" style="font-size: 0.9rem; line-height: 1.6;">
-                <h6 class="fw-bold text-cenco-green mt-2">1. Antecedentes Generales</h6>
-                <p class="text-muted">El acceso y uso de este sitio web se rige por los siguientes términos y condiciones. Al utilizar este sitio, usted acepta estos términos en su totalidad.</p>
-                <h6 class="fw-bold text-cenco-green mt-3">2. Registro del Usuario</h6>
-                <p class="text-muted">Es requisito necesario para la adquisición de productos ofrecidos en este sitio, la aceptación de las presentes condiciones y el registro por parte del usuario.</p>
-                <h6 class="fw-bold text-cenco-green mt-3">3. Despacho y Entrega</h6>
-                <p class="text-muted">Los productos adquiridos se sujetarán a las condiciones de despacho y entrega elegidas por el usuario y disponibles en el sitio.</p>
-            </div>
-            <div class="modal-footer border-0 justify-content-center bg-light">
-                <button type="button" class="btn btn-cenco-green rounded-pill px-5 fw-bold shadow-sm" data-bs-dismiss="modal">
-                    <i class="bi bi-check-lg me-2"></i> Entendido
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="nosotrosModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
-    <div class="modal-dialog modal-dialog-centered modal-lg"> 
-        <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
-            <div class="position-relative">
-                <img src="<?= BASE_URL ?>img/banner/banner Cencocal.png" class="w-100 object-fit-cover" style="height: 200px; filter: brightness(0.7);" alt="Equipo Cencocal">
-                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-4 bg-light">
-                <ul class="nav nav-pills nav-fill mb-4 p-1 bg-white rounded-pill shadow-sm" id="pills-tab" role="tablist">
-                    <li class="nav-item"><button class="nav-link active rounded-pill fw-bold" id="pills-objetivo-tab" data-bs-toggle="pill" data-bs-target="#pills-objetivo">Objetivo</button></li>
-                    <li class="nav-item"><button class="nav-link rounded-pill fw-bold" id="pills-mision-tab" data-bs-toggle="pill" data-bs-target="#pills-mision">Misión</button></li>
-                    <li class="nav-item"><button class="nav-link rounded-pill fw-bold" id="pills-vision-tab" data-bs-toggle="pill" data-bs-target="#pills-vision">Visión</button></li>
-                    <li class="nav-item"><button class="nav-link rounded-pill fw-bold" id="pills-valores-tab" data-bs-toggle="pill" data-bs-target="#pills-valores">Valores</button></li>
-                </ul>
-                <div class="tab-content" id="pills-tabContent">
-                    <div class="tab-pane fade show active" id="pills-objetivo"><div class="bg-white p-4 rounded-4 shadow-sm border-start border-5 border-cenco-green"><h5 class="fw-bold text-cenco-indigo">Objetivo</h5><p class="text-muted">Ser la mejor distribuidora de la zona.</p></div></div>
-                    <div class="tab-pane fade" id="pills-mision"><div class="bg-white p-4 rounded-4 shadow-sm border-start border-5 border-primary"><h5 class="fw-bold text-cenco-indigo">Misión</h5><p class="text-muted">Conveniencia y confianza en todo el país.</p></div></div>
-                    <div class="tab-pane fade" id="pills-vision"><div class="bg-white p-4 rounded-4 shadow-sm border-start border-5 border-warning"><h5 class="fw-bold text-cenco-indigo">Visión</h5><p class="text-muted">Liderazgo en el mercado nacional.</p></div></div>
-                    <div class="tab-pane fade" id="pills-valores"><div class="bg-white p-4 rounded-4 shadow-sm"><h5 class="fw-bold text-cenco-indigo">Valores</h5><p class="text-muted">Ética, Compromiso e Innovación.</p></div></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="localesModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold text-cenco-indigo"><i class="bi bi-shop me-2"></i>Nuestras Sucursales</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-content rounded-4 border-0 shadow-lg text-center p-4 bg-gradient-success-light">
+            <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal"></button>
+            <div class="mt-n5 mb-3">
+                <img id="successImage" src="<?= BASE_URL ?>img/cencocalin/cencocalin_logrado.png" alt="Éxito" class="img-fluid img-mascota-modal" style="width:120px;">
             </div>
-            <div class="modal-body p-4">
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="fw-bold mb-0">Casa Matriz - La Calera</h6>
-                            <small class="text-muted">Huici 353</small>
-                        </div>
-                        <a href="#" class="btn btn-sm btn-outline-cenco-green rounded-pill"><i class="bi bi-geo-alt-fill"></i> Ir</a>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="fw-bold mb-0">Sucursal Valparaíso</h6>
-                            <small class="text-muted">Av. Brasil 1234</small>
-                        </div>
-                        <a href="#" class="btn btn-sm btn-outline-cenco-green rounded-pill"><i class="bi bi-geo-alt-fill"></i> Ir</a>
-                    </li>
-                </ul>
-            </div>
+            <h3 class="fw-black text-cenco-green mb-2" id="successTitle">¡Excelente!</h3>
+            <p class="text-muted fs-5" id="successMessage">Acción completada.</p>
+            <button type="button" class="btn btn-cenco-indigo rounded-pill px-5 fw-bold mt-3 shadow-sm" data-bs-dismiss="modal">Entendido</button>
         </div>
     </div>
 </div>
-
-<button class="btn btn-accessibility rounded-circle shadow-lg position-fixed bottom-0 start-0 m-4 d-flex align-items-center justify-content-center" 
-        data-bs-toggle="modal" data-bs-target="#accessibilityModal" 
-        style="z-index: 2050;">
-    <i class="bi bi-universal-access-circle fs-1"></i>
-</button>
 
 <div class="modal fade" id="accessibilityModal" tabindex="-1" aria-hidden="true" style="z-index: 2060;">
     <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -372,19 +283,105 @@ endif;
     </div>
 </div>
 
+<button class="btn btn-accessibility rounded-circle shadow-lg position-fixed bottom-0 start-0 m-4 d-flex align-items-center justify-content-center" 
+        data-bs-toggle="modal" data-bs-target="#accessibilityModal" 
+        style="z-index: 2050; width: 60px; height: 60px;">
+    <i class="bi bi-universal-access-circle fs-1"></i>
+</button>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 
 <script>
-    // Variable global vital para JS
     window.BASE_URL = "<?= BASE_URL ?>";
+
+    window.AccessManager = {
+        settings: { activeClasses: [], filter: '', textLevel: 0 },
+        init: function () {
+            const saved = localStorage.getItem('cenco_accessibility');
+            if (saved) {
+                this.settings = JSON.parse(saved);
+                if (typeof this.settings.textLevel === 'undefined') this.settings.textLevel = 0;
+                this.applySettings();
+            }
+        },
+        toggle: function (className) {
+            const body = document.body;
+            const fullClass = 'access-' + className;
+            if (body.classList.contains(fullClass)) {
+                body.classList.remove(fullClass);
+                this.settings.activeClasses = this.settings.activeClasses.filter(c => c !== fullClass);
+            } else {
+                if (className === 'dark') this.removeExclusive(['access-invert', 'access-high-contrast']);
+                if (className === 'invert') this.removeExclusive(['access-dark', 'access-high-contrast']);
+                if (className === 'high-contrast') this.removeExclusive(['access-dark', 'access-invert']);
+                body.classList.add(fullClass);
+                this.settings.activeClasses.push(fullClass);
+            }
+            this.save();
+        },
+        cycleText: function () {
+            document.body.classList.remove('access-lvl-1', 'access-lvl-2', 'access-lvl-3');
+            this.settings.textLevel++;
+            if (this.settings.textLevel > 3) this.settings.textLevel = 0;
+            else if (this.settings.textLevel > 0) document.body.classList.add('access-lvl-' + this.settings.textLevel);
+            this.updateTextButtonLabel();
+            this.save();
+        },
+        updateTextButtonLabel: function () {
+            const btnLabel = document.getElementById('text-size-label');
+            if (!btnLabel) return;
+            const labels = ['Texto Normal', 'Texto Grande', 'Texto Muy Grande', 'Texto Gigante'];
+            btnLabel.innerText = labels[this.settings.textLevel];
+        },
+        setFilter: function (filterName) {
+            document.body.classList.remove('filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia');
+            if (filterName) document.body.classList.add('filter-' + filterName);
+            this.settings.filter = filterName;
+            this.save();
+        },
+        removeExclusive: function (ClasesToRemove) {
+            ClasesToRemove.forEach(c => {
+                document.body.classList.remove(c);
+                this.settings.activeClasses = this.settings.activeClasses.filter(ac => ac !== c);
+            });
+        },
+        applySettings: function () {
+            this.settings.activeClasses.forEach(c => document.body.classList.add(c));
+            if (this.settings.filter) this.setFilter(this.settings.filter);
+            if (this.settings.textLevel > 0) document.body.classList.add('access-lvl-' + this.settings.textLevel);
+            this.updateTextButtonLabel();
+        },
+        reset: function () {
+            this.settings = { activeClasses: [], filter: '', textLevel: 0 };
+            const classes = ['access-dark', 'access-invert', 'access-high-contrast', 'access-dyslexic', 'access-no-anim', 'access-lvl-1', 'access-lvl-2', 'access-lvl-3'];
+            classes.forEach(c => document.body.classList.remove(c));
+            this.setFilter('');
+            this.updateTextButtonLabel();
+            this.save();
+        },
+        save: function () {
+            localStorage.setItem('cenco_accessibility', JSON.stringify(this.settings));
+        }
+    };
+
+    // Helper para cambiar entre modales
+    function cambiarModal(actualId, siguienteId) {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById(actualId)).hide();
+        setTimeout(() => {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById(siguienteId)).show();
+        }, 350);
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        window.AccessManager.init();
+    });
 </script>
 
-<?php if (!isset($esAdmin) || !$esAdmin): ?>
-    <script src="<?= BASE_URL ?>js/scripts.js"></script>
-<?php endif; ?>
+<script src="<?= BASE_URL ?>js/scripts.js"></script>
+
 <?php if (isset($_SESSION['alerta_carrito'])): ?>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
@@ -395,16 +392,12 @@ endif;
                 confirmButtonColor: '#2A1B5E',
                 confirmButtonText: 'Entendido'
             }).then(() => {
-                // Opcional: Abrir el carrito lateral para que vea cómo quedó
-                if(typeof abrirCarritoLateral === "function") {
-                    abrirCarritoLateral();
-                }
+                if(typeof abrirCarritoLateral === "function") abrirCarritoLateral();
             });
         });
     </script>
-    <?php unset($_SESSION['alerta_carrito']); // Borramos la alerta para que no salga dos veces ?>
+    <?php unset($_SESSION['alerta_carrito']); ?>
 <?php endif; ?>
-
 
 </body>
 </html>

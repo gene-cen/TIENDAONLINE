@@ -20,14 +20,14 @@ class Pedido
         $sql = "INSERT INTO pedidos 
                 (usuario_id, rut_cliente, sucursal_codigo, vendedor_codigo, 
                  total_neto, monto_total, costo_envio, direccion_entrega_texto, comuna_id, 
-                 estado_pedido_id, forma_pago_id, cantidad_items, cantidad_total_productos, 
+                 estado_pedido_id, estado_pago_id, forma_pago_id, cantidad_items, cantidad_total_productos, 
                  numero_seguimiento, tipo_entrega_id, latitud, longitud, 
                  nombre_destinatario, telefono_contacto, telefono_contacto_2, fecha_entrega_estimada, rango_horario_id,
                  fecha_creacion, hora_creacion) 
                 VALUES 
                 (:uid, :rut, :suc, :vend, 
                  :neto, :total, :costo, :dir, :comuna, 
-                 :estado_id, :fpago_id, :cant_items, :cant_prod, 
+                 :estado_id, :estado_pago_id, :fpago_id, :cant_items, :cant_prod, 
                  :tracking, :tipo_entrega, :lat, :lng, 
                  :nombre_dest, :tel_cont, :tel_cont_2, :fecha_ent, :rango_id,
                  CURDATE(), CURTIME())";
@@ -46,6 +46,7 @@ class Pedido
             ':dir'         => $datos['direccion_entrega_texto'],
             ':comuna'      => $datos['comuna_id'],
             ':estado_id'   => $estadoInicial,
+            ':estado_pago_id' => $datos['estado_pago_id'] ?? 1, // 1 = Pendiente
             ':fpago_id'    => $datos['forma_pago_id'] ?? 3,
             ':cant_items'  => $datos['cantidad_items'],
             ':cant_prod'   => $datos['cantidad_total_productos'],
@@ -96,7 +97,7 @@ class Pedido
                 FROM pedidos_detalle dp
                 JOIN pedidos p ON dp.pedido_id = p.id
                 WHERE dp.pedido_id = :pedido_id";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':pedido_id' => $pedido_id]);
         $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -121,7 +122,7 @@ class Pedido
                 FROM pedidos_detalle dp
                 JOIN pedidos p ON dp.pedido_id = p.id
                 WHERE dp.pedido_id = :pedido_id";
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':pedido_id' => $pedido_id]);
         $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -196,7 +197,7 @@ class Pedido
     // ==========================================
     // 3. MÉTODOS DE GESTIÓN (Admin)
     // ==========================================
-    
+
     public function actualizarEstado($id, $nuevo_estado)
     {
         $sql = "UPDATE pedidos SET estado_pedido_id = :estado WHERE id = :id";
@@ -206,7 +207,7 @@ class Pedido
         // --- MAGIA: LIBERACIÓN AUTOMÁTICA DE STOCK ---
         // Asumiendo que 3=En Ruta, 4=Entregado/Facturado, 5=Cancelado
         // (Ajusta estos IDs según cómo estén en tu tabla `estados_pedido`)
-        $estados_que_liberan_stock = [4, 5]; 
+        $estados_que_liberan_stock = [4, 5];
 
         if (in_array($nuevo_estado, $estados_que_liberan_stock)) {
             // Cuando la boleta ya se emitió y entregó, o si se canceló el pedido,
@@ -257,9 +258,15 @@ class Pedido
         $stmt->execute([$pedido_id]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
-
-    public function obtenerFiltrados($fechaInicio, $fechaFin, $busqueda = '', $estado = '')
+    public function obtenerFiltrados($fechaInicio, $fechaFin, $busqueda = '', $estado = '', $limite = 25, $offset = 0, $sucursalAdmin = null)
     {
+        // 1. Limpiar las fechas para que coincidan con tu INT de la base de datos
+        // Convierte "2026-03-04" a "20260304" (Número entero)
+        $fechaInicioInt = (int) str_replace('-', '', $fechaInicio);
+        $fechaFinInt = (int) str_replace('-', '', $fechaFin);
+
+        $buscandoId = (is_numeric($busqueda) && intval($busqueda) > 0);
+
         $sql = "SELECT p.*, 
                        u.nombre as nombre_cliente, 
                        u.email as email_cliente, 
@@ -267,46 +274,99 @@ class Pedido
                        COALESCE(ep.nombre, 'pendiente') as estado,
                        COALESCE(ep.badge_class, 'secondary') as color_estado,
                        COALESCE(rh.nombre, 'Por definir') as rango_horario,
-                       DATE_FORMAT(p.fecha_entrega_estimada, '%d/%m/%Y') as fecha_entrega_fmt
+                       -- Si guardaste la fecha como INT, esto la formatea visualmente bien
+                       DATE_FORMAT(STR_TO_DATE(CAST(p.fecha_creacion AS CHAR), '%Y%m%d'), '%d/%m/%Y') as fecha_entrega_fmt
                 FROM pedidos p
                 LEFT JOIN usuarios u ON p.usuario_id = u.id
                 LEFT JOIN estados_pedido ep ON p.estado_pedido_id = ep.id
                 LEFT JOIN rangos_horarios rh ON p.rango_horario_id = rh.id
-                WHERE DATE(p.fecha_creacion) BETWEEN :inicio AND :fin";
+                WHERE 1=1";
 
-        $params = [
-            ':inicio' => $fechaInicio,
-            ':fin' => $fechaFin
-        ];
+        $params = [];
 
-        if (!empty($busqueda)) {
-            $busquedaLimpia = preg_replace('/[^0-9kK]/', '', $busqueda);
-            $sql .= " AND (
-                        u.nombre LIKE :q1 
-                        OR u.email LIKE :q2 
-                        OR REPLACE(REPLACE(u.rut, '.', ''), '-', '') LIKE :q3 
-                        OR p.id LIKE :q4
-                        OR p.numero_seguimiento LIKE :q5 
-                    )";
-            $term = "%$busqueda%";
-            $termClean = "%$busquedaLimpia%";
-            $params[':q1'] = $term;
-            $params[':q2'] = $term;
-            $params[':q3'] = $termClean;
-            $params[':q4'] = $term;
-            $params[':q5'] = $term;
+        // Filtro de fecha con comparación numérica (Mucho más seguro y rápido)
+        if (!$buscandoId) {
+            $sql .= " AND p.fecha_creacion BETWEEN :inicio AND :fin";
+            $params[':inicio'] = $fechaInicioInt;
+            $params[':fin'] = $fechaFinInt;
         }
 
+        // Filtro de sucursal
+        if (!empty($sucursalAdmin)) {
+            $sql .= " AND p.sucursal_codigo = :sucursal_admin";
+            $params[':sucursal_admin'] = trim(strval($sucursalAdmin));
+        }
+
+        // Filtro de búsqueda (RUT, Folio, Nombre, etc)
+        if (!empty($busqueda)) {
+            $busquedaLimpia = preg_replace('/[^0-9kK]/', '', $busqueda);
+            $sql .= " AND (u.nombre LIKE :q1 OR u.email LIKE :q2 OR REPLACE(REPLACE(u.rut, '.', ''), '-', '') LIKE :q3 OR p.id = :q4 OR p.numero_seguimiento LIKE :q5)";
+            $params[':q1'] = "%$busqueda%";
+            $params[':q2'] = "%$busqueda%";
+            $params[':q3'] = "%$busquedaLimpia%";
+            $params[':q4'] = $busqueda;
+            $params[':q5'] = "%$busqueda%";
+        }
+
+        // Filtro de Estado de Pedido (Logística)
         if (!empty($estado)) {
-            $sql .= " AND ep.nombre = :estado";
+            $sql .= " AND p.estado_pedido_id = :estado";
             $params[':estado'] = $estado;
         }
 
-        $sql .= " ORDER BY p.id DESC";
+        $sql .= " ORDER BY p.id DESC LIMIT :limite OFFSET :offset";
+
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $val) {
+            $stmt->bindValue($key, $val);
+        }
+        $stmt->bindValue(':limite', (int)$limite, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function contarFiltrados($fechaInicio, $fechaFin, $busqueda = '', $estado = '', $sucursalAdmin = null)
+    {
+        $fechaInicioInt = (int) str_replace('-', '', $fechaInicio);
+        $fechaFinInt = (int) str_replace('-', '', $fechaFin);
+        $buscandoId = (is_numeric($busqueda) && intval($busqueda) > 0);
+
+        $sql = "SELECT COUNT(p.id) as total FROM pedidos p 
+                LEFT JOIN usuarios u ON p.usuario_id = u.id 
+                WHERE 1=1";
+
+        $params = [];
+        if (!$buscandoId) {
+            $sql .= " AND p.fecha_creacion BETWEEN :inicio AND :fin";
+            $params[':inicio'] = $fechaInicioInt;
+            $params[':fin'] = $fechaFinInt;
+        }
+
+        if (!empty($sucursalAdmin)) {
+            $sql .= " AND p.sucursal_codigo = :sucursal_admin";
+            $params[':sucursal_admin'] = trim(strval($sucursalAdmin));
+        }
+
+        if (!empty($busqueda)) {
+            $busquedaLimpia = preg_replace('/[^0-9kK]/', '', $busqueda);
+            $sql .= " AND (u.nombre LIKE :q1 OR u.email LIKE :q2 OR REPLACE(REPLACE(u.rut, '.', ''), '-', '') LIKE :q3 OR p.id = :q4 OR p.numero_seguimiento LIKE :q5)";
+            $params[':q1'] = "%$busqueda%";
+            $params[':q2'] = "%$busqueda%";
+            $params[':q3'] = "%$busquedaLimpia%";
+            $params[':q4'] = $busqueda;
+            $params[':q5'] = "%$busqueda%";
+        }
+
+        if (!empty($estado)) {
+            $sql .= " AND p.estado_pedido_id = :estado";
+            $params[':estado'] = $estado;
+        }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $stmt->fetchColumn();
     }
 
     public function registrarHistorial($pedidoId, $estadoId, $comentario = '')
@@ -334,7 +394,14 @@ class Pedido
             $stmt->execute([$pedidoId]);
             return $stmt->fetchAll(\PDO::FETCH_ASSOC);
         } catch (\Exception $e) {
-            return []; 
+            return [];
         }
+    }
+
+    public function actualizarEstadoPago($id, $estadoPagoId)
+    {
+        $sql = "UPDATE pedidos SET estado_pago_id = :estado_pago WHERE id = :id";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([':estado_pago' => $estadoPagoId, ':id' => $id]);
     }
 }

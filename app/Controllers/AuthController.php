@@ -101,6 +101,13 @@ class AuthController
         $_SESSION['user_nombre'] = $user->nombre;
         $_SESSION['user_rol'] = $user->rol;
 
+        // --- INICIO DE LA MEJORA PARA MULTI-SUCURSAL ADMIN ---
+        // Si el usuario es administrador, guardamos su jurisdicción (sucursal_admin_id)
+        if ($user->rol === 'admin') {
+            $_SESSION['admin_sucursal'] = $user->sucursal_admin_id ?? null;
+        }
+        // --- FIN DE LA MEJORA ---
+
         $suc_asignada = null;
 
         // Magia Logística Segura: Solo buscamos si el usuario realmente tiene una comuna_id
@@ -119,8 +126,6 @@ class AuthController
         // Si tiene sucursal asignada en BD la usamos, sino, La Calera por defecto (29).
         $_SESSION['sucursal_activa'] = $suc_asignada ? $suc_asignada : 29;
     }
-    // REGISTRO DE USUARIO (Actualizado con Email Real)
-    // REGISTRO DE USUARIO (Adaptado para Modales)
     public function register()
     {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {

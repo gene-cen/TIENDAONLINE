@@ -2,35 +2,35 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
 <div class="container-fluid py-4">
-    
+
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4">
         <div>
             <h2 class="fw-black text-cenco-indigo mb-0">Visión General</h2>
             <p class="text-muted small">Métricas de comportamiento de usuarios</p>
         </div>
-        
+
         <form action="<?= BASE_URL ?>admin/analytics" method="GET" class="d-flex flex-wrap gap-2 mt-3 mt-md-0 bg-white p-2 rounded-pill shadow-sm border">
-            
+
             <div class="input-group input-group-sm" style="width: auto;">
-                <input type="date" name="desde" class="form-control border-0 bg-light rounded-start-pill ps-3" 
-                       value="<?= $_GET['desde'] ?? date('Y-m-01') ?>" title="Desde">
+                <input type="date" name="desde" class="form-control border-0 bg-light rounded-start-pill ps-3"
+                    value="<?= $_GET['desde'] ?? date('Y-m-01') ?>" title="Desde">
                 <span class="input-group-text bg-light border-0 text-muted">-</span>
-                <input type="date" name="hasta" class="form-control border-0 bg-light rounded-end-pill pe-3" 
-                       value="<?= $_GET['hasta'] ?? date('Y-m-d') ?>" title="Hasta">
+                <input type="date" name="hasta" class="form-control border-0 bg-light rounded-end-pill pe-3"
+                    value="<?= $_GET['hasta'] ?? date('Y-m-d') ?>" title="Hasta">
             </div>
 
             <div class="input-group input-group-sm" style="width: 200px;">
                 <span class="input-group-text bg-white border-0 ps-3"><i class="bi bi-person text-cenco-indigo"></i></span>
-                <input type="text" name="q" class="form-control border-0" 
-                       placeholder="Filtrar por Cliente..." 
-                       value="<?= htmlspecialchars($_GET['q'] ?? '') ?>">
+                <input type="text" name="q" class="form-control border-0"
+                    placeholder="Filtrar por Cliente..."
+                    value="<?= htmlspecialchars($_GET['q'] ?? '') ?>">
             </div>
 
             <button type="submit" class="btn btn-cenco-indigo rounded-pill px-3 fw-bold btn-sm">
                 <i class="bi bi-funnel-fill"></i>
             </button>
-            
-            <?php if(!empty($_GET['q']) || isset($_GET['desde'])): ?>
+
+            <?php if (!empty($_GET['q']) || isset($_GET['desde'])): ?>
                 <a href="<?= BASE_URL ?>admin/analytics" class="btn btn-light text-danger rounded-circle btn-sm d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;" title="Limpiar Filtros">
                     <i class="bi bi-x-lg"></i>
                 </a>
@@ -53,7 +53,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-3">
             <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden">
                 <div class="card-body position-relative">
@@ -74,14 +74,15 @@
                 <div class="card-body py-3">
                     <h6 class="fw-bold text-cenco-indigo mb-3 small text-uppercase">🔥 Interacciones (Top Clics)</h6>
                     <div class="d-flex flex-wrap gap-2">
-                        <?php if(empty($clicsTop)): ?>
+                        <?php if (empty($clicsTop)): ?>
                             <span class="text-muted small">Sin datos para este periodo.</span>
-                        <?php else: foreach($clicsTop as $clic): ?>
-                            <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill d-flex align-items-center gap-2">
-                                <?= htmlspecialchars($clic['etiqueta']) ?> 
-                                <span class="badge bg-cenco-green text-white rounded-pill shadow-sm"><?= $clic['total'] ?></span>
-                            </span>
-                        <?php endforeach; endif; ?>
+                            <?php else: foreach ($clicsTop as $clic): ?>
+                                <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill d-flex align-items-center gap-2">
+                                    <?= htmlspecialchars($clic['etiqueta']) ?>
+                                    <span class="badge bg-cenco-green text-white rounded-pill shadow-sm"><?= $clic['total'] ?></span>
+                                </span>
+                        <?php endforeach;
+                        endif; ?>
                     </div>
                 </div>
             </div>
@@ -104,21 +105,22 @@
                     <h6 class="fw-bold text-cenco-indigo mb-0">📄 Páginas Más Vistas</h6>
                 </div>
                 <div class="list-group list-group-flush overflow-auto" style="max-height: 340px;">
-                    <?php if(empty($paginasTop)): ?>
+                    <?php if (empty($paginasTop)): ?>
                         <div class="p-4 text-center text-muted small">Sin datos aún.</div>
-                    <?php else: foreach($paginasTop as $index => $pag): ?>
-                    <div class="list-group-item border-0 d-flex justify-content-between align-items-center px-4 py-3 hover-bg-light">
-                        <div class="d-flex align-items-center overflow-hidden">
-                            <span class="fw-bold text-muted me-3 opacity-50">#<?= $index + 1 ?></span>
-                            <span class="text-truncate text-dark fw-semibold small" style="max-width: 180px;" title="/<?= $pag['url'] ?>">
-                                /<?= htmlspecialchars($pag['url']) ?>
-                            </span>
-                        </div>
-                        <span class="badge bg-cenco-indigo text-white rounded-pill px-3 shadow-sm">
-                            <?= $pag['visitas'] ?>
-                        </span>
-                    </div>
-                    <?php endforeach; endif; ?>
+                        <?php else: foreach ($paginasTop as $index => $pag): ?>
+                            <div class="list-group-item border-0 d-flex justify-content-between align-items-center px-4 py-3 hover-bg-light">
+                                <div class="d-flex align-items-center overflow-hidden">
+                                    <span class="fw-bold text-muted me-3 opacity-50">#<?= $index + 1 ?></span>
+                                    <span class="text-truncate text-dark fw-semibold small" style="max-width: 180px;" title="/<?= $pag['url'] ?>">
+                                        /<?= htmlspecialchars($pag['url']) ?>
+                                    </span>
+                                </div>
+                                <span class="badge bg-cenco-indigo text-white rounded-pill px-3 shadow-sm">
+                                    <?= $pag['visitas'] ?>
+                                </span>
+                            </div>
+                    <?php endforeach;
+                    endif; ?>
                 </div>
             </div>
         </div>
@@ -138,11 +140,11 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        
+
         // 1. GRÁFICO (Chart.js)
         const ctx = document.getElementById('trafficChart').getContext('2d');
         let gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, 'rgba(40, 53, 147, 0.2)'); 
+        gradient.addColorStop(0, 'rgba(40, 53, 147, 0.2)');
         gradient.addColorStop(1, 'rgba(40, 53, 147, 0)');
 
         new Chart(ctx, {
@@ -165,18 +167,31 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
                 scales: {
-                    y: { beginAtZero: true, grid: { borderDash: [5, 5] } },
-                    x: { grid: { display: false } }
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            borderDash: [5, 5]
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
                 }
             }
         });
 
         // 2. MAPA (Leaflet) - Mantenemos tu lógica existente
         if (typeof L !== 'undefined') {
-            var map = L.map('analyticsMap').setView([-32.90, -71.4], 9); 
-            
+            var map = L.map('analyticsMap').setView([-32.90, -71.4], 9);
+
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; OpenStreetMap',
                 subdomains: 'abcd',
@@ -211,19 +226,40 @@
             if (datosMapa && datosMapa.length > 0) {
                 datosMapa.forEach(item => {
                     let nombre = item.comuna;
-                    if(!nombre) return;
+                    if (!nombre) return;
+
+                    // Buscamos las coordenadas en tu objeto coordsComunas
                     let coord = coordsComunas[nombre] || coordsComunas[Object.keys(coordsComunas).find(key => key.toLowerCase() === nombre.toLowerCase())];
 
                     if (coord) {
-                        let radio = Math.min(Math.max(item.visitas * 300, 800), 6000);
+                        // 1. Extraemos la cantidad de visitas asegurando que sea un número (usamos total o visitas)
+                        let nVisitas = parseInt(item.visitas || item.total || 0);
+
+                        // 2. Calculamos el radio. Si nVisitas es 0 o no es un número, usamos un radio base (800)
+                        // Esto evita que el cálculo sea NaN
+                        let radioCalculado = nVisitas > 0 ? (nVisitas * 300) : 800;
+
+                        // 3. Aplicamos los límites (Mínimo 800, Máximo 6000)
+                        let radioFinal = Math.min(Math.max(radioCalculado, 800), 6000);
+
+                        // 4. Doble validación: Si algo falló, forzamos un número para que Leaflet no explote
+                        if (isNaN(radioFinal)) radioFinal = 800;
+
                         L.circle(coord, {
-                            color: '#e63946',
-                            fillColor: '#e63946',
-                            fillOpacity: 0.5,
-                            radius: radio,
-                            weight: 1
-                        }).addTo(map)
-                        .bindPopup(`<div class="text-center"><strong class="text-cenco-indigo">${item.comuna}</strong><br><span class="badge bg-cenco-green text-white shadow-sm mt-1 fs-6">${item.visitas} Visitas</span></div>`);
+                                color: '#e63946',
+                                fillColor: '#e63946',
+                                fillOpacity: 0.5,
+                                radius: radioFinal, // Aquí ya no será NaN
+                                weight: 1
+                            }).addTo(map)
+                            .bindPopup(`
+                <div class="text-center">
+                    <strong class="text-cenco-indigo">${item.comuna}</strong><br>
+                    <span class="badge bg-cenco-green text-white shadow-sm mt-1 fs-6">
+                        ${nVisitas} Visitas
+                    </span>
+                </div>
+            `);
                     }
                 });
             }
