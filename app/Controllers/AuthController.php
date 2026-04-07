@@ -35,20 +35,21 @@ class AuthController
     }
 
     // Login tradicional
-    public function login()
-    {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $email = $_POST['email'] ?? '';
-            $password = $_POST['password'] ?? '';
+public function login()
+{
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        $email = $_POST['email'] ?? '';
+        $password = $_POST['password'] ?? '';
+        $redirect = $_GET['redirect'] ?? 'home'; // <--- Capturamos el destino
 
-            $user = $this->userModel->login($email, $password);
+        $user = $this->userModel->login($email, $password);
 
-            if ($user) {
-                // Login Exitoso
-                $this->setSession($user);
-                header("Location: " . BASE_URL . "home?msg=login_exito");
-                exit();
-            } else {
+        if ($user) {
+            $this->setSession($user);
+            // Redirigimos al destino solicitado (checkout) o al home
+            header("Location: " . BASE_URL . $redirect . "?msg=login_exito");
+            exit();
+        } else {
                 // Login Fallido: Redirigimos al home con el error
                 header("Location: " . BASE_URL . "home?msg=login_error");
                 exit();
@@ -94,36 +95,29 @@ class AuthController
         }
     }
 
-    // Reemplaza toda tu función setSession por esta:
     private function setSession($user)
     {
         $_SESSION['user_id'] = $user->id;
         $_SESSION['user_nombre'] = $user->nombre;
-        $_SESSION['user_rol'] = $user->rol;
+        // CAMBIAMOS 'user_rol' por 'rol' para que coincida con los controladores
+        $_SESSION['rol'] = $user->rol;
 
-        // --- INICIO DE LA MEJORA PARA MULTI-SUCURSAL ADMIN ---
-        // Si el usuario es administrador, guardamos su jurisdicción (sucursal_admin_id)
+        // Guardamos la jurisdicción para administradores
         if ($user->rol === 'admin') {
             $_SESSION['admin_sucursal'] = $user->sucursal_admin_id ?? null;
         }
-        // --- FIN DE LA MEJORA ---
 
         $suc_asignada = null;
-
-        // Magia Logística Segura: Solo buscamos si el usuario realmente tiene una comuna_id
         if (isset($user->comuna_id) && !empty($user->comuna_id)) {
             try {
-                // CORRECCIÓN: Usamos $user->comuna_id en lugar de $usuario
                 $stmtComuna = $this->db->prepare("SELECT sucursal_id FROM comunas WHERE id = ?");
                 $stmtComuna->execute([$user->comuna_id]);
                 $suc_asignada = $stmtComuna->fetchColumn();
             } catch (\PDOException $e) {
-                // Si la tabla comunas no existe, guardamos el error en silencio y seguimos adelante
-                error_log("Aviso: No se pudo verificar la sucursal de la comuna. " . $e->getMessage());
+                error_log("Aviso: No se pudo verificar la sucursal. " . $e->getMessage());
             }
         }
 
-        // Si tiene sucursal asignada en BD la usamos, sino, La Calera por defecto (29).
         $_SESSION['sucursal_activa'] = $suc_asignada ? $suc_asignada : 29;
     }
     public function register()
@@ -200,18 +194,13 @@ class AuthController
 
         // 1. Primero buscamos al usuario por el token para obtener sus datos
         $usuario = $this->userModel->getByToken($token);
-
         if ($usuario) {
-
-            // 2. AUTO-LOGIN: Iniciamos la sesión manualmente
+            // 2. AUTO-LOGIN: Sincronizamos los nombres aquí también
             $_SESSION['user_id'] = $usuario->id;
             $_SESSION['user_nombre'] = $usuario->nombre;
-            $_SESSION['user_rol'] = $usuario->rol;
+            $_SESSION['rol'] = $usuario->rol; // Cambiado de 'user_rol' a 'rol'
 
-            // 3. Activamos la cuenta y QUEMAMOS el token (Ya no servirá más)
             $this->userModel->activarCuenta($token);
-
-            // 4. Redirigimos al Home con el mensaje para el Modal de Cencocalín
             header("Location: " . BASE_URL . "home?msg=cuenta_activada");
             exit();
         } else {
@@ -404,5 +393,40 @@ class AuthController
         // 4. REDIRECCIÓN CORRECTA -> HOME con mensaje
         header("Location: " . BASE_URL . "home?msg=logout_exito");
         exit();
+    }
+
+    // ==========================================
+    // COMPRA COMO INVITADO (SESIÓN VOLÁTIL)
+    // ==========================================
+   public function guestLogin()
+    {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            // 1. Limpiamos y capturamos (Usando los 'name' exactos del modal)
+            $nombre = trim($_POST['guest_nombre'] ?? 'Invitado');
+            $email  = trim($_POST['guest_email'] ?? '');
+            $rut    = trim($_POST['guest_rut'] ?? '');
+            $tel    = trim($_POST['guest_telefono'] ?? '');
+
+            // 2. Validación mínima: Si no hay RUT o Nombre, algo salió mal en el envío
+            if (empty($nombre) || empty($rut)) {
+                header("Location: " . BASE_URL . "carrito/ver?error=datos_incompletos");
+                exit();
+            }
+
+            // 3. Crear sesión de invitado
+            $_SESSION['invitado'] = [
+                'nombre'   => $nombre,
+                'email'    => $email,
+                'rut'      => $rut,
+                'telefono' => "+569" . str_replace(['+569', ' ', '+'], '', $tel)
+            ];
+
+            // 4. Forzar persistencia de sesión antes de redirigir
+            session_write_close(); 
+
+            // 5. Redirigir al Checkout
+            header("Location: " . BASE_URL . "checkout");
+            exit();
+        }
     }
 }

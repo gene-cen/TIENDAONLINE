@@ -9,7 +9,14 @@
         </div>
 
         <div class="d-flex gap-2 mt-3 mt-md-0">
-            <a href="<?= BASE_URL ?>admin/exportar_pedidos" class="btn btn-cenco-green text-white shadow-sm fw-bold hover-scale">
+            <?php
+            // Construimos la URL de exportación manteniendo los filtros actuales
+            $exportParams = $_GET;
+            unset($exportParams['url']); // Limpiar variable interna si existe
+            $exportQuery = http_build_query($exportParams);
+            $urlExport = BASE_URL . "admin/exportar_pedidos" . (!empty($exportQuery) ? '?' . $exportQuery : '');
+            ?>
+            <a href="<?= $urlExport ?>" class="btn btn-cenco-green text-white shadow-sm fw-bold hover-scale">
                 <i class="bi bi-file-earmark-excel me-1"></i> Exportar a Excel
             </a>
         </div>
@@ -67,16 +74,21 @@
         </div>
     </div>
 
+    <?php include 'partials/dashboard_subsidios.php'; ?>
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
+
+
                     <thead class="bg-light border-bottom">
                         <tr>
                             <th class="ps-4 py-3 text-muted small fw-bold text-uppercase border-0">Folio</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0">Cliente</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0" style="width: 25%;">Logística de Entrega</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-end">Total</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0" style="width: 20%;">Logística</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-end">Cobro (Cliente)</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-end">Total A Facturar</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-end">Subsidio</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Estado</th>
                             <th class="pe-4 py-3 text-muted small fw-bold text-uppercase border-0 text-end">Acciones</th>
                         </tr>
@@ -84,7 +96,7 @@
                     <tbody>
                         <?php if (empty($pedidos)): ?>
                             <tr>
-                                <td colspan="6" class="text-center py-5 text-muted">
+                                <td colspan="8" class="text-center py-5 text-muted">
                                     <i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>
                                     No se encontraron pedidos con estos filtros.
                                 </td>
@@ -103,49 +115,73 @@
                                 $tipoEntrega = (int)($p['tipo_entrega_id'] ?? 1);
 
                                 if ($tipoEntrega === 2) {
-                                    $textoLogistica = "Sucursal $sucursal (Retiro)";
+                                    $textoLogistica = "Suc. $sucursal (Retiro)";
                                     $iconoLogistica = "bi-shop text-secondary";
                                 } else {
-                                    $textoLogistica = "Sucursal $sucursal (Domicilio)";
+                                    $textoLogistica = "Suc. $sucursal (Dom.)";
                                     $iconoLogistica = "bi-house-door-fill text-cenco-red";
                                 }
 
-                                $monto = $p['total_bruto'] ?? $p['monto_total'] ?? 0;
+                                // MATEMÁTICA DE TOTALES Y SUBSIDIOS
+                                $totalERP = (int)($p['monto_total'] ?? $p['total_bruto'] ?? 0);
+                                $subsidio = (int)($p['subsidio_empresa'] ?? 0);
+                                $costoEnvio = (int)($p['costo_envio'] ?? 0);
 
-                                // --- NUEVA LÓGICA DE ESTADOS COMBINADOS ---
-                                $estadoLogistico = strtolower($p['estado'] ?? 'pendiente');
-                                $estadoPagoId = (int)($p['estado_pago_id'] ?? 1); // 1: Pendiente, 2: Pagado
+                                // ¡LA CLAVE ESTÁ AQUÍ! 
+                                // El cobro final es simplemente el ERP menos el subsidio. NO le restamos el $costoEnvio.
+                                $cobroCliente = $totalERP - $subsidio;
 
-                                // Definir Clase de Badge y Texto
-                                if ($estadoLogistico === 'pendiente' && $estadoPagoId === 2) {
-                                    $badgeClass = 'bg-info text-white';
-                                    $textoEstado = 'PAGADO / POR PREPARAR';
+                               // ESTADOS COMBINADOS (CON COLORES DINÁMICOS)
+                                $estadoLogistico = strtolower($p['estado'] ?? 'pendiente de pago');
+                                $textoEstado = strtoupper($p['estado'] ?? 'PENDIENTE DE PAGO');
+                                
+                                // ¡AQUÍ ESTÁ LA LÍNEA QUE HABÍA BORRADO POR ERROR! 👇
+                                $estadoPagoId = (int)($p['estado_pago_id'] ?? 1); 
+
+                                $badgeClass = match ($estadoLogistico) {
+                                    'pendiente de pago', 'pendiente' => 'bg-warning text-dark shadow-sm',
+                                    'pagado / confirmado', 'pagado'  => 'bg-info text-white shadow-sm',
+                                    'en preparación', 'en preparacion' => 'bg-primary text-white shadow-sm',
+                                    'en ruta', 'enviado'             => 'bg-cenco-indigo text-white shadow-sm',
+                                    'entregado'                      => 'bg-success text-white shadow-sm',
+                                    'anulado', 'cancelado'           => 'bg-danger text-white shadow-sm',
+                                    default                          => 'bg-secondary text-white shadow-sm'
+                                };
+
+                              
+                               
+                                $formaPagoId = (int)($p['forma_pago_id'] ?? 5);
+
+                                if ($formaPagoId === 8) {
+                                    // Si es Venta Asistida (8), revisamos si está pendiente o pagado
+                                    if ($estadoPagoId === 1) {
+                                        $formaPagoHtml = '<span class="text-warning fw-bold"><i class="bi bi-clock-history"></i> Pago Pendiente</span>';
+                                    } else {
+                                        // Si ya está pagado, leemos con qué pagó
+                                        $metodoReal = $p['metodo_pago_real'] ?? '';
+                                        if ($metodoReal === 'Efectivo') {
+                                            $formaPagoHtml = '<span class="text-success fw-bold"><i class="bi bi-shop"></i> Pago Sucursal <span style="font-size:0.55rem;" class="text-muted">(Efectivo)</span></span>';
+                                        } elseif ($metodoReal === 'Tarjeta (Transbank POS)') {
+                                            $formaPagoHtml = '<span class="text-primary fw-bold"><i class="bi bi-shop"></i> Pago Sucursal <span style="font-size:0.55rem;" class="text-muted">(TBK)</span></span>';
+                                        } else {
+                                            // Por si es un pedido antiguo antes de esta actualización
+                                            $formaPagoHtml = '<span class="text-success fw-bold"><i class="bi bi-shop"></i> Pago Sucursal</span>';
+                                        }
+                                    }
+                                } elseif ($formaPagoId === 7) {
+                                    $formaPagoHtml = '<span class="text-warning fw-bold"><i class="bi bi-shield-check"></i> Créd. Confianza</span>';
                                 } else {
-                                    $badgeClass = match ($estadoLogistico) {
-                                        'pendiente' => 'bg-warning text-dark',
-                                        'pagado', 'completado' => 'bg-success text-white',
-                                        'enviado', 'en ruta' => 'bg-primary text-white',
-                                        'entregado' => 'bg-dark text-white',
-                                        'anulado', 'cancelado' => 'bg-danger text-white',
-                                        default => 'bg-secondary text-white'
-                                    };
-                                    $textoEstado = strtoupper($estadoLogistico);
+                                    $formaPagoHtml = '<span class="text-muted"><i class="bi bi-credit-card"></i> Webpay Plus</span>';
                                 }
-
-                                // Nombre de forma de pago
-                                $formaPago = $p['forma_pago_nombre'] ?? (($p['forma_pago_id'] == 7) ? 'Crédito Confianza' : 'Webpay');
                             ?>
                                 <tr>
                                     <td class="ps-4">
-                                        <span class="fw-bold text-primary">#<?= str_pad($id, 6, '0', STR_PAD_LEFT) ?></span>
-                                        <br>
-                                        <small class="text-muted" style="font-size: 0.75rem;">
-                                            <?= date('d/m/Y', strtotime($fechaRaw)) ?>
-                                        </small>
+                                        <span class="fw-bold text-primary">#<?= str_pad($id, 6, '0', STR_PAD_LEFT) ?></span><br>
+                                        <small class="text-muted" style="font-size: 0.75rem;"><?= date('d/m/y', strtotime($fechaRaw)) ?></small>
                                     </td>
 
                                     <td>
-                                        <div class="fw-bold text-dark"><?= htmlspecialchars($nombreCliente) ?></div>
+                                        <div class="fw-bold text-dark text-truncate" style="max-width: 150px;"><?= htmlspecialchars($nombreCliente) ?></div>
                                         <div class="small text-muted d-flex align-items-center gap-2">
                                             <span><i class="bi bi-person-vcard"></i> <?= $rutCliente ?></span>
                                         </div>
@@ -158,36 +194,68 @@
                                                     <i class="bi <?= $iconoLogistica ?> me-1"></i> <?= $textoLogistica ?>
                                                 </span>
                                             </div>
-
                                             <?php if ($fechaEntrega): ?>
                                                 <div class="d-flex align-items-center mt-1">
-                                                    <i class="bi bi-truck text-success me-2 fs-6"></i>
-                                                    <div class="lh-1">
-                                                        <span class="fw-bold text-dark small d-block"><?= $fechaEntrega ?></span>
-                                                        <span class="text-muted" style="font-size: 0.7rem;"><?= $rangoHorario ?></span>
-                                                    </div>
+                                                    <i class="bi bi-calendar-check text-success me-1" style="font-size: 0.8rem;"></i>
+                                                    <span class="fw-bold text-dark" style="font-size: 0.75rem;"><?= $fechaEntrega ?></span>
                                                 </div>
                                             <?php else: ?>
-                                                <span class="small text-muted fst-italic ms-1">Sin fecha programada</span>
+                                                <span class="small text-muted fst-italic ms-1" style="font-size: 0.75rem;">Sin agendar</span>
                                             <?php endif; ?>
                                         </div>
                                     </td>
 
                                     <td class="text-end">
-                                        <div class="fw-black text-cenco-indigo">$<?= number_format($monto, 0, ',', '.') ?></div>
-                                        <div class="text-muted" style="font-size: 0.65rem;">
-                                            <i class="bi bi-wallet2"></i> <?= $formaPago ?>
+                                        <div class="fw-black text-cenco-indigo fs-6">$<?= number_format($cobroCliente, 0, ',', '.') ?></div>
+
+                                        <?php if ($costoEnvio > 0): ?>
+                                            <div class="text-success fw-bold mb-1" style="font-size: 0.65rem;" title="Incluye valor de despacho">
+                                                (Incluye $<?= number_format($costoEnvio, 0, ',', '.') ?> envío)
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <div class="d-flex align-items-center justify-content-end gap-1 mt-1" style="font-size: 0.65rem;">
+                                            <?= $formaPagoHtml ?>
+
+                                            <?php if ($estadoPagoId === 3): ?>
+                                                <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill ms-1" style="font-size: 0.55rem;" title="El dinero ya está en la cuenta Cencocal">
+                                                    <i class="bi bi-lock-fill"></i> Capturado
+                                                </span>
+                                            <?php elseif ($estadoPagoId === 2 && $formaPagoId === 5): ?>
+                                                <span class="badge bg-warning bg-opacity-10 text-dark border border-warning rounded-pill ms-1" style="font-size: 0.55rem;" title="Dinero retenido por el banco (Falta capturar)">
+                                                    <i class="bi bi-hourglass-split"></i> Retenido
+                                                </span>
+                                            <?php endif; ?>
                                         </div>
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="fw-bold text-dark fs-6">$<?= number_format($cobroCliente, 0, ',', '.') ?></div>
+
+                                        <?php if ($subsidio > 0): ?>
+                                            <div class="text-muted text-decoration-line-through" style="font-size: 0.65rem;" title="Valor Bruto Original">
+                                                Bruto: $<?= number_format($totalERP, 0, ',', '.') ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
+
+                                    <td class="text-end">
+                                        <?php if ($subsidio > 0): ?>
+                                            <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2 rounded-pill" title="Asumido por empresa">
+                                                +$<?= number_format($subsidio, 0, ',', '.') ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-muted small">-</span>
+                                        <?php endif; ?>
                                     </td>
 
                                     <td class="text-center">
-                                        <span class="badge rounded-pill <?= $badgeClass ?> px-3 py-2 text-uppercase" style="font-size: 0.7rem;">
+                                        <span class="badge rounded-pill <?= $badgeClass ?> px-2 py-1 text-uppercase" style="font-size: 0.65rem;">
                                             <?= $textoEstado ?>
                                         </span>
                                     </td>
 
                                     <td class="text-end pe-4">
-                                        <a href="<?= BASE_URL ?>admin/pedido/ver/<?= $id ?>" class="btn btn-sm btn-white border shadow-sm text-primary fw-bold hover-scale" title="Ver Detalles y Cambiar Estado">
+                                        <a href="<?= BASE_URL ?>admin/pedido/ver/<?= $id ?>" class="btn btn-sm btn-white border shadow-sm text-primary fw-bold hover-scale" title="Ver Detalles">
                                             Ver <i class="bi bi-arrow-right ms-1"></i>
                                         </a>
                                     </td>
@@ -223,38 +291,29 @@
                 <nav aria-label="Paginación de pedidos">
                     <ul class="pagination pagination-sm mb-0 shadow-sm">
                         <li class="page-item <?= ($pagActual <= 1) ? 'disabled' : '' ?>">
-                            <a class="page-link text-cenco-indigo fw-bold" href="<?= buildPageUrl($pagActual - 1) ?>">
-                                <i class="bi bi-chevron-left"></i> Atrás
-                            </a>
+                            <a class="page-link text-cenco-indigo fw-bold" href="<?= buildPageUrl($pagActual - 1) ?>"><i class="bi bi-chevron-left"></i> Atrás</a>
                         </li>
                         <?php
                         $inicio = max(1, $pagActual - 2);
                         $fin = min($pagTotales, $pagActual + 2);
                         if ($inicio > 1): ?>
                             <li class="page-item"><a class="page-link text-cenco-indigo" href="<?= buildPageUrl(1) ?>">1</a></li>
-                            <?php if ($inicio > 2): ?>
-                                <li class="page-item disabled"><span class="page-link">...</span></li>
-                            <?php endif; ?>
+                            <?php if ($inicio > 2): ?><li class="page-item disabled"><span class="page-link">...</span></li><?php endif; ?>
                         <?php endif; ?>
 
                         <?php for ($i = $inicio; $i <= $fin; $i++): ?>
                             <li class="page-item <?= ($i == $pagActual) ? 'active' : '' ?>">
-                                <a class="page-link <?= ($i == $pagActual) ? 'bg-cenco-indigo border-cenco-indigo text-white' : 'text-cenco-indigo' ?>"
-                                    href="<?= buildPageUrl($i) ?>"><?= $i ?></a>
+                                <a class="page-link <?= ($i == $pagActual) ? 'bg-cenco-indigo border-cenco-indigo text-white' : 'text-cenco-indigo' ?>" href="<?= buildPageUrl($i) ?>"><?= $i ?></a>
                             </li>
                         <?php endfor; ?>
 
                         <?php if ($fin < $pagTotales): ?>
-                            <?php if ($fin < $pagTotales - 1): ?>
-                                <li class="page-item disabled"><span class="page-link">...</span></li>
-                            <?php endif; ?>
+                            <?php if ($fin < $pagTotales - 1): ?><li class="page-item disabled"><span class="page-link">...</span></li><?php endif; ?>
                             <li class="page-item"><a class="page-link text-cenco-indigo" href="<?= buildPageUrl($pagTotales) ?>"><?= $pagTotales ?></a></li>
                         <?php endif; ?>
 
                         <li class="page-item <?= ($pagActual >= $pagTotales) ? 'disabled' : '' ?>">
-                            <a class="page-link text-cenco-indigo fw-bold" href="<?= buildPageUrl($pagActual + 1) ?>">
-                                Siguiente <i class="bi bi-chevron-right"></i>
-                            </a>
+                            <a class="page-link text-cenco-indigo fw-bold" href="<?= buildPageUrl($pagActual + 1) ?>">Siguiente <i class="bi bi-chevron-right"></i></a>
                         </li>
                     </ul>
                 </nav>

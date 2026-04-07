@@ -23,8 +23,6 @@ class CarritoController
 
     // =========================================================
     // 1. MÉTODOS AJAX (Para el catálogo y offcanvas)
-    // =========================================================
-    // --- AGREGAR AJAX (EL QUE USA EL BOTÓN +) ---
     public function agregarAjax()
     {
         if (ob_get_length()) ob_clean();
@@ -40,20 +38,35 @@ class CarritoController
                     exit;
                 }
 
-                // CONSULTA DIRECTA Y BLINDADA (Igual que en el Home)
-                $sql = "SELECT p.id, ps.precio, ps.stock, p.imagen, COALESCE(piw.nombre_web, p.nombre) as nombre_mostrar
-                        FROM productos p
-                        INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
-                        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
-                        WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
+                $sql = "SELECT p.id, ps.precio, p.imagen, COALESCE(piw.nombre_web, p.nombre) as nombre_mostrar,
+                       (ps.stock - ps.stock_reservado) as stock_disponible
+                FROM productos p
+                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
+                WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
 
                 $stmt = $this->db->prepare($sql);
                 $stmt->execute([$id, $sucursal_id]);
                 $producto = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-                // Validamos como Array (['precio']) y no como Objeto (->precio)
-                if (!$producto || $producto['precio'] <= 0 || $producto['stock'] <= 0) {
-                    echo json_encode(['status' => 'error', 'mensaje' => 'Sin disponibilidad en esta zona']);
+                if (!$producto || $producto['precio'] <= 0 || $producto['stock_disponible'] <= 0) {
+                    echo json_encode(['status' => 'error', 'mensaje' => 'Agotado temporalmente']);
+                    exit;
+                }
+
+                // =================================================================
+                // EL CANDADO: Si NO está en el carro, exigimos que haya al menos 5
+                // =================================================================
+                if (!isset($_SESSION['carrito'][$id]) && $producto['stock_disponible'] < 5) {
+                    echo json_encode(['status' => 'error', 'mensaje' => 'Stock crítico. Exclusivo para venta presencial.']);
+                    exit;
+                }
+
+                $cantidadActual = $_SESSION['carrito'][$id]['cantidad'] ?? 0;
+
+                // EVITAR QUE LLEVEN MÁS DE LO DISPONIBLE REAL
+                if ($cantidadActual + 1 > $producto['stock_disponible']) {
+                    echo json_encode(['status' => 'error', 'mensaje' => 'Has alcanzado el límite de stock disponible']);
                     exit;
                 }
 
@@ -85,7 +98,6 @@ class CarritoController
         }
     }
 
-    // --- AGREGAR (VERSIÓN TRADICIONAL POST CON REDIRECCIÓN) ---
     public function agregar()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -93,29 +105,34 @@ class CarritoController
             $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
 
             if ($id) {
-                // Misma consulta blindada
-                $sql = "SELECT p.id, ps.precio, ps.stock, p.imagen, COALESCE(piw.nombre_web, p.nombre) as nombre_mostrar
-                        FROM productos p
-                        INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
-                        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
-                        WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
-
+                // LÓGICA DE STOCK VIRTUAL AQUÍ TAMBIÉN
+                $sql = "SELECT p.id, ps.precio, p.imagen, COALESCE(piw.nombre_web, p.nombre) as nombre_mostrar,
+               -- CALCULAMOS EL DISPONIBLE REAL SIN EL DESCUENTO FORZADO DE 5
+               (ps.stock - ps.stock_reservado) as stock_disponible
+        FROM productos p
+        INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
+        WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
                 $stmt = $this->db->prepare($sql);
                 $stmt->execute([$id, $sucursal_id]);
                 $producto = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-                if ($producto && $producto['precio'] > 0 && $producto['stock'] > 0) {
-                    if (isset($_SESSION['carrito'][$id])) {
-                        $_SESSION['carrito'][$id]['cantidad']++;
-                    } else {
-                        $_SESSION['carrito'][$id] = [
-                            'id' => $id,
-                            'nombre' => $producto['nombre_mostrar'],
-                            'precio' => $producto['precio'],
-                            'imagen' => $producto['imagen'],
-                            'cantidad' => 1,
-                            'sucursal_id' => $sucursal_id
-                        ];
+                if ($producto && $producto['precio'] > 0 && $producto['stock_disponible'] > 0) {
+                    $cantidadActual = $_SESSION['carrito'][$id]['cantidad'] ?? 0;
+
+                    if ($cantidadActual + 1 <= $producto['stock_disponible']) {
+                        if (isset($_SESSION['carrito'][$id])) {
+                            $_SESSION['carrito'][$id]['cantidad']++;
+                        } else {
+                            $_SESSION['carrito'][$id] = [
+                                'id' => $id,
+                                'nombre' => $producto['nombre_mostrar'],
+                                'precio' => $producto['precio'],
+                                'imagen' => $producto['imagen'],
+                                'cantidad' => 1,
+                                'sucursal_id' => $sucursal_id
+                            ];
+                        }
                     }
                 }
             }
@@ -131,9 +148,30 @@ class CarritoController
         header('Content-Type: application/json');
         $id = $_POST['id'] ?? null;
         $accion = $_POST['accion'] ?? null;
+        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
 
         if ($id && isset($_SESSION['carrito'][$id])) {
             if ($accion === 'subir') {
+                // VERIFICAR STOCK ANTES DE PERMITIR SUBIR EN EL CARRITO
+                // Seleccionamos SOLO el stock disponible para que fetchColumn() funcione perfecto
+                $sql = "SELECT (ps.stock - ps.stock_reservado) as stock_disponible
+                        FROM productos p
+                        INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                        WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
+
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute([$id, $sucursal_id]);
+                $disponible = (int)$stmt->fetchColumn();
+
+                // Validación Estricta
+                if ($_SESSION['carrito'][$id]['cantidad'] + 1 > $disponible) {
+                    echo json_encode([
+                        'status' => 'error',
+                        'mensaje' => "Máximo permitido. Solo quedan $disponible unidades en tienda."
+                    ]);
+                    exit;
+                }
+
                 $_SESSION['carrito'][$id]['cantidad']++;
             } elseif ($accion === 'bajar') {
                 if ($_SESSION['carrito'][$id]['cantidad'] > 1) {
@@ -157,18 +195,24 @@ class CarritoController
         ]);
         exit;
     }
-
-    // =========================================================
-    // 2. MÉTODOS ESTÁNDAR (Redirección directa)
-    // =========================================================
-
     public function subir()
     {
         $id = $_GET['id'] ?? null;
+        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
+
         if ($id && isset($_SESSION['carrito'][$id])) {
-            $_SESSION['carrito'][$id]['cantidad']++;
+            // Validar stock también en redirección clásica
+            $sql = "SELECT GREATEST(0, (ps.stock - ps.stock_reservado - COALESCE(piw.stock_seguridad, 5)))
+                    FROM productos_sucursales ps INNER JOIN productos p ON ps.cod_producto = p.cod_producto LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto WHERE p.id = ? AND ps.sucursal_id = ?";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$id, $sucursal_id]);
+            $disponible = $stmt->fetchColumn();
+
+            if ($_SESSION['carrito'][$id]['cantidad'] + 1 <= $disponible) {
+                $_SESSION['carrito'][$id]['cantidad']++;
+            }
         }
-        header("Location: " . $_SERVER['HTTP_REFERER']); // Vuelve a donde estaba
+        header("Location: " . $_SERVER['HTTP_REFERER']);
         exit();
     }
 
@@ -202,10 +246,6 @@ class CarritoController
         header("Location: " . BASE_URL . "home");
         exit();
     }
-
-    // =========================================================
-    // 3. VISTAS Y LOGICA INTERNA
-    // =========================================================
 
     public function ver()
     {
@@ -248,8 +288,8 @@ class CarritoController
                                 <button type="button" class="btn btn-outline-secondary px-2" onclick="cambiarCantidad(' . $item['id'] . ', \'subir\')"><i class="bi bi-plus-lg"></i></button>
                             </div>
                         </div>
-                        <div class="ms-1 align-self-start">
-                            <button type="button" class="btn btn-link text-danger p-0" onclick="cambiarCantidad(' . $item['id'] . ', \'eliminar\')">
+<div class="ms-1 align-self-start">
+                            <button type="button" class="btn btn-link text-danger p-0" onclick="confirmarEliminarCarrito(' . $item['id'] . ')">
                                 <i class="bi bi-x-circle-fill fs-5"></i>
                             </button>
                         </div>
@@ -265,8 +305,6 @@ class CarritoController
         exit;
     }
 
-
-
     private function calcularTotales()
     {
         $cantidad = 0;
@@ -280,12 +318,6 @@ class CarritoController
         return ['cantidad' => $cantidad, 'monto' => $monto];
     }
 
-    // =========================================================
-    // 4. VALIDADOR DE CAMBIO DE SUCURSAL (EL BARREDOR)
-    // =========================================================
-    // =========================================================
-    // 4. VALIDADOR DE CAMBIO DE SUCURSAL (CON MODO SIMULACRO)
-    // =========================================================
     public function validarCambioSucursal($nueva_sucursal_id, $ejecutar = true)
     {
         if (empty($_SESSION['carrito'])) return ['cambios' => false, 'mensajes' => []];
@@ -295,45 +327,44 @@ class CarritoController
         $cambios = false;
 
         foreach ($_SESSION['carrito'] as $id => $item) {
-            $sql = "SELECT ps.precio, ps.stock 
+            // INCORPORAMOS LA LÓGICA VIRTUAL AL CAMBIO DE SUCURSAL
+            $sql = "SELECT ps.precio, 
+                           GREATEST(0, (ps.stock - ps.stock_reservado - COALESCE(piw.stock_seguridad, 5))) as stock_disponible 
                     FROM productos_sucursales ps 
                     INNER JOIN productos p ON ps.cod_producto = p.cod_producto 
+                    LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
                     WHERE p.id = ? AND ps.sucursal_id = ?";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$id, $nueva_sucursal_id]);
             $prod = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            if (!$prod || $prod['precio'] <= 0 || $prod['stock'] <= 0) {
-                // Producto perdido
-                $mensajes[] = "<li class='text-danger'><b>" . $item['nombre'] . "</b> (Agotado)</li>";
+            if (!$prod || $prod['precio'] <= 0 || $prod['stock_disponible'] <= 0) {
+                $mensajes[] = "<li class='text-danger'><b>" . $item['nombre'] . "</b> (Agotado en esta sucursal)</li>";
                 $cambios = true;
             } else {
                 if ($item['precio'] != $prod['precio']) {
                     $mensajes[] = "<li class='text-warning'><b>" . $item['nombre'] . "</b> (Cambia a $" . number_format($prod['precio'], 0, ',', '.') . ")</li>";
                     $cambios = true;
                 }
-                if ($item['cantidad'] > $prod['stock']) {
-                    $mensajes[] = "<li class='text-warning'><b>" . $item['nombre'] . "</b> (Quedan solo " . $prod['stock'] . " un)</li>";
+                if ($item['cantidad'] > $prod['stock_disponible']) {
+                    $mensajes[] = "<li class='text-warning'><b>" . $item['nombre'] . "</b> (Quedan solo " . $prod['stock_disponible'] . " un)</li>";
                     $cambios = true;
                 }
 
-                // Preparamos cómo quedaría si se ejecuta
                 if ($ejecutar) {
                     $item['sucursal_id'] = $nueva_sucursal_id;
                     $item['precio'] = $prod['precio'];
-                    if ($item['cantidad'] > $prod['stock']) $item['cantidad'] = $prod['stock'];
+                    if ($item['cantidad'] > $prod['stock_disponible']) $item['cantidad'] = $prod['stock_disponible'];
                     $carrito_limpio[$id] = $item;
                 }
             }
         }
 
-        // Si es una ejecución real, aplicamos la masacre
         if ($ejecutar && $cambios) {
             $_SESSION['carrito'] = $carrito_limpio;
         }
 
-        // Devolvemos el reporte del simulacro
         return ['cambios' => $cambios, 'mensajes' => $mensajes];
     }
 }

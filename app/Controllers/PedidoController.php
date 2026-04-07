@@ -15,35 +15,60 @@ class PedidoController
         $this->pedidoModel = new Pedido($db);
     }
 
-    /**
-     * Muestra la pantalla de éxito cuando un cliente de confianza
-     * elige el método de pago "Contra Entrega".
-     */
     public function exito()
     {
-        // 1. Validamos que exista una sesión activa
-        if (!isset($_SESSION['user_id'])) {
-            header("Location: " . BASE_URL . "auth/login");
+        // 1. Detectar si el usuario actual es Administrador (VIP)
+        $esAdmin = (isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin');
+
+        // 2. Seguridad híbrida: Permitir acceso a Admin, Usuarios o Invitados
+        if (!$esAdmin && empty($_SESSION['user_id']) && empty($_SESSION['invitado'])) {
+            header("Location: " . BASE_URL . "home");
             exit();
         }
 
-        // 2. Validamos que venga el ID del pedido por la URL
+        // 3. Validamos que venga el ID del pedido por la URL
         $idPedido = $_GET['id'] ?? null;
         if (!$idPedido) {
             header("Location: " . BASE_URL . "home");
             exit();
         }
 
-        // 3. Obtenemos la información completa del pedido
+        // 4. Obtenemos la información completa del pedido
         $pedido = $this->pedidoModel->obtenerPorId($idPedido);
 
-        // 4. Seguridad: Validamos que el pedido exista y pertenezca al usuario actual
-        if (!$pedido || $pedido['usuario_id'] != $_SESSION['user_id']) {
-            header("Location: " . BASE_URL . "perfil?tab=pedidos");
+        if (!$pedido) {
+            header("Location: " . BASE_URL . "home");
             exit();
         }
 
-        // 5. Renderizamos la vista de éxito
+        // 5. Seguridad: Validamos pertenencia (Si es Admin, se salta esta validación)
+        $esDueno = false;
+
+        if ($esAdmin) {
+            $esDueno = true; // El admin es dueño de todo
+        } elseif (!empty($_SESSION['user_id'])) {
+            // Validación para cliente registrado
+            if ($pedido['usuario_id'] == $_SESSION['user_id']) {
+                $esDueno = true;
+            }
+        } elseif (!empty($_SESSION['invitado'])) {
+            // Validación para cliente invitado (comparamos RUT sin ceros a la izquierda)
+            $rutPedido = $pedido['rut_cliente'] ?? '';
+            $rutPedidoLimpio = ltrim(str_replace(['.', '-'], '', $rutPedido), '0');
+            $rutInvitadoLimpio = ltrim(str_replace(['.', '-'], '', $_SESSION['invitado']['rut']), '0');
+
+            if ($pedido['usuario_id'] === null && strtoupper($rutPedidoLimpio) === strtoupper($rutInvitadoLimpio)) {
+                $esDueno = true;
+            }
+        }
+
+        // Si no pasó ninguna validación, lo sacamos
+        if (!$esDueno) {
+            header("Location: " . BASE_URL . "home");
+            exit();
+        }
+
+        // 6. Renderizamos la vista de éxito
         ob_start();
         include __DIR__ . '/../../views/pedido/exito.php';
         $content = ob_get_clean();

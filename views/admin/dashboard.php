@@ -7,22 +7,81 @@
             <h2 class="fw-black text-cenco-indigo mb-1">
                 <i class="bi bi-speedometer2 me-2"></i>Panel de Control
             </h2>
-            <p class="text-muted mb-0">Resumen en tiempo real de tu negocio.</p>
+            <p class="text-muted mb-0">Resumen en tiempo real.</p>
         </div>
-        
-        <div class="d-flex gap-2 align-items-center">
+
+        <div class="d-flex gap-2 align-items-center mt-3 mt-md-0">
             <form action="" method="GET" class="d-flex gap-2">
                 <input type="date" name="desde" class="form-control form-control-sm shadow-sm border-0" value="<?= $desde ?>">
                 <input type="date" name="hasta" class="form-control form-control-sm shadow-sm border-0" value="<?= $hasta ?>">
                 <button type="submit" class="btn btn-sm btn-cenco-indigo shadow-sm"><i class="bi bi-filter"></i></button>
             </form>
-            
+
             <a href="<?= BASE_URL ?>admin/importar_erp" class="btn btn-white text-primary border shadow-sm fw-bold hover-scale btn-sm ms-2">
                 <i class="bi bi-arrow-repeat me-1"></i> ERP
             </a>
         </div>
     </div>
 
+    <?php
+    // Alerta de Éxito
+    if (isset($_GET['msg']) && $_GET['msg'] === 'sync_ok' && isset($_SESSION['ultimo_reporte_erp'])):
+        $reporte = $_SESSION['ultimo_reporte_erp'];
+    ?>
+        <div class="alert border-success bg-success bg-opacity-10 alert-dismissible fade show shadow-sm rounded-4 mb-4 animate__animated animate__fadeInDown" role="alert">
+            <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-check-circle-fill text-success fs-3 me-3"></i>
+                <h5 class="fw-bold text-success mb-0">¡Sincronización de Inventario Exitosa!</h5>
+            </div>
+            <hr class="border-success opacity-25">
+            <div class="row small text-dark">
+                <div class="col-md-3 mb-2">
+                    <i class="bi bi-file-earmark-excel me-1 text-muted"></i> Archivos: <strong><?= (int)($reporte['archivos_encontrados'] ?? 0) ?></strong>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <i class="bi bi-shop me-1 text-muted"></i> Sucursales: <strong><?= !empty($reporte['sucursales_procesadas']) ? implode(', ', $reporte['sucursales_procesadas']) : 'Ninguna' ?></strong>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <i class="bi bi-box-seam me-1 text-muted"></i> Productos: <strong><?= number_format((int)($reporte['productos_procesados'] ?? $reporte['actualizaciones'] ?? 0), 0, ',', '.') ?></strong>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <i class="bi bi-list-ol me-1 text-muted"></i> Filas leídas: <strong><?= number_format((int)($reporte['total_filas_leidas'] ?? $reporte['total_filas'] ?? 0), 0, ',', '.') ?></strong>
+                </div>
+            </div>
+
+            <?php if (!empty($reporte['errores'])): ?>
+                <div class="mt-2 p-2 bg-white rounded border border-danger">
+                    <strong class="text-danger small"><i class="bi bi-exclamation-triangle-fill me-1"></i> Advertencias durante el proceso:</strong>
+                    <ul class="mb-0 small text-danger mt-1 ps-3">
+                        <?php foreach ($reporte['errores'] as $error): ?>
+                            <li><?= htmlspecialchars($error) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php
+        unset($_SESSION['ultimo_reporte_erp']);
+    elseif (isset($_GET['msg']) && $_GET['msg'] === 'sync_ok'): // Fallback por si no hay sesión
+    ?>
+        <div class="alert border-success bg-success bg-opacity-10 alert-dismissible fade show shadow-sm rounded-4 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill text-success fs-4 me-2"></i>
+            <strong class="text-success">¡Sincronización de Inventario Exitosa!</strong> El ERP se ha importado correctamente.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif;
+
+    // Alerta de Error
+    if (isset($_GET['msg']) && $_GET['msg'] === 'error'):
+    ?>
+        <div class="alert border-danger bg-danger bg-opacity-10 alert-dismissible fade show shadow-sm rounded-4 mb-4" role="alert">
+            <i class="bi bi-exclamation-octagon-fill text-danger fs-4 me-2"></i>
+            <strong class="text-danger">Error de Sincronización:</strong> <?= htmlspecialchars($_GET['info'] ?? 'No se pudo completar la carga del ERP.') ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
     <div class="row g-4 mb-4">
         <div class="col-md-4">
             <div class="card border-0 shadow-sm rounded-4 bg-cenco-indigo text-white h-100 overflow-hidden position-relative">
@@ -36,11 +95,22 @@
                             <i class="bi bi-currency-dollar fs-4"></i>
                         </div>
                     </div>
-                    <div class="mt-4">
-                        <span class="badge bg-white bg-opacity-25 text-white fw-normal">
-                            <i class="bi bi-calendar3 me-1"></i> <?= date('d/m', strtotime($desde)) ?> - <?= date('d/m', strtotime($hasta)) ?>
-                        </span>
+
+                    <div class="mt-4 d-flex flex-column gap-2">
+                        <div>
+                            <span class="badge bg-white bg-opacity-25 text-white fw-normal">
+                                <i class="bi bi-calendar3 me-1"></i> <?= date('d/m', strtotime($desde)) ?> - <?= date('d/m', strtotime($hasta)) ?>
+                            </span>
+                        </div>
+
+                        <?php if ($ingresoDespacho > 0): ?>
+                            <div class="small text-white-50 fw-bold d-flex align-items-center mt-1">
+                                <i class="bi bi-truck me-2 fs-6 text-white opacity-75"></i>
+                                Recaudación Despacho: <span class="text-white ms-1">$<?= number_format($ingresoDespacho, 0, ',', '.') ?></span>
+                            </div>
+                        <?php endif; ?>
                     </div>
+
                     <i class="bi bi-graph-up-arrow position-absolute bottom-0 end-0 me-n3 mb-n3 text-white opacity-10" style="font-size: 8rem;"></i>
                 </div>
             </div>
@@ -71,12 +141,12 @@
                         <p class="text-uppercase text-muted fw-bold small mb-0 ls-1">Alertas de Stock</p>
                         <span class="badge bg-danger rounded-pill"><?= count($stockCritico) ?> Críticos</span>
                     </div>
-                    
+
                     <div class="list-group list-group-flush">
-                        <?php if(empty($stockCritico)): ?>
+                        <?php if (empty($stockCritico)): ?>
                             <div class="text-center text-muted small py-3">Inventario saludable <i class="bi bi-check-circle text-success"></i></div>
                         <?php else: ?>
-                            <?php foreach($stockCritico as $prod): ?>
+                            <?php foreach ($stockCritico as $prod): ?>
                                 <div class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
                                     <div class="d-flex align-items-center">
                                         <i class="bi bi-exclamation-triangle-fill text-danger me-2 small"></i>
@@ -99,10 +169,6 @@
                     <h6 class="fw-bold text-cenco-indigo mb-0">Tendencia de Ventas (Últimos 7 días)</h6>
                 </div>
                 <div class="card-body">
-                    
-
-[Image of Sales Trend Chart]
-
                     <canvas id="ventasChart" height="100"></canvas>
                 </div>
             </div>
@@ -117,17 +183,20 @@
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <tbody>
-                                <?php if(empty($topProductos)): ?>
-                                    <tr><td class="text-center text-muted p-4">Sin datos en este periodo.</td></tr>
+                                <?php if (empty($topProductos)): ?>
+                                    <tr>
+                                        <td class="text-center text-muted p-4">Sin datos en este periodo.</td>
+                                    </tr>
                                 <?php else: ?>
-                                    <?php $pos = 1; foreach($topProductos as $tp): ?>
+                                    <?php $pos = 1;
+                                    foreach ($topProductos as $tp): ?>
                                         <tr>
                                             <td class="ps-4" style="width: 50px;">
-                                                <?php if($pos == 1): ?>
+                                                <?php if ($pos == 1): ?>
                                                     <span class="badge bg-warning text-dark rounded-circle p-2">🥇</span>
-                                                <?php elseif($pos == 2): ?>
+                                                <?php elseif ($pos == 2): ?>
                                                     <span class="badge bg-secondary bg-opacity-50 text-white rounded-circle p-2">🥈</span>
-                                                <?php elseif($pos == 3): ?>
+                                                <?php elseif ($pos == 3): ?>
                                                     <span class="badge bg-secondary bg-opacity-25 text-dark rounded-circle p-2">🥉</span>
                                                 <?php else: ?>
                                                     <span class="text-muted fw-bold ps-2"><?= $pos ?></span>
@@ -144,7 +213,8 @@
                                                 </span>
                                             </td>
                                         </tr>
-                                    <?php $pos++; endforeach; ?>
+                                    <?php $pos++;
+                                    endforeach; ?>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -154,7 +224,7 @@
         </div>
     </div>
 
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
         <div class="card-header bg-white py-3 px-4 border-bottom border-light d-flex justify-content-between align-items-center">
             <h6 class="fw-bold text-cenco-indigo mb-0">Últimos Pedidos Recibidos</h6>
             <a href="<?= BASE_URL ?>admin/pedidos" class="btn btn-sm btn-light text-primary fw-bold">Ver Todos</a>
@@ -172,12 +242,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach($ultimosPedidos as $p): ?>
+                        <?php foreach ($ultimosPedidos as $p): ?>
                             <tr>
                                 <td class="ps-4 fw-bold text-primary">#<?= str_pad($p['id'], 6, '0', STR_PAD_LEFT) ?></td>
                                 <td>
                                     <div class="fw-bold text-dark small"><?= $p['nombre_cliente'] ?></div>
-                                    <small class="text-muted"><?= date('d/m/Y H:i', strtotime($p['fecha_creacion'].' '.$p['hora_creacion'])) ?></small>
+                                    <small class="text-muted"><?= date('d/m/Y H:i', strtotime($p['fecha_creacion'] . ' ' . $p['hora_creacion'])) ?></small>
                                 </td>
                                 <td class="text-center">
                                     <span class="badge rounded-pill bg-<?= $p['color_estado'] ?? 'secondary' ?> px-2">
@@ -202,7 +272,7 @@
 
 <script>
     const ctx = document.getElementById('ventasChart').getContext('2d');
-    
+
     // Datos pasados desde PHP
     const fechas = <?= json_encode(array_column($datosGrafico, 'fecha')) ?>;
     const totales = <?= json_encode(array_column($datosGrafico, 'total')) ?>;
@@ -227,15 +297,21 @@
         options: {
             responsive: true,
             plugins: {
-                legend: { display: false }
+                legend: {
+                    display: false
+                }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: { borderDash: [2, 4] }
+                    grid: {
+                        borderDash: [2, 4]
+                    }
                 },
                 x: {
-                    grid: { display: false }
+                    grid: {
+                        display: false
+                    }
                 }
             }
         }

@@ -16,16 +16,19 @@ class Sucursal
     public function obtenerTodas()
     {
         $sql = "SELECT s.*, 
-                       c.nombre AS nombre_comuna, 
-                       r.nombre AS nombre_region,
-                       e.nombre AS nombre_encargado
-                FROM sucursales s
-                LEFT JOIN comunas c ON s.comuna_id = c.id
-                LEFT JOIN provincias p ON c.provincia_id = p.id
-                LEFT JOIN regiones r ON p.region_id = r.id
-                LEFT JOIN encargados e ON s.encargado_id = e.id
-                WHERE s.activo = 1
-                ORDER BY s.id ASC";
+                   c.nombre AS nombre_comuna, 
+                   r.nombre AS nombre_region,
+                   e.nombre AS nombre_encargado
+            FROM sucursales s
+            LEFT JOIN comunas c ON s.comuna_id = c.id
+            LEFT JOIN provincias p ON c.provincia_id = p.id
+            LEFT JOIN regiones r ON p.region_id = r.id
+            LEFT JOIN encargados e ON s.encargado_id = e.id
+            WHERE s.activo = 1 
+              AND s.nombre IS NOT NULL -- Evita traer locales sin nombre
+              AND s.nombre != ''       -- Evita traer locales vacíos
+            GROUP BY s.id              -- Evita que se repitan por las comunas
+            ORDER BY s.id ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
@@ -33,7 +36,7 @@ class Sucursal
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
- 
+
 
     public function obtenerParaRetiro()
     {

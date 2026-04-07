@@ -266,7 +266,8 @@ class Usuario
     public function obtenerComunasValparaiso()
     {
         // El ID 6 corresponde a Valparaíso según tu base de datos
-        $sql = "SELECT c.id, c.nombre 
+        // ¡ACTUALIZADO! Ahora traemos también el sucursal_id
+        $sql = "SELECT c.id, c.nombre, c.sucursal_id 
             FROM comunas c 
             JOIN provincias p ON c.provincia_id = p.id 
             WHERE p.region_id = 6 
@@ -274,7 +275,6 @@ class Usuario
         $stmt = $this->db->query($sql);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
-
     // En App/Models/Usuario.php
 
     public function getTelefonos($usuario_id)

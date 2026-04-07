@@ -1,6 +1,24 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+<style>
+    /* Estilos personalizados para que la paginación combine con tu diseño Cencocal */
+    .pagination .page-item.active .page-link {
+        background-color: var(--cenco-indigo, #2A1B5E);
+        border-color: var(--cenco-indigo, #2A1B5E);
+        color: white;
+    }
+
+    .pagination .page-link {
+        color: var(--cenco-indigo, #2A1B5E);
+        cursor: pointer;
+    }
+
+    .pagination .page-link:focus {
+        box-shadow: 0 0 0 0.25rem rgba(42, 27, 94, 0.25);
+    }
+</style>
+
 <div class="position-fixed top-0 end-0 p-3" style="z-index: 1055">
     <div id="liveToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
@@ -103,8 +121,6 @@
                             <hr class="my-4 border-light">
 
                             <div class="mt-4">
-
-
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <h6 class="fw-bold text-cenco-indigo mb-0"><i class="bi bi-journal-bookmark me-2"></i>Agenda de Contactos Alternativos</h6>
                                     <button class="btn btn-sm btn-outline-cenco-green rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#modalNuevoTelefono">
@@ -168,7 +184,7 @@
                         <div class="tab-pane fade" id="pedidos">
                             <h5 class="fw-bold text-cenco-indigo mb-4">Mis Pedidos</h5>
                             <div class="table-responsive">
-                                <table class="table table-hover align-middle">
+                                <table class="table table-hover align-middle mb-0">
                                     <thead class="bg-light">
                                         <tr>
                                             <th class="small fw-bold text-muted ps-4">Pedido</th>
@@ -193,7 +209,7 @@
                                                     '<span class="d-block fw-bold text-dark"><i class="bi bi-truck me-2 text-success"></i>' . $pedido['fecha_entrega'] . '</span><small class="text-muted ps-4">' . $pedido['rango_horario'] . '</small>' :
                                                     '<span class="text-muted">Pendiente</span>';
                                             ?>
-                                                <tr>
+                                                <tr class="fila-pedido" style="display: none;">
                                                     <td class="ps-4">
                                                         <span class="fw-bold text-cenco-indigo">#<?= $id ?></span>
                                                         <div class="small text-muted d-flex align-items-center" style="font-size: 0.75rem;">
@@ -223,6 +239,12 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            <nav aria-label="Navegación de pedidos" class="mt-4" id="nav-paginacion-pedidos" style="display: none;">
+                                <ul class="pagination justify-content-center mb-0" id="paginacion-pedidos">
+                                </ul>
+                            </nav>
+
                         </div>
 
                         <div class="tab-pane fade" id="direcciones">
@@ -515,5 +537,74 @@
     if (typeof BASE_URL === 'undefined') {
         const BASE_URL = '<?= BASE_URL ?>';
     }
+
+    // ==========================================
+    // LÓGICA DE PAGINACIÓN PARA PEDIDOS
+    // ==========================================
+    document.addEventListener("DOMContentLoaded", function() {
+        const filas = document.querySelectorAll('.fila-pedido');
+        const porPagina = 10;
+        const totalPaginas = Math.ceil(filas.length / porPagina);
+        let paginaActual = 1;
+
+        if (totalPaginas > 1) {
+            document.getElementById('nav-paginacion-pedidos').style.display = 'block';
+            mostrarPagina(1);
+        } else if (totalPaginas === 1) {
+            // Si solo hay una página, mostrar todo directamente sin botones
+            mostrarPagina(1);
+        }
+
+        function mostrarPagina(pag) {
+            paginaActual = pag;
+            const inicio = (pag - 1) * porPagina;
+            const fin = inicio + porPagina;
+
+            filas.forEach((fila, index) => {
+                if (index >= inicio && index < fin) {
+                    fila.style.display = 'table-row';
+                } else {
+                    fila.style.display = 'none';
+                }
+            });
+            renderPaginacion();
+        }
+
+        function renderPaginacion() {
+            const ul = document.getElementById('paginacion-pedidos');
+            if (!ul) return;
+            ul.innerHTML = '';
+
+            // Botón Anterior (<)
+            ul.innerHTML += `
+                <li class="page-item ${paginaActual === 1 ? 'disabled' : ''}">
+                    <a class="page-link shadow-sm rounded-start-pill px-3" onclick="window.cambiarPaginaPedido(${paginaActual - 1})"><i class="bi bi-chevron-left"></i></a>
+                </li>
+            `;
+
+            // Números de Página
+            for (let i = 1; i <= totalPaginas; i++) {
+                ul.innerHTML += `
+                    <li class="page-item ${paginaActual === i ? 'active' : ''}">
+                        <a class="page-link shadow-sm fw-bold px-3" onclick="window.cambiarPaginaPedido(${i})">${i}</a>
+                    </li>
+                `;
+            }
+
+            // Botón Siguiente (>)
+            ul.innerHTML += `
+                <li class="page-item ${paginaActual === totalPaginas ? 'disabled' : ''}">
+                    <a class="page-link shadow-sm rounded-end-pill px-3" onclick="window.cambiarPaginaPedido(${paginaActual + 1})"><i class="bi bi-chevron-right"></i></a>
+                </li>
+            `;
+        }
+
+        // Hacer la función global para que la llamen los enlaces
+        window.cambiarPaginaPedido = function(pag) {
+            if (pag >= 1 && pag <= totalPaginas) {
+                mostrarPagina(pag);
+            }
+        };
+    });
 </script>
 <script src="<?= BASE_URL ?>js/perfil.js"></script>

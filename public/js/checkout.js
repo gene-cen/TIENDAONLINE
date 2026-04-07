@@ -46,11 +46,11 @@ function cambiarMetodoEntrega() {
     bloqueRetiro.classList.toggle('d-none', !esRetiro);
     bloqueDespacho.classList.toggle('d-none', esRetiro);
 
-    let costoFinal = 0;
+    let costoFinalEnvio = 0;
 
     if (esRetiro) {
         // --- CASO RETIRO ---
-        costoFinal = 0;
+        costoFinalEnvio = 0;
         if (alertaEnvio) alertaEnvio.classList.add('d-none');
 
         inputSucursal.disabled = false; // Habilitar input hidden para que se envíe
@@ -66,10 +66,10 @@ function cambiarMetodoEntrega() {
         const { totalCarro, umbralGratis, umbralAlerta, costoDespacho } = CheckoutConfig;
 
         if (totalCarro >= umbralGratis) {
-            costoFinal = 0;
+            costoFinalEnvio = 0;
             if (alertaEnvio) alertaEnvio.classList.add('d-none');
         } else {
-            costoFinal = costoDespacho;
+            costoFinalEnvio = costoDespacho;
             if (totalCarro >= umbralAlerta && alertaEnvio) {
                 alertaEnvio.classList.remove('d-none');
             }
@@ -79,14 +79,22 @@ function cambiarMetodoEntrega() {
         gestionarNuevaDireccion();     // Asegurar visualización correcta del mapa de dirección
     }
 
-    // Actualizar Resumen de Precios
-    labelEnvio.innerHTML = (costoFinal === 0)
+    // Actualizar Resumen de Precios de Envío
+    labelEnvio.innerHTML = (costoFinalEnvio === 0)
         ? '<span class="text-success fw-bold">GRATIS</span>'
-        : formatCLP(costoFinal);
+        : formatCLP(costoFinalEnvio);
 
-    labelTotal.innerText = formatCLP(CheckoutConfig.totalCarro + costoFinal);
+    // =========================================================
+    // ¡AQUÍ SUMAMOS EL COSTO DE SERVICIO AL TOTAL!
+    // =========================================================
+    // Nos aseguramos de que el costo de servicio sea un número, y si no está definido en config, usamos 490 por defecto
+    const costoServicioFijo = CheckoutConfig.costoServicio || 490;
+    
+    // Calculamos el total real que verá el cliente
+    const totalRealPantalla = CheckoutConfig.totalCarro + costoFinalEnvio + costoServicioFijo;
+    
+    labelTotal.innerText = formatCLP(totalRealPantalla);
 }
-
 // =========================================================
 // 2. LÓGICA RETIRO AUTOMÁTICO (1:1 COMUNA -> SUCURSAL)
 // =========================================================
@@ -229,10 +237,17 @@ function iniciarMapaNueva() {
 }
 
 function actualizarInputs(lat, lng) {
-    document.getElementById('inputLat').value = lat;
-    document.getElementById('inputLng').value = lng;
-}
+    const inputLat = document.getElementById('inputLat');
+    const inputLng = document.getElementById('inputLng');
 
+    // Solo asignamos si el elemento realmente existe en la página
+    if (inputLat) {
+        inputLat.value = lat;
+    }
+    if (inputLng) {
+        inputLng.value = lng;
+    }
+}
 // =========================================================
 // 4. SERVICIOS EXTERNOS (BÚSQUEDA Y GUARDADO AJAX)
 // =========================================================

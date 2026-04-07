@@ -73,52 +73,62 @@ class LocationController
         echo json_encode(['success' => true, 'comuna_id' => 63, 'comuna_nombre' => 'La Calera']);
         exit;
     }
-    public function actualizar_por_nombre()
-    {
-        if (ob_get_level()) ob_end_clean();
-        header('Content-Type: application/json');
+   public function actualizar_por_nombre()
+{
+    if (ob_get_level()) ob_end_clean();
+    header('Content-Type: application/json');
 
-        $nombre = trim($_POST['nombre'] ?? '');
-        // NUEVO: Verificamos si el JS nos está mandando la confirmación de forzar el cambio
-        $confirmado = isset($_POST['confirmado']) ? (int)$_POST['confirmado'] : 0;
+    $nombre = trim($_POST['nombre'] ?? '');
+    $confirmado = isset($_POST['confirmado']) ? (int)$_POST['confirmado'] : 0;
+    
+    // 🔥 NUEVO: Atrapamos la sucursal exacta que el usuario seleccionó en el Modal (10 o 29)
+    $sucursal_js = isset($_POST['sucursal_id']) ? (int)$_POST['sucursal_id'] : null;
 
-        $stmt = $this->db->prepare("SELECT id, nombre, sucursal_id FROM comunas WHERE nombre LIKE ? LIMIT 1");
-        $stmt->execute([$nombre]);
-        $comuna = $stmt->fetch(\PDO::FETCH_ASSOC);
+    $stmt = $this->db->prepare("SELECT id, nombre, sucursal_id FROM comunas WHERE nombre LIKE ? LIMIT 1");
+    $stmt->execute([$nombre]);
+    $comuna = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-        if ($comuna) {
-            $nueva_sucursal_id = $comuna['sucursal_id'];
+    if ($comuna) {
+        // Si el JS nos mandó el ID explícito (10 o 29), usamos ese. 
+        // Si por alguna razón no viene, usamos el que tiene la comuna en la base de datos por defecto.
+        $nueva_sucursal_id = $sucursal_js ?: (int)$comuna['sucursal_id'];
 
-            require_once __DIR__ . '/CarritoController.php';
-            $carrito = new \App\Controllers\CarritoController($this->db);
+        require_once __DIR__ . '/CarritoController.php';
+        $carrito = new \App\Controllers\CarritoController($this->db);
 
-            // 🚨 PASO 1: SIMULACRO (Si no está confirmado)
-            if ($confirmado === 0) {
-                $reporte = $carrito->validarCambioSucursal($nueva_sucursal_id, false); // false = modo simulacro
+        // 🚨 PASO 1: SIMULACRO (Si no está confirmado y hay productos en el carrito)
+        if ($confirmado === 0) {
+            $reporte = $carrito->validarCambioSucursal($nueva_sucursal_id, false); // false = modo simulacro
 
-                if ($reporte['cambios']) {
-                    // Hay conflictos, detenemos todo y pedimos confirmación
-                    echo json_encode([
-                        'status' => 'requiere_confirmacion',
-                        'titulo' => '¡Atención con tu Carrito!',
-                        'html' => 'Si cambias el despacho a <b>' . $comuna['nombre'] . '</b>, se ajustará tu pedido:<br><ul class="text-start mt-3 mb-0" style="font-size: 0.9rem;">' . implode('', $reporte['mensajes']) . '</ul><br><b>¿Deseas continuar?</b>'
-                    ]);
-                    exit;
-                }
+            if (!empty($reporte['cambios'])) {
+                // Hay conflictos, detenemos todo y pedimos confirmación
+                $nombreSucursalAlerta = ($nueva_sucursal_id == 29) ? 'La Calera' : 'Villa Alemana';
+                
+                echo json_encode([
+                    'status' => 'requiere_confirmacion',
+                    'titulo' => '¡Atención con tu Carrito!',
+                    'html' => 'Si cambias a la sucursal de <b>' . $nombreSucursalAlerta . '</b>, se ajustará tu pedido:<br><ul class="text-start mt-3 mb-0" style="font-size: 0.9rem;">' . implode('', $reporte['mensajes']) . '</ul><br><b>¿Deseas continuar?</b>'
+                ]);
+                exit;
             }
-
-            // 🚨 PASO 2: EJECUCIÓN (Si confirmó o si no hubo conflictos)
-            $_SESSION['comuna_id'] = $comuna['id'];
-            $_SESSION['comuna_nombre'] = $comuna['nombre'];
-            $_SESSION['sucursal_activa'] = $nueva_sucursal_id;
-
-            // Ahora sí, ejecutamos la limpieza real
-            $carrito->validarCambioSucursal($nueva_sucursal_id, true); // true = limpiar carro
-
-            echo json_encode(['status' => 'success', 'sucursal' => $nueva_sucursal_id]);
-        } else {
-            echo json_encode(['status' => 'error', 'message' => 'No encontramos la comuna']);
         }
-        exit;
+
+        // 🚨 PASO 2: EJECUCIÓN (Si el usuario confirmó o si no hubo conflictos)
+        
+        // Guardamos la comuna para visualización
+        $_SESSION['comuna_id'] = $comuna['id'];
+        $_SESSION['comuna_nombre'] = $comuna['nombre'];
+        
+        // 🔥 EL PASO CRÍTICO: Cambiamos la sucursal activa en la sesión
+        $_SESSION['sucursal_activa'] = $nueva_sucursal_id;
+
+        // Ahora sí, ejecutamos la limpieza real del carrito
+        $carrito->validarCambioSucursal($nueva_sucursal_id, true); // true = limpiar carro/ajustar stock
+
+        echo json_encode(['status' => 'success', 'sucursal' => $nueva_sucursal_id]);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'No encontramos la comuna']);
     }
+    exit;
+}
 }

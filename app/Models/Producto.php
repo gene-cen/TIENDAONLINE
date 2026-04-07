@@ -20,34 +20,36 @@ class Producto
     // ====================================================================
     private function getBaseQuery($para_web = true)
     {
-        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
+        $sucursal_id = (int)($_SESSION['sucursal_activa'] ?? 29);
 
-        $sql = "SELECT p.id, p.cod_producto, p.nombre, p.descripcion, p.imagen, p.activo,
+        $sql = "SELECT p.id, p.cod_producto, p.nombre, p.precio_unidad_medida, p.descripcion, p.imagen, p.activo, p.categoria as categoria_nombre,
                        COALESCE(w.nombre_web, p.nombre) as nombre_mostrar,
                        ps.precio,
-                       GREATEST(0, (ps.stock - ps.stock_reservado - COALESCE(w.stock_seguridad, 5))) as stock,
-                       ps.stock as stock_real_erp,
+                       -- 🔥 MAGIA DEFINITIVA: Restamos el buffer de 12 unidades al stock web
+                       ((ps.stock - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
+                       ps.stock as stock_fisico_erp,
+                       COALESCE(ps.stock_reservado, 0) as stock_reservado,
                        m.nombre as nombre_marca,
                        wc.nombre as nombre_categoria_web,
                        wc.icono as icono_categoria,
                        wc.id as categoria_id,
                        wsc.nombre as nombre_subcategoria_web
                 FROM productos p 
-                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto 
+                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = $sucursal_id
                 LEFT JOIN productos_info_web w ON p.cod_producto = w.cod_producto
                 LEFT JOIN marcas m ON w.marca_id = m.id
                 LEFT JOIN web_categorias wc ON w.web_categoria_id = wc.id
-                LEFT JOIN web_subcategorias wsc ON w.web_subcategoria_id = wsc.id";
+                LEFT JOIN web_subcategorias wsc ON w.web_subcategoria_id = wsc.id
+                WHERE 1=1 ";
 
         if ($para_web) {
-            // FILTRO TAJANTE: Visible, con Precio y de la Sucursal Correcta
-            $sql .= " WHERE w.visible_web = 1 
+            $sql .= " AND w.visible_web = 1 
                       AND ps.precio > 0 
-                      AND ps.sucursal_id = $sucursal_id ";
-        } else {
-            // Para el admin, filtramos por sucursal pero dejamos ver precios 0 si existen
-            $sql .= " WHERE ps.sucursal_id = $sucursal_id ";
+                      AND p.activo = 1
+                      -- 🔥 FILTRO DE SEGURIDAD: Solo mostrar si después de quitar las 12 unidades sigue quedando al menos 1
+                      AND ((ps.stock - COALESCE(ps.stock_reservado, 0)) - 12) > 0 ";
         }
+
         return $sql;
     }
 
@@ -56,15 +58,15 @@ class Producto
         $sql = $this->getBaseQuery(false) . " ORDER BY p.id DESC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function obtenerDisponibles()
     {
-        $sql = $this->getBaseQuery(true) . " AND p.activo = 1 ORDER BY p.id DESC";
+        $sql = $this->getBaseQuery(true) . " ORDER BY p.id DESC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function obtenerPorId($id)
@@ -72,7 +74,7 @@ class Producto
         $sql = $this->getBaseQuery(false) . " AND p.id = :id";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id]);
-        return $stmt->fetch(PDO::FETCH_OBJ);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     public function getById($id)
@@ -97,21 +99,20 @@ class Producto
         $stmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
         $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function contarPorCategoriaWeb($web_categoria_id)
     {
-        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
+        $sucursal_id = (int)($_SESSION['sucursal_activa'] ?? 29);
         $sql = "SELECT COUNT(*) 
                 FROM productos p
                 INNER JOIN productos_info_web w ON p.cod_producto = w.cod_producto
-                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = $sucursal_id
                 WHERE w.web_categoria_id = :cat_id 
                   AND p.activo = 1 
                   AND w.visible_web = 1 
-                  AND ps.precio > 0 
-                  AND ps.sucursal_id = $sucursal_id";
+                  AND ps.precio > 0 ";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':cat_id' => $web_categoria_id]);
@@ -119,41 +120,46 @@ class Producto
     }
 
     // ====================================================================
-    // 3. DATOS DE NEGOCIO (VENTAS Y RANKING) -> ¡AQUÍ ESTABA EL FALLO DEL HOME!
+    // 3. DATOS DE NEGOCIO (VENTAS Y RANKING)
     // ====================================================================
     public function obtenerMasVendidos()
     {
-        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
+        $sucursal_id = (int)($_SESSION['sucursal_activa'] ?? 29);
 
-        $sql = "SELECT p.id, p.cod_producto, p.nombre, p.descripcion, p.imagen, p.activo, 
+        $sql = "SELECT p.id, p.cod_producto, p.nombre,p.precio_unidad_medida, p.descripcion, p.imagen, p.activo, 
                        COALESCE(w.nombre_web, p.nombre) as nombre_mostrar, 
-                       COALESCE(SUM(pd.cantidad), 0) as total_vendido,
                        ps.precio,
-                       GREATEST(0, (ps.stock - ps.stock_reservado - COALESCE(w.stock_seguridad, 5))) as stock,
+                       -- 🔥 BAUTIZADO COMO 'stock' DIRECTAMENTE
+                       (ps.stock - COALESCE(ps.stock_reservado, 0)) as stock,
                        m.nombre as nombre_marca,
-                       wc.nombre as nombre_categoria_web
+                       wc.nombre as nombre_categoria_web,
+                       COALESCE(SUM(pd.cantidad), 0) as total_vendido
                 FROM productos p
-                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = $sucursal_id
                 LEFT JOIN productos_info_web w ON p.cod_producto = w.cod_producto
                 LEFT JOIN pedidos_detalle pd ON p.id = pd.producto_id
+                LEFT JOIN pedidos ped ON pd.pedido_id = ped.id AND ped.sucursal_codigo = ps.sucursal_id
                 LEFT JOIN marcas m ON w.marca_id = m.id
                 LEFT JOIN web_categorias wc ON w.web_categoria_id = wc.id
                 WHERE p.activo = 1 
                   AND w.visible_web = 1 
                   AND ps.precio > 0 
-                  AND ps.sucursal_id = $sucursal_id
-                GROUP BY p.id
+                 // Cambia la línea del filtro web por esta:
+AND ((ps.stock - COALESCE(ps.stock_reservado, 0)) - 12) > 0
+                GROUP BY 
+                    p.id, p.cod_producto, p.nombre, p.descripcion, p.imagen, p.activo, 
+                    w.nombre_web, ps.precio, ps.stock, ps.stock_reservado, m.nombre, wc.nombre
                 ORDER BY total_vendido DESC, p.id DESC
                 LIMIT 5";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function obtenerCategoriasDestacadas()
     {
-        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
+        $sucursal_id = (int)($_SESSION['sucursal_activa'] ?? 29);
 
         $sql = "SELECT wc.id, wc.nombre, wc.imagen, wc.icono,
                        COUNT(DISTINCT p.id) as cantidad_productos,
@@ -170,7 +176,7 @@ class Producto
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // ====================================================================
@@ -179,14 +185,15 @@ class Producto
 
     public function contarPublicos($busqueda = '')
     {
-        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
+        $sucursal_id = (int)($_SESSION['sucursal_activa'] ?? 29);
         $sql = "SELECT COUNT(*) FROM productos p
-                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = $sucursal_id
                 INNER JOIN productos_info_web w ON p.cod_producto = w.cod_producto 
                 WHERE p.activo = 1 
                   AND w.visible_web = 1 
                   AND ps.precio > 0 
-                  AND ps.sucursal_id = $sucursal_id";
+                
+AND ((ps.stock - COALESCE(ps.stock_reservado, 0)) - 12) > 0";
         $params = [];
 
         if (!empty($busqueda)) {
@@ -198,24 +205,25 @@ class Producto
         $stmt->execute($params);
         return $stmt->fetchColumn();
     }
+
     public function obtenerPublicosPaginados($limite, $offset, $busqueda = '')
     {
-        $sql = $this->getBaseQuery(true) . " AND p.activo = 1";
-        $params = [':limite' => (int) $limite, ':offset' => (int) $offset];
+        $sql = $this->getBaseQuery(true);
 
         if (!empty($busqueda)) {
             $sql .= " AND (w.nombre_web LIKE :q OR p.cod_producto LIKE :q)";
-            $params[':q'] = "%$busqueda%";
         }
+
         $sql .= " ORDER BY p.id DESC LIMIT :limite OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
-        foreach ($params as $key => &$val) {
-            $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
-            $stmt->bindValue($key, $val, $type);
+        if (!empty($busqueda)) {
+            $stmt->bindValue(':q', "%$busqueda%", PDO::PARAM_STR);
         }
+        $stmt->bindValue(':limite', (int) $limite, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function obtenerTodosPublicos($busqueda = '')
@@ -231,7 +239,7 @@ class Producto
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // ====================================================================
@@ -246,7 +254,7 @@ class Producto
 
     public function contarTotal($busqueda = '', $categoriaId = '')
     {
-        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
+        $sucursal_id = (int)($_SESSION['sucursal_activa'] ?? 29);
         $sql = "SELECT COUNT(*) 
                 FROM productos p
                 INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = $sucursal_id
@@ -271,21 +279,24 @@ class Producto
         $stmt->execute($params);
         return $stmt->fetchColumn();
     }
-    // Agregamos $sucursalAdmin como parámetro
+
     public function obtenerPaginados($limit, $offset, $busqueda = '', $categoria = '', $sucursalAdmin = null)
     {
         $params = [];
+        $sucursal_activa = (int)($sucursalAdmin ?: ($_SESSION['sucursal_activa'] ?? 29));
 
-        // --- JOIN MULTI-SUCURSAL ---
-        // Si hay un admin asignado, filtramos por esa sucursal. Si es Big Boss, usamos 29 por defecto.
-        $sucursalJoin = "LEFT JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = :sucursal_admin";
-        $params[':sucursal_admin'] = $sucursalAdmin ? $sucursalAdmin : 29;
+        $sql = "SELECT p.*, 
+                   ps.stock as stock_fisico, 
+                   COALESCE(ps.stock_reservado, 0) as stock_reservado,
+                   -- 🔥 En el admin también forzamos a que 'stock' sea el descontado
+                   (ps.stock - COALESCE(ps.stock_reservado, 0)) as stock, 
+                   ps.precio, 
+                   p.categoria as categoria_nombre 
+            FROM productos p 
+            INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto AND ps.sucursal_id = :sucursal_admin
+            WHERE 1=1";
 
-        // Leemos p.categoria como categoria_nombre directamente desde la tabla productos
-        $sql = "SELECT p.*, ps.stock, ps.precio, p.categoria as categoria_nombre 
-                FROM productos p 
-                $sucursalJoin
-                WHERE 1=1";
+        $params[':sucursal_admin'] = $sucursal_activa;
 
         if (!empty($busqueda)) {
             $sql .= " AND (p.nombre LIKE :busqueda OR p.cod_producto LIKE :codigo)";
@@ -301,18 +312,16 @@ class Producto
         $sql .= " ORDER BY p.id DESC LIMIT :limit OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
-
         foreach ($params as $key => $val) {
             $stmt->bindValue($key, $val);
         }
-
         $stmt->bindValue(':limit', (int) $limit, \PDO::PARAM_INT);
         $stmt->bindValue(':offset', (int) $offset, \PDO::PARAM_INT);
-
         $stmt->execute();
+
+        // En admin lo devolvemos como OBJ para no romper tu vista de admin
         return $stmt->fetchAll(\PDO::FETCH_OBJ);
     }
-
 
     // ====================================================================
     // 6. ESCRITURA (Admin / ERP)

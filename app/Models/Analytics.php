@@ -131,7 +131,6 @@ class Analytics
 
     public function obtenerClicsPopulares($fechaInicio, $fechaFin, $busqueda = '')
     {
-        // Cambiado a tabla analytics_eventos según tu SQL
         list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'e');
         $join = !empty($busqueda) ? "LEFT JOIN usuarios u ON e.user_id = u.id" : "";
 
@@ -148,14 +147,15 @@ class Analytics
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
     public function obtenerVisitasPorComuna($fechaInicio, $fechaFin, $busqueda = '')
     {
         list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'v');
 
         $sql = "SELECT 
                 c.nombre as comuna, 
-                COUNT(*) as visitas, -- Cambiado 'total' por 'visitas' para que coincida con tu JS original
-                COUNT(*) as total    -- Mantenemos 'total' por compatibilidad
+                COUNT(*) as visitas, 
+                COUNT(*) as total  
             FROM analytics_visitas v
             INNER JOIN usuarios u ON v.user_id = u.id
             INNER JOIN comunas c ON u.comuna_id = c.id
@@ -167,8 +167,10 @@ class Analytics
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
     private function construirWhere($fechaInicio, $fechaFin, $busqueda, $aliasTabla = 'v')
     {
+        // Revertido a tu versión original que procesa correctamente el DATETIME
         $where = "WHERE DATE($aliasTabla.fecha_hora) BETWEEN :inicio AND :fin";
         $params = [':inicio' => $fechaInicio, ':fin' => $fechaFin];
 
@@ -187,5 +189,28 @@ class Analytics
     public function obtenerFuentes($fI, $fF, $b = '')
     {
         return [];
+    }
+
+    public function registrarEvento($tipoEvento, $etiqueta)
+    {
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        $sessionId = session_id();
+        $userId = $_SESSION['user_id'] ?? null;
+
+        $sql = "INSERT INTO analytics_eventos (session_id, user_id, tipo_evento, etiqueta) 
+                VALUES (:session_id, :user_id, :tipo, :etiqueta)";
+
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                ':session_id' => $sessionId,
+                ':user_id'    => $userId,
+                ':tipo'       => $tipoEvento,
+                ':etiqueta'   => $etiqueta
+            ]);
+        } catch (\Exception $e) {
+            // Lo mandamos al log para que no interrumpa la navegación si algo falla
+            error_log("Analytics Event Error: " . $e->getMessage());
+        }
     }
 }

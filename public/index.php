@@ -9,7 +9,9 @@ error_reporting(E_ALL);
 if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'render.com') !== false) {
     define('BASE_URL', 'https://' . $_SERVER['HTTP_HOST'] . '/');
 } else {
-    define('BASE_URL', 'http://localhost/tienda-online/public/');
+    // Detecta dinámicamente si entras por localhost o por tu IP (ej: 192.168.x.x)
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    define('BASE_URL', 'http://' . $host . '/tienda-online/public/');
 }
 
 // Cargar librerías
@@ -27,16 +29,16 @@ use App\Controllers\HomeController;
 // Conexión a Base de Datos
 $database = new Database();
 $db = $database->getConnection();
-/*
-// Analytics Tracking (Ignorar Admin)
-if (!isset($_GET['url']) || strpos($_GET['url'], 'admin') === false) {
+
+// Analytics Tracking (Ignorar Admin y API)
+if (!isset($_GET['url']) || (strpos($_GET['url'], 'admin') === false && strpos($_GET['url'], 'api') === false)) {
     require_once __DIR__ . '/../app/Models/Analytics.php';
     $analytics = new \App\Models\Analytics($db);
     $urlActual = $_GET['url'] ?? 'home';
     $userId = $_SESSION['user_id'] ?? null;
     $analytics->registrarVisita($urlActual, $userId);
 }
-    */
+
 
 // Instancia de Controladores
 $authController = new AuthController($db);
@@ -45,6 +47,7 @@ $carritoController = new \App\Controllers\CarritoController($db);
 $checkoutController = new \App\Controllers\CheckoutController($db);
 $adminController = new \App\Controllers\AdminController($db); // Usamos este para todo lo admin
 $homeController = new \App\Controllers\HomeController($db);
+//$transporteController = new \App\Controllers\TransporteController($db);
 $webpayController = new \App\Controllers\WebpayController($db);
 // Router Simple
 $url = $_GET['url'] ?? 'home'; //lo primero que se carga es home, luego se va cambiando por lo que se le indique en el navegador
@@ -61,6 +64,7 @@ if (strpos($url, 'admin/pedido/ver/') === 0) {
     $adminController->verDetalle($id);
     exit();
 }
+
 
 // Editar Producto
 if (strpos($url, 'admin/producto/editar/') === 0) {
@@ -115,6 +119,15 @@ switch ($url) {
         $error = $authController->login();
         include __DIR__ . '/../views/auth/login.php';
         break;
+
+    case 'auth/guestLogin':
+        $authController->guestLogin();
+        break;
+
+
+
+
+
 
     case 'auth/google':
         $authController->googleLogin();
@@ -195,11 +208,6 @@ switch ($url) {
     case 'home/producto':
         $homeController->producto();
         break;
-    case 'home/catalogo_chorizo': // Test visual
-        $homeController->catalogoVisual();
-        break;
-
-
     // --- PERFIL DE USUARIO ---
     case 'perfil':
         $perfilController->index();
@@ -310,6 +318,9 @@ switch ($url) {
         $adminController->cambiarEstado();
         break;
 
+    case 'admin/pedido/guardar_edicion':
+        $adminController->guardarEdicionPedido();
+        break;
     // Productos
     case 'admin/productos':
         $adminController->productos();
@@ -319,6 +330,38 @@ switch ($url) {
     case 'admin/productos/ajax':
         $adminController->buscarProductosAjax();
         break;
+
+    // Productos
+    case 'admin/productos':
+        $adminController->productos();
+        break;
+
+    // --- ESTA ES LA RUTA ORIGINAL DEL BUSCADOR GENERAL ---
+    case 'admin/productos/ajax':
+        $adminController->buscarProductosAjax();
+        break;
+
+    // --- NUEVA RUTA NINJA PARA EL BUSCADOR DE REEMPLAZOS ---
+    case 'admin/buscar_reemplazo':
+        $adminController->buscar_reemplazo_ajax();
+        break;
+
+    // --- DASHBOARD DE STOCK FANTASMA ---
+    case 'admin/stock_fantasma':
+        $adminController->dashboardStockFantasma();
+        break;
+    case 'admin/stock_fantasma/resolver':
+        $adminController->resolverStockFantasma();
+        break;
+
+    case 'admin/subirComprobantePago':
+        // Asegúrate de que el nombre de tu controlador y la variable $db coincidan con los tuyos
+        $adminController = new \App\Controllers\AdminController($db);
+        $adminController->subirComprobantePago();
+        break;
+    // ----------------------------------------------------
+
+
     // ----------------------------------------------------
 
     case 'admin/importar_erp':
@@ -331,9 +374,21 @@ switch ($url) {
         $adminController->guardarProducto();
         break;
 
+    case 'admin/pedido/anular_reembolsar':
+        $adminController->anularYReembolsarAjax();
+        break;
+
+    case 'api/transporte/entregas':
+        $apiTransporte = new \App\Controllers\ApiTransporteController($db);
+        $apiTransporte->getMisEntregas();
+        break;
+    case 'api/transporte/finalizar':
+        $apiTransporte = new \App\Controllers\ApiTransporteController($db);
+        $apiTransporte->finalizarEntregaAndroid();
+        break;
 
     // --- ANALYTICS (Registro de eventos JS) ---
-    /*case 'analytics/registrar-evento':
+    case 'analytics/registrar-evento':
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/../app/Models/Analytics.php';
             // Usamos la variable $db que ya definimos arriba
@@ -344,7 +399,7 @@ switch ($url) {
             }
             exit();
         }
-        break;*/
+        break;
 
 
 
@@ -355,6 +410,24 @@ switch ($url) {
 
     case 'admin/pedidos':
         $adminController->pedidos();
+        break;
+
+    // --- NUEVA RUTA PARA CAPTURA WEBPAY ---
+    case 'admin/pedido/capturar_pago':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $idPedido = $_POST['pedido_id'] ?? 0;
+            $montoFinal = $_POST['monto_final'] ?? 0;
+
+            // Usamos la instancia de webpayController que ya tienes arriba
+            $exito = $webpayController->capturarPagoAdmin($idPedido, $montoFinal);
+
+            if ($exito) {
+                header("Location: " . BASE_URL . "admin/pedido/ver/$idPedido?msg=captura_exitosa");
+            } else {
+                header("Location: " . BASE_URL . "admin/pedido/ver/$idPedido?msg=error_captura");
+            }
+            exit();
+        }
         break;
 
     // En public/index.php busca la sección de Perfil y añade:
@@ -400,6 +473,83 @@ switch ($url) {
         // (Ya lo tienes en la parte de arriba con strpos, así que esto es opcional)
         break;
 
+    // --- NUEVA RUTA PARA GUARDAR EL ORDEN DRAG & DROP ---
+    case 'admin/banners/reordenarAjax':
+        $adminController->reordenarBannersAjax();
+        break;
+
+    // --- NUEVA RUTA PARA BORRAR EN SILENCIO (AJAX) ---
+    case 'admin/banners/borrarAjax':
+        $adminController->borrarBannerAjax();
+        break;
+
+    // --- NUEVA RUTA PARA GUARDAR SOLO LAS FECHAS POR AJAX ---
+    case 'admin/banners/actualizarFechasAjax':
+        $adminController->actualizarFechasAjax();
+        break;
+
+    // Rutas de Marcas Destacadas
+    case 'admin/marcas':
+        $adminController->marcas();
+        break;
+    case 'admin/marcas/guardar':
+        $adminController->guardarMarca();
+        break;
+    case 'admin/marcas/actualizar':
+        $adminController->actualizarMarca();
+        break;
+    // --- NUEVAS RUTAS AJAX PARA MARCAS ---
+    case 'admin/marcas/reordenarAjax':
+        $adminController->reordenarMarcasAjax();
+        break;
+    case 'admin/marcas/toggleAjax':
+        $adminController->toggleMarcaAjax();
+        break;
+    case 'admin/marcas/borrarAjax':
+        $adminController->borrarMarcaAjax();
+        break;
+
+    // ==========================================
+    // MANTENEDOR DE PRODUCTOS NUEVOS (HOMOLOGACIÓN)
+    // ==========================================
+    case 'admin/productos_nuevos':
+        $adminController->productosNuevos();
+        break;
+    case 'admin/productos_nuevos/guardarAjax':
+        $adminController->guardarProductoWebAjax();
+        break;
+    case 'admin/productos_nuevos/activarAjax':
+        $adminController->activarProductoWebAjax();
+        break;
+
+    // --- NUEVA RUTA PARA CARGAR LOS PRODUCTOS AL EDITAR UN BANNER ---
+    case 'admin/banners/cargarProductosPorCodigosAjax':
+        $adminController->cargarProductosPorCodigosAjax();
+        break;
+
+    // Banners (Mantenedor)
+    case 'admin/banners':
+        $adminController->banners();
+        break;
+    case 'admin/banners/guardar':
+        $adminController->guardarBanner();
+        break;
+    case 'admin/banners/borrar': // Solo por si lo necesitas atajar por switch
+        // (Ya lo tienes en la parte de arriba con strpos, así que esto es opcional)
+        break;
+
+    // --- AÑADE ESTAS DOS LÍNEAS NUEVAS ---
+    case 'admin/banners/actualizar':
+        $adminController->actualizarBanner();
+        break;
+    case 'admin/banners/toggleAjax':
+        $adminController->toggleBannerAjax();
+        break;
+
+    // --- NUEVA RUTA PARA EL BUSCADOR DE PRODUCTOS EN BANNERS ---
+    case 'admin/banners/buscarParaBannerAjax':
+        $adminController->buscarParaBannerAjax();
+        break;
     // --- AÑADE ESTAS DOS LÍNEAS NUEVAS ---
     case 'admin/banners/actualizar':
         $adminController->actualizarBanner();
@@ -435,7 +585,22 @@ switch ($url) {
         $locController->actualizar_por_nombre();
         break;
 
+    // =====================================================
+    // PERFIL TRANSPORTISTA (LOGÍSTICA)
+    // =====================================================
+    // =====================================================
+    // PERFIL TRANSPORTISTA (LOGÍSTICA)
+    // =====================================================
+    // En index.php
+    case 'transporte/misEntregas':
+        $transporteController = new \App\Controllers\TransporteController($db); // Se instancia solo aquí
+        $transporteController->misEntregas();
+        break;
 
+    case 'transporte/finalizarEntrega':
+        $transporteController = new \App\Controllers\TransporteController($db); // Instancia AQUÍ
+        $transporteController->finalizarEntrega();
+        break;
     // --- 404 NOT FOUND ---
     default:
         http_response_code(404);

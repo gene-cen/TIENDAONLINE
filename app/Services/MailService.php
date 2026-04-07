@@ -158,7 +158,7 @@ class MailService
             $mail->Subject = "Confirmación de Pedido #$pedidoId - Cencocal";
 
             $montoFmt = number_format($montoTotal, 0, ',', '.');
-            $link = BASE_URL . "perfil?tab=pedidos"; 
+            $link = BASE_URL . "perfil?tab=pedidos";
 
             $titulo = "¡Gracias por tu compra!";
             $mensaje = "
@@ -179,7 +179,7 @@ class MailService
             return true;
         } catch (Exception $e) {
             error_log("Error mail compra: " . $mail->ErrorInfo);
-            return false; 
+            return false;
         }
     }
 
@@ -187,15 +187,15 @@ class MailService
     public function enviarActualizacionEstado($email, $nombreCliente, $idPedido, $nuevoEstado, $tracking)
     {
         try {
-            $mail = $this->getConfiguredMailer(); 
+            $mail = $this->getConfiguredMailer();
             $mail->addAddress($email, $nombreCliente);
             $mail->Subject = "Actualización de tu Pedido #$idPedido - $nuevoEstado";
 
             // Enlace directo a la pestaña de pedidos
-            $link = BASE_URL . "perfil?tab=pedidos"; 
-            
+            $link = BASE_URL . "perfil?tab=pedidos";
+
             $titulo = "¡Tu pedido se mueve!";
-            
+
             // Construimos el mensaje interno para pasarle a getTemplate
             $mensaje = "
                 Hola <strong>$nombreCliente</strong>,<br><br>
@@ -216,12 +216,82 @@ class MailService
             $mail->isHTML(true);
             // ¡AQUÍ ESTÁ LA CLAVE! Usamos getTemplate para mantener el diseño idéntico
             $mail->Body = $this->getTemplate($titulo, $mensaje, "VER DETALLE DEL PEDIDO", $link);
-            
+
             $mail->send();
             return true;
-
         } catch (Exception $e) {
             error_log("Error enviando actualización de estado: " . $mail->ErrorInfo);
+            return false;
+        }
+    }
+
+    // 5. CONFIRMACIÓN DE CAPTURA CON AJUSTE DE STOCK
+    public function enviarAjusteStockCaptura($email, $nombre, $pedidoId, $montoOriginal, $montoFinal)
+    {
+        try {
+            $mail = $this->getConfiguredMailer();
+            $mail->addAddress($email, $nombre);
+            $mail->Subject = "Ajuste de cobro por disponibilidad de stock - Pedido #$pedidoId";
+
+            $montoOrigFmt = number_format($montoOriginal, 0, ',', '.');
+            $montoFinalFmt = number_format($montoFinal, 0, ',', '.');
+            $diferenciaFmt = number_format($montoOriginal - $montoFinal, 0, ',', '.');
+
+            $link = BASE_URL . "perfil?tab=pedidos";
+
+            $titulo = "Ajuste en tu cobro final";
+            $mensaje = "
+                Hola <strong>$nombre</strong>,<br><br>
+                Al preparar tu pedido <strong>#$pedidoId</strong>, notamos que algunos productos ya no se encontraban disponibles en bodega.<br><br>
+                Por este motivo, hemos ajustado a tu favor el cobro en tu método de pago:<br>
+                
+                <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; margin: 20px 0; text-align:left; display:inline-block; border-left: 4px solid #2e7d32;'>
+                    <p style='margin:5px 0;'><strong>Monto Original Autorizado:</strong> $$montoOrigFmt</p>
+                    <p style='margin:5px 0; color:#d32f2f;'><strong>Ajuste por Productos Faltantes:</strong> -$$diferenciaFmt</p>
+                    <p style='margin:10px 0 5px 0; font-size:18px; color:#2e7d32;'><strong>Monto Final Cobrado:</strong> $$montoFinalFmt</p>
+                </div>
+                <br><br>
+                <strong>Nota Importante:</strong> En la aplicación de tu banco podrías ver una retención temporal por el monto original ($$montoOrigFmt), pero Cencocal S.A. solo ha cobrado definitivamente los <strong>$$montoFinalFmt</strong>. La diferencia será liberada de forma automática por tu institución financiera en los próximos días.
+            ";
+
+            $mail->isHTML(true);
+            $mail->Body = $this->getTemplate($titulo, $mensaje, "VER DETALLE DEL PEDIDO", $link);
+            $mail->send();
+            return true;
+        } catch (Exception $e) {
+            error_log("Error enviando ajuste de captura: " . $mail->ErrorInfo);
+            return false;
+        }
+    }
+    // 6. CONFIRMACIÓN DE VENTA ASISTIDA EN TIENDA
+    public function enviarConfirmacion($email, $pedidoId)
+    {
+        try {
+            $mail = $this->getConfiguredMailer();
+            $mail->addAddress($email);
+            $mail->Subject = "Comprobante de Venta Asistida #$pedidoId - Cencocal";
+
+            $link = BASE_URL;
+
+            $titulo = "¡Venta Registrada en Tienda!";
+            $mensaje = "
+                Hola,<br><br>
+                Se ha registrado exitosamente la Venta Asistida <strong>#$pedidoId</strong> en sucursal.<br><br>
+                
+                <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; margin: 20px 0;'>
+                    <p style='margin:5px 0;'><strong>N° de Orden:</strong> #$pedidoId</p>
+                    <p style='margin:5px 0;'><strong>Modalidad:</strong> Pago Presencial en Tienda (Efectivo/Tarjeta)</p>
+                </div>
+
+                Los productos están listos para ser entregados al cliente o preparados para su despacho según lo acordado.
+            ";
+
+            $mail->isHTML(true);
+            $mail->Body = $this->getTemplate($titulo, $mensaje, "IR A LA TIENDA", $link);
+            $mail->send();
+            return true;
+        } catch (Exception $e) {
+            error_log("Error enviando confirmación asistida: " . $mail->ErrorInfo);
             return false;
         }
     }

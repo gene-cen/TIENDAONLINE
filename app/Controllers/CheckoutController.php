@@ -27,232 +27,291 @@ class CheckoutController
         $this->direccionModel = new Direccion($db);
     }
 
-    // Paso 1: Mostrar resumen antes de pagar
     public function index()
     {
-        // 1. SEGURIDAD
-        if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
-            header("Location: " . BASE_URL . "auth/login");
-            exit();
-        }
-
+        // 1. SEGURIDAD: Si el carrito está vacío, no hay nada que pagar
         if (empty($_SESSION['carrito'])) {
             header("Location: " . BASE_URL . "home");
             exit();
         }
 
-        $usuario = $this->userModel->getById($_SESSION['user_id']);
-        $telefonos = $this->userModel->getTelefonos($_SESSION['user_id']);
-
-        // Buscamos el teléfono principal para pasarlo como "Titular"
-        $usuario->telefono_principal = '';
-        foreach ($telefonos as $t) {
-            if ($t->es_principal) {
-                $usuario->telefono_principal = $t->numero;
-                break;
-            }
-        }
-        // 2. OBTENER DATOS PARA VISTA
-        $sucursales = $this->sucursalModel->obtenerParaRetiro();
-        $direcciones = $this->direccionModel->obtenerPorUsuario($_SESSION['user_id']);
-
-        // --- OBTENER LISTA DE TELÉFONOS (Normalización con Alias) ---
+        // 2. PREPARACIÓN DE DATOS SEGÚN TIPO DE USUARIO
+        $usuario = new \stdClass();
         $telefonos = [];
-        if (method_exists($this->userModel, 'getTelefonos')) {
-            $telefonos = $this->userModel->getTelefonos($_SESSION['user_id']);
+        $direcciones = [];
+        $esAsistido = false;
+
+        // --- CASO A: Venta Asistida ---
+        if (!empty($_SESSION['rol']) && $_SESSION['rol'] === 'admin' && isset($_GET['modo']) && $_GET['modo'] === 'asistido') {
+            $esAsistido = true;
+            $usuario->id = null;
+            $usuario->nombre = "MODO: VENTA ASISTIDA";
+            $usuario->rut = "";
+            $usuario->email = "";
+            $usuario->telefono_principal = "";
+            $usuario->direccion = "";
+            $usuario->comuna_id = null;
+            $usuario->es_cliente_confianza = 0;
+        }
+        // --- CASO B: Usuario Registrado Logueado ---
+        elseif (!empty($_SESSION['user_id'])) {
+            $usuario = $this->userModel->getById($_SESSION['user_id']);
+
+            if (method_exists($this->userModel, 'getTelefonos')) {
+                $telefonos = $this->userModel->getTelefonos($_SESSION['user_id']);
+            }
+
+            $usuario->telefono_principal = '';
+            foreach ($telefonos as $t) {
+                if ($t->es_principal) {
+                    $usuario->telefono_principal = $t->numero;
+                    break;
+                }
+            }
+            $direcciones = $this->direccionModel->obtenerPorUsuario($_SESSION['user_id']);
+            $usuario->es_cliente_confianza = $usuario->es_cliente_confianza ?? 0;
+        }
+        // --- CASO C: Invitado ---
+        elseif (!empty($_SESSION['invitado'])) {
+            $invitado = $_SESSION['invitado'];
+            $usuario->id = null;
+            $usuario->nombre = $invitado['nombre'];
+            $usuario->rut = $invitado['rut'];
+            $usuario->email = $invitado['email'];
+            $usuario->telefono_principal = $invitado['telefono'];
+            $usuario->direccion = '';
+            $usuario->comuna_id = null;
+            $usuario->es_cliente_confianza = 0;
+        }
+        // --- CASO D: Nadie identificado ---
+        else {
+            header("Location: " . BASE_URL . "carrito/ver?auth=requerido");
+            exit();
         }
 
+        $sucursales = $this->sucursalModel->obtenerParaRetiro();
         $listaComunas = [];
+
         try {
             if (method_exists($this->userModel, 'obtenerComunasValparaiso')) {
                 $listaComunas = $this->userModel->obtenerComunasValparaiso();
             } else {
-                // Query de respaldo si el método no existe
-                $stmt = $this->db->query("SELECT * FROM comunas WHERE provincia_id IN (SELECT id FROM provincias WHERE region_id = 6) ORDER BY nombre ASC");
+                $stmt = $this->db->query("SELECT * FROM comunas ORDER BY nombre ASC");
                 $listaComunas = $stmt->fetchAll(\PDO::FETCH_OBJ);
             }
         } catch (\Exception $e) {
-            error_log("Error obteniendo comunas: " . $e->getMessage());
+            error_log("Error obteniendo comunas en Checkout: " . $e->getMessage());
         }
 
-        // 3. RENDERIZAR
         ob_start();
         include __DIR__ . '/../../views/shop/checkout.php';
         $content = ob_get_clean();
         include __DIR__ . '/../../views/layouts/main.php';
     }
 
-    // Paso 2: Procesar la compra
-    /**
-     * Paso 2: Procesar la compra y derivar a Webpay
-     * Se encarga de la persistencia del pedido en estado "Pendiente" (1) 
-     * y la redirección limpia a la pasarela de pago.
-     */
     public function procesar()
     {
-        // Validamos que la petición sea POST y existan datos de sesión
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['carrito']) && isset($_SESSION['user_id'])) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['carrito'])) {
 
-            // 1. SEGURIDAD DE SALIDA (Output Buffering)
             if (ob_get_level()) ob_end_clean();
             ob_start();
 
-            try {
+            // 1. IDENTIFICACIÓN DE DATOS
+            $tipoCliente = 'registrado';
+            $adminAsistenteId = null;
+            $usuarioIdBD = $_SESSION['user_id'] ?? null;
+            $esClienteConfianza = 0;
+            $correoCliente = null;
+
+            $primerNombre = null;
+            $segundoNombre = null;
+            $primerApellido = null;
+            $segundoApellido = null;
+
+            if (!empty($_POST['venta_asistida_flag'])) {
+                // --- CASO: VENTA ASISTIDA ---
+                $tipoCliente = 'asistido';
+                $adminAsistenteId = $_SESSION['user_id'];
+                $usuarioIdBD = null; // Desvinculamos del perfil de Admin
+                
+                $rutCliente = $_POST['asistido_rut'];
+                $correoCliente = !empty($_POST['asistido_email']) ? trim($_POST['asistido_email']) : null;
+
+                $primerNombre = $_POST['asistido_p_nombre'] ?? '';
+                $primerApellido = $_POST['asistido_p_apellido'] ?? '';
+                $segundoNombre = $_POST['asistido_s_nombre'] ?? null;
+                $segundoApellido = $_POST['asistido_s_apellido'] ?? null;
+
+                $nombreCliente = trim("$primerNombre $segundoNombre $primerApellido $segundoApellido");
+                $telefonoContacto = "+569" . preg_replace('/[^0-9]/', '', $_POST['asistido_telefono'] ?? '');
+            } elseif (!empty($_SESSION['user_id'])) {
+                // --- CASO: USUARIO REGISTRADO ---
                 $user = $this->userModel->getById($_SESSION['user_id']);
-
-                // 2. LÓGICA DE FECHA Y RANGO HORARIO
-                date_default_timezone_set('America/Santiago');
-                $horaActual = (int)date('H');
-                $fechaEntrega = ($horaActual >= 17) ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d');
-
-                if ($horaActual >= 17) $rangoId = 1;
-                else {
-                    if ($horaActual < 9) $rangoId = 1;
-                    elseif ($horaActual < 11) $rangoId = 2;
-                    elseif ($horaActual < 15) $rangoId = 3;
-                    else $rangoId = 4;
-                }
-
-                // 3. PROCESAMIENTO DE TELÉFONOS
+                $rutCliente = $user->rut;
+                $nombreCliente = $user->nombre;
+                $correoCliente = $user->email;
+                $esClienteConfianza = $user->es_cliente_confianza ?? 0;
                 $telefonoContacto = $_POST['telefono_contacto'] ?? '';
-                $segundoSeleccionado = $_POST['telefono_seleccionado_2'] ?? '';
-                $telefonoContacto2 = null;
 
-                if ($segundoSeleccionado === 'nuevo') {
-                    $telefonoContacto2 = $_POST['telefono_nuevo_2'] ?? null;
-                    if (!empty($_POST['guardar_nuevo_2']) && !empty($telefonoContacto2)) {
-                        $alias = !empty($_POST['nuevo_alias_2']) ? $_POST['nuevo_alias_2'] : 'Contacto Alternativo';
-                        $this->userModel->agregarTelefono($user->id, $telefonoContacto2, $alias, 0);
+                $partesNombre = explode(' ', trim($nombreCliente));
+                $primerNombre = $partesNombre[0] ?? '';
+                $primerApellido = $partesNombre[1] ?? '';
+            } else {
+                // --- CASO: INVITADO ---
+                $tipoCliente = 'invitado';
+                $rutCliente = $_SESSION['invitado']['rut'] ?? '';
+                $nombreCliente = $_SESSION['invitado']['nombre'] ?? 'Invitado';
+                $correoCliente = $_SESSION['invitado']['email'] ?? null;
+                $telefonoContacto = $_SESSION['invitado']['telefono'] ?? '';
+
+                $partesNombre = explode(' ', trim($nombreCliente));
+                $primerNombre = $partesNombre[0] ?? 'Invitado';
+                $primerApellido = $partesNombre[1] ?? '';
+            }
+
+            try {
+                $tipoEntrega = (int)$_POST['tipo_entrega']; 
+
+                // 2. LÓGICA DE FECHAS
+                date_default_timezone_set('America/Santiago');
+                $fechaProcesamiento = new \DateTime();
+
+                if ($tipoCliente === 'asistido') {
+                    if ($tipoEntrega === 2) {
+                        $fechaEntrega = $fechaProcesamiento->format('Y-m-d H:i:s');
+                    } else {
+                        $fechaProcesamiento->modify('+2 hours');
+                        $fechaEntrega = $fechaProcesamiento->format('Y-m-d H:i:s');
                     }
-                } elseif (!empty($segundoSeleccionado)) {
-                    $telefonoContacto2 = $segundoSeleccionado;
+                } else {
+                    if ((int)$fechaProcesamiento->format('H') >= 15 || in_array((int)$fechaProcesamiento->format('w'), [0, 6])) {
+                        $fechaProcesamiento->modify('+1 day');
+                        while (in_array((int)$fechaProcesamiento->format('w'), [0, 6])) $fechaProcesamiento->modify('+1 day');
+                    }
+                    $diasAgregados = 0;
+                    while ($diasAgregados < 2) {
+                        $fechaProcesamiento->modify('+1 day');
+                        if (!in_array((int)$fechaProcesamiento->format('w'), [0, 6])) $diasAgregados++;
+                    }
+                    $fechaEntrega = $fechaProcesamiento->format('Y-m-d');
                 }
 
-                // 4. CÁLCULO DE TOTALES
+                // 3. TOTALES Y COSTOS
                 $totalBruto = 0;
-                $cantidadItems = 0;
                 foreach ($_SESSION['carrito'] as $id => $item) {
                     $totalBruto += $item['precio'] * $item['cantidad'];
-                    $cantidadItems += $item['cantidad'];
                 }
                 $totalNeto = round($totalBruto / 1.19);
+                $costoEnvio = ($tipoEntrega === 2 || $totalBruto >= 39950) ? 0 : 2990;
+                $costoServicio = 490;
 
-                // 5. LÓGICA LOGÍSTICA
-                $tipoEntrega = isset($_POST['tipo_entrega']) ? (int)$_POST['tipo_entrega'] : 1;
-                $sucursalCodigo = '10';
-                $vendedorCodigo = '0003';
-                $costoEnvio = ($totalBruto > 49950) ? 0 : 1990;
+                // 4. LÓGICA DE COMUNA BLINDADA POR SUCURSAL ACTIVA
+                // Forzamos a que siempre se respete la sucursal de la sesión actual
+                $sucursalActivaID = $_SESSION['sucursal_activa'] ?? 29;
+                $sucursalCodigo = ($sucursalActivaID == 10) ? '10' : '29';
 
-                $origenDireccion = $_POST['origen_direccion'] ?? 'perfil';
-                $direccionTexto = $_POST['direccion'] ?? $user->direccion;
-                $comunaId = $_POST['nueva_comuna_id'] ?? $user->comuna_id;
-                $latitud = $_POST['nueva_lat'] ?? null;
-                $longitud = $_POST['nueva_lng'] ?? null;
                 if ($tipoEntrega === 2) {
-                    // Caso Retiro: Usamos !empty para asegurar que si viene en blanco (""), se asigne un valor por defecto.
-                    $sucursalCodigo = !empty($_POST['sucursal_codigo']) ? trim($_POST['sucursal_codigo']) : '29'; // Ponemos 29 como default si es tu matriz
+                    $comunaId = ($sucursalCodigo === '10') ? 82 : 63;
                     $direccionTexto = "RETIRO EN TIENDA: Sucursal " . $sucursalCodigo;
-                    $comunaId = $user->comuna_id;
-                    $costoEnvio = 0;
-                } else if (is_numeric($origenDireccion)) {
-                    $dirGuardada = $this->direccionModel->obtenerPorId($origenDireccion, $user->id);
-                    if ($dirGuardada) {
-                        $direccionTexto = $dirGuardada->direccion;
-                        $comunaId = $dirGuardada->comuna_id;
-                        $latitud = $dirGuardada->latitud;
-                        $longitud = $dirGuardada->longitud;
+                } else {
+                    $comunaId = !empty($_POST['nueva_comuna_id']) ? (int)$_POST['nueva_comuna_id'] : null;
+                    $direccionTexto = $_POST['direccion'] ?? '';
+
+                    if (!$comunaId && !empty($_SESSION['user_id']) && $tipoCliente !== 'asistido') {
+                        $userFull = $this->userModel->getById($_SESSION['user_id']);
+                        $comunaId = $userFull->comuna_id ?? null;
                     }
                 }
 
-                $idsComunasInterior = [63, 66, 64, 65, 62, 80];
-                if (in_array((int)$comunaId, $idsComunasInterior)) {
-                    if ($tipoEntrega !== 2) $sucursalCodigo = '29';
-                    $vendedorCodigo = '2990';
-                }
-
-                // ==========================================
-                // LÓGICA DE MEDIO DE PAGO Y ESTADOS
-                // ==========================================
+                // 5. MEDIO DE PAGO
                 $metodoPagoInput = $_POST['metodo_pago'] ?? 'webpay';
-                $formaPagoFinal = 5; // Webpay
-                $esContraEntrega = false;
+                $formaPagoFinal = 5;
 
-                if ($metodoPagoInput === 'contra_entrega' && isset($user->es_cliente_confianza) && $user->es_cliente_confianza == 1) {
-                    $formaPagoFinal = 7; // Crédito de confianza
-                    $esContraEntrega = true;
+                if ($tipoCliente === 'asistido') {
+                    $formaPagoFinal = 8; // Pago en Tienda Físico
+                } elseif ($metodoPagoInput === 'contra_entrega' && $esClienteConfianza == 1) {
+                    $formaPagoFinal = 7; 
                 }
 
-                // 6. PERSISTENCIA DEL PEDIDO
-                $montoTotalFinal = $totalBruto + (($tipoEntrega === 2) ? 0 : $costoEnvio);
-                $rutLimpio = str_replace(['.', '-'], '', $user->rut);
+                $rutLimpio = str_replace(['.', '-'], '', $rutCliente);
                 $rutERP = str_pad($rutLimpio, 11, '0', STR_PAD_LEFT);
 
+                // 6. DATA FINAL PARA INSERTAR EN BD
                 $datosPedido = [
-                    'usuario_id'               => $user->id,
+                    'usuario_id'               => $usuarioIdBD,
                     'rut_cliente'              => $rutERP,
                     'sucursal_codigo'          => $sucursalCodigo,
-                    'vendedor_codigo'          => $vendedorCodigo,
+                    'vendedor_codigo'          => '0003',
                     'total_neto'               => $totalNeto,
-                    'monto_total'              => $montoTotalFinal,
-                    'costo_envio'              => ($tipoEntrega === 2) ? 0 : $costoEnvio,
+                    'monto_total'              => $totalBruto + $costoEnvio + $costoServicio,
+                    'costo_envio'              => $costoEnvio,
                     'direccion_entrega_texto'  => $direccionTexto,
                     'comuna_id'                => $comunaId,
                     'estado_pedido_id'         => 1,
-                    'estado_pago_id'           => 1, // Siempre inicia en 1 (Pendiente)
                     'forma_pago_id'            => $formaPagoFinal,
-                    'cantidad_items'           => $cantidadItems,
-                    'cantidad_total_productos' => count($_SESSION['carrito']),
                     'tipo_entrega_id'          => $tipoEntrega,
-                    'latitud'                  => $latitud,
-                    'longitud'                 => $longitud,
-                    'nombre_destinatario'      => $user->nombre,
-                    'fecha_entrega_estimada'   => $fechaEntrega,
-                    'rango_horario_id'         => $rangoId,
+                    'nombre_destinatario'      => $nombreCliente,
                     'telefono_contacto'        => $telefonoContacto,
-                    'telefono_contacto_2'      => $telefonoContacto2
+                    'email_cliente'            => $correoCliente, // <-- Guardamos el correo
+                    'tipo_cliente'             => $tipoCliente,
+                    'primer_nombre'            => $primerNombre,
+                    'primer_apellido'          => $primerApellido,
+                    'segundo_nombre'           => $segundoNombre,
+                    'segundo_apellido'         => $segundoApellido,
+                    'admin_asistente_id'       => $adminAsistenteId,
+                    'fecha_entrega_estimada'   => $fechaEntrega
                 ];
 
                 $this->db->beginTransaction();
-
                 $resultado = $this->pedidoModel->crear($datosPedido);
                 $pedidoId = $resultado['id'];
 
                 foreach ($_SESSION['carrito'] as $id => $item) {
                     $productoReal = $this->productoModel->getById($id);
                     if ($productoReal) {
-                        $this->pedidoModel->agregarDetalle(
-                            $pedidoId,
-                            $productoReal,
-                            $item['cantidad'],
-                            ['neto' => round($item['precio'] / 1.19), 'bruto' => $item['precio']]
-                        );
+                        $this->pedidoModel->agregarDetalle($pedidoId, $productoReal, $item['cantidad'], [
+                            'neto' => round($item['precio'] / 1.19),
+                            'bruto' => $item['precio']
+                        ]);
                     }
                 }
 
+                $montoFinalReal = $totalBruto + $costoEnvio + $costoServicio;
+                $this->db->prepare("UPDATE pedidos SET monto_total = ? WHERE id = ?")->execute([$montoFinalReal, $pedidoId]);
+
                 $this->db->commit();
+                
+                // --- LÓGICA DE CORREOS ---
+                if ($tipoCliente === 'asistido' && class_exists('\App\Services\MailService')) {
+                    $mailService = new \App\Services\MailService();
+                    $correoAdmin = $_SESSION['email'] ?? 'admin@cencocal.cl'; 
+                    
+                    // Enviar siempre comprobante interno al admin
+                    $mailService->enviarConfirmacion($correoAdmin, $pedidoId);
+                    
+                    // Si el cliente dio su correo, le enviamos copia
+                    if (!empty($correoCliente)) {
+                        $mailService->enviarConfirmacion($correoCliente, $pedidoId);
+                    }
+                }
+                
+                unset($_SESSION['carrito']); 
 
                 // 7. REDIRECCIÓN FINAL
-                ob_clean();
-
-                if ($esContraEntrega) {
-                    // Si es crédito de confianza, registramos historial indicando el método
-                    $this->pedidoModel->registrarHistorial($pedidoId, 1, 'Pedido realizado con Crédito de Confianza (Pendiente de pago).');
-                    unset($_SESSION['carrito']);
-                    header("Location: " . BASE_URL . "pedido/exito?id=" . $pedidoId);
-                } else {
+                if ($formaPagoFinal == 5) {
                     header("Location: " . BASE_URL . "webpay/pagar?id=" . $pedidoId);
+                } else {
+                    $this->pedidoModel->reservarStock($pedidoId);
+                    $msg = ($tipoCliente === 'asistido') ? 'asistido_ok' : 'exito';
+                    header("Location: " . BASE_URL . "pedido/exito?id=" . $pedidoId . "&type=" . $msg);
                 }
                 exit();
             } catch (\Exception $e) {
                 if ($this->db->inTransaction()) $this->db->rollBack();
-                error_log("Error crítico en Checkout: " . $e->getMessage());
-                if (ob_get_level()) ob_end_clean();
-                header("Location: " . BASE_URL . "checkout?error=fallo_sistema&info=" . urlencode($e->getMessage()));
+                error_log("Error Checkout: " . $e->getMessage());
+                header("Location: " . BASE_URL . "checkout?error=" . urlencode($e->getMessage()));
                 exit;
             }
-        } else {
-            header("Location: " . BASE_URL . "home");
-            exit();
         }
     }
 }

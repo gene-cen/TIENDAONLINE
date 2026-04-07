@@ -37,4 +37,20 @@ function obtenerIconoCategoria($nombreCategoria) {
     // Icono por defecto si no encuentra nada
     return 'fa-solid fa-tag';
 }
+// Configuración de Venta Asistida (Piloto)
+if (!defined('SUCURSALES_PILOTO_ASISTIDO')) {
+    define('SUCURSALES_PILOTO_ASISTIDO', [10]); // Solo sucursal 10 habilitada
+}
+
+/**
+ * Verifica si el usuario actual es un admin de una sucursal piloto
+ */
+function puedeRealizarVentaAsistida() {
+    if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'admin') return false;
+    
+    // Asumimos que guardas la sucursal del admin en la sesión al loguear
+    $sucursalAdmin = $_SESSION['admin_sucursal'] ?? null;
+    return in_array((int)$sucursalAdmin, SUCURSALES_PILOTO_ASISTIDO);
+}
 ?>
+
