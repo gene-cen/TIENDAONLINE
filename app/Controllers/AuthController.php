@@ -3,9 +3,15 @@
 namespace App\Controllers;
 
 use App\Models\Usuario;
-use App\Services\MailService; // <--- IMPORTANTE: Importamos el servicio de correo
+use App\Services\MailService;
 use Google\Client as GoogleClient;
+use PDOException;
+use Exception;
 
+/**
+ * ARCHIVO: AuthController.php
+ * Descripción: Maneja el ciclo de vida de la identidad del usuario (Login, Registro, Recuperación y Utilidades externas).
+ */
 class AuthController
 {
     private $userModel;
@@ -16,52 +22,51 @@ class AuthController
     {
         $this->db = $db;
         $this->userModel = new Usuario($db);
+        $this->initGoogleClient();
+    }
 
-        // Configuramos el cliente de Google
+    /**
+     * Configuración del cliente de Google Oauth2
+     */
+    private function initGoogleClient()
+    {
         $this->googleClient = new GoogleClient();
-
-        // --- INICIO DEL CAMBIO ---
-        // Buscamos la variable en $_ENV (Local). Si no está, usamos getenv() (Render)
         $clientId = $_ENV['GOOGLE_CLIENT_ID'] ?? getenv('GOOGLE_CLIENT_ID');
         $clientSecret = $_ENV['GOOGLE_CLIENT_SECRET'] ?? getenv('GOOGLE_CLIENT_SECRET');
 
         $this->googleClient->setClientId($clientId);
         $this->googleClient->setClientSecret($clientSecret);
-        // --- FIN DEL CAMBIO ---
-
         $this->googleClient->setRedirectUri(BASE_URL . "auth/google-callback");
         $this->googleClient->addScope("email");
         $this->googleClient->addScope("profile");
     }
 
-    // Login tradicional
-public function login()
-{
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        $email = $_POST['email'] ?? '';
-        $password = $_POST['password'] ?? '';
-        $redirect = $_GET['redirect'] ?? 'home'; // <--- Capturamos el destino
+    // =========================================================
+    // 🚪 SECCIÓN 1: LOGIN TRADICIONAL Y GOOGLE
+    // =========================================================
 
-        $user = $this->userModel->login($email, $password);
+    public function login()
+    {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $email = $_POST['email'] ?? '';
+            $password = $_POST['password'] ?? '';
+            $redirect = $_GET['redirect'] ?? 'home';
 
-        if ($user) {
-            $this->setSession($user);
-            // Redirigimos al destino solicitado (checkout) o al home
-            header("Location: " . BASE_URL . $redirect . "?msg=login_exito");
-            exit();
-        } else {
-                // Login Fallido: Redirigimos al home con el error
+            $user = $this->userModel->login($email, $password);
+
+            if ($user) {
+                $this->setSession($user);
+                header("Location: " . BASE_URL . $redirect . "?msg=login_exito");
+            } else {
                 header("Location: " . BASE_URL . "home?msg=login_error");
-                exit();
             }
+            exit();
         }
     }
 
-    // Login con Google
     public function googleLogin()
     {
-        $authUrl = $this->googleClient->createAuthUrl();
-        header("Location: " . $authUrl);
+        header("Location: " . $this->googleClient->createAuthUrl());
         exit();
     }
 
@@ -77,12 +82,12 @@ public function login()
             $user = $this->userModel->getByEmail($data->email);
 
             if (!$user) {
-                // Registro automático por Google
+                // Registro automático: Password aleatoria para usuarios de Google
                 $userData = [
-                    'nombre' => $data->name,
-                    'email' => $data->email,
-                    'password' => password_hash(bin2hex(random_bytes(10)), PASSWORD_DEFAULT),
-                    'rol' => 'cliente',
+                    'nombre'    => $data->name,
+                    'email'     => $data->email,
+                    'password'  => password_hash(bin2hex(random_bytes(10)), PASSWORD_DEFAULT),
+                    'rol'       => 'cliente',
                     'google_id' => $data->id
                 ];
                 $userId = $this->userModel->crear($userData);
@@ -95,143 +100,99 @@ public function login()
         }
     }
 
-    private function setSession($user)
+    /**
+     * Cierre de sesión completo (Limpieza de cookies y server-side)
+     */
+    public function logout()
     {
-        $_SESSION['user_id'] = $user->id;
-        $_SESSION['user_nombre'] = $user->nombre;
-        // CAMBIAMOS 'user_rol' por 'rol' para que coincida con los controladores
-        $_SESSION['rol'] = $user->rol;
-
-        // Guardamos la jurisdicción para administradores
-        if ($user->rol === 'admin') {
-            $_SESSION['admin_sucursal'] = $user->sucursal_admin_id ?? null;
+        $_SESSION = array();
+        if (ini_get("session.use_cookies")) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
         }
-
-        $suc_asignada = null;
-        if (isset($user->comuna_id) && !empty($user->comuna_id)) {
-            try {
-                $stmtComuna = $this->db->prepare("SELECT sucursal_id FROM comunas WHERE id = ?");
-                $stmtComuna->execute([$user->comuna_id]);
-                $suc_asignada = $stmtComuna->fetchColumn();
-            } catch (\PDOException $e) {
-                error_log("Aviso: No se pudo verificar la sucursal. " . $e->getMessage());
-            }
-        }
-
-        $_SESSION['sucursal_activa'] = $suc_asignada ? $suc_asignada : 29;
+        session_destroy();
+        header("Location: " . BASE_URL . "home?msg=logout_exito");
+        exit();
     }
+
+    // =========================================================
+    // 📝 SECCIÓN 2: REGISTRO Y VERIFICACIÓN
+    // =========================================================
+
     public function register()
     {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            // 1. Recolección y limpieza de datos
-            $nombre    = $_POST['nombre'] ?? '';
-            $rut       = $_POST['rut'] ?? '';
-            $email     = $_POST['email'] ?? '';
-            // Limpiamos el teléfono para guardar solo números o formato E.164
-            $telefono_raw = str_replace(['+569', ' ', '+'], '', $_POST['telefono'] ?? '');
-            $telefono  = "+569" . $telefono_raw;
-            $password  = $_POST['password'] ?? '';
-
-            // 2. Datos adicionales
-            $direccion = $_POST['direccion'] ?? '';
-            $giro      = $_POST['giro'] ?? '';
-            $latitud   = $_POST['latitud'] ?? null;
-            $longitud  = $_POST['longitud'] ?? null;
-
-            // --- VALIDACIÓN: Si el correo ya existe ---
+            $email = $_POST['email'] ?? '';
+            
+            // Validación de Duplicidad
             if ($this->userModel->getByEmail($email)) {
-                // Redirigimos con un mensaje de error específico
                 header("Location: " . BASE_URL . "home?msg=error_email_duplicado");
                 exit();
             }
 
+            // Limpieza de teléfono (Formato Chileno E.164)
+            $telRaw = str_replace(['+569', ' ', '+'], '', $_POST['telefono'] ?? '');
+            
             $datos = [
-                'nombre'    => $nombre,
-                'rut'       => $rut,
+                'nombre'    => $_POST['nombre'] ?? '',
+                'rut'       => $_POST['rut'] ?? '',
                 'email'     => $email,
-                'telefono'  => $telefono,
-                'password'  => password_hash($password, PASSWORD_DEFAULT),
-                'direccion' => $direccion,
-                'giro'      => $giro,
-                'latitud'   => $latitud,
-                'longitud'  => $longitud,
+                'telefono'  => "+569" . $telRaw,
+                'password'  => password_hash($_POST['password'] ?? '', PASSWORD_DEFAULT),
+                'direccion' => $_POST['direccion'] ?? '',
+                'giro'      => $_POST['giro'] ?? '',
+                'latitud'   => $_POST['latitud'] ?? null,
+                'longitud'  => $_POST['longitud'] ?? null,
                 'rol'       => 'cliente'
             ];
 
-            // 3. Guardar en BD
             $resultado = $this->userModel->crear($datos);
 
             if ($resultado['id']) {
-                // 4. ENVÍO DE CORREO REAL
                 $mailService = new MailService();
-                $enviado = $mailService->enviarVerificacion($email, $nombre, $resultado['token']);
-
-                if ($enviado) {
-                    // ÉXITO TOTAL: Redirigimos para mostrar a Cencocalín celebrando
-                    header("Location: " . BASE_URL . "home?msg=registro_exito");
-                    exit();
-                } else {
-                    // Se creó el usuario pero falló el correo (Caso borde)
-                    header("Location: " . BASE_URL . "home?msg=registro_exito_sin_correo");
-                    exit();
-                }
+                $enviado = $mailService->enviarVerificacion($email, $datos['nombre'], $resultado['token']);
+                
+                $msg = $enviado ? "registro_exito" : "registro_exito_sin_correo";
+                header("Location: " . BASE_URL . "home?msg=" . $msg);
             } else {
-                // Fallo en la Base de Datos
                 header("Location: " . BASE_URL . "home?msg=error_db");
-                exit();
             }
+            exit();
         }
     }
 
     public function verificar()
     {
         $token = $_GET['token'] ?? null;
+        if (!$token) { header("Location: " . BASE_URL . "home"); exit(); }
 
-        if (!$token) {
-            header("Location: " . BASE_URL . "home");
-            exit();
-        }
-
-        // 1. Primero buscamos al usuario por el token para obtener sus datos
         $usuario = $this->userModel->getByToken($token);
         if ($usuario) {
-            // 2. AUTO-LOGIN: Sincronizamos los nombres aquí también
-            $_SESSION['user_id'] = $usuario->id;
-            $_SESSION['user_nombre'] = $usuario->nombre;
-            $_SESSION['rol'] = $usuario->rol; // Cambiado de 'user_rol' a 'rol'
-
+            // Auto-login tras verificar correo
+            $this->setSession($usuario);
             $this->userModel->activarCuenta($token);
             header("Location: " . BASE_URL . "home?msg=cuenta_activada");
-            exit();
         } else {
-            // Si el token no existe (porque ya se usó o es falso)
-            // Lo enviamos al login con un aviso, obligándolo a ingresar credenciales
             header("Location: " . BASE_URL . "auth/login?msg=token_invalido");
-            exit();
         }
+        exit();
     }
 
-    public function forgot()
-    {
-        include __DIR__ . '/../../views/auth/forgot.php';
-    }
+    // =========================================================
+    // 🔑 SECCIÓN 3: RECUPERACIÓN DE CONTRASEÑA
+    // =========================================================
 
-    // RECUPERACIÓN DE CONTRASEÑA (Actualizado con Email Real)
+    public function forgot() { include __DIR__ . '/../../views/auth/forgot.php'; }
+
     public function sendRecovery()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = $_POST['email'] ?? '';
             $token = $this->userModel->generarTokenRecuperacion($email);
-
             if ($token) {
-                // ENVÍO DE CORREO REAL
-                $mailService = new MailService();
-                $mailService->enviarRecuperacion($email, $token);
+                (new MailService())->enviarRecuperacion($email, $token);
             }
-
-            // Siempre mostramos el mismo mensaje por seguridad
             header("Location: " . BASE_URL . "home?msg=recuperacion_enviada");
-
             exit();
         }
     }
@@ -239,96 +200,59 @@ public function login()
     public function reset()
     {
         $token = $_GET['token'] ?? '';
-        $usuario = $this->userModel->getByResetToken($token);
-
-        if (!$usuario) {
-            die("El enlace es inválido o ha expirado. <a href='" . BASE_URL . "auth/forgot'>Intenta de nuevo</a>");
+        if (!$this->userModel->getByResetToken($token)) {
+            die("El enlace es inválido o expiró. <a href='" . BASE_URL . "auth/forgot'>Reintentar</a>");
         }
-
         include __DIR__ . '/../../views/auth/reset.php';
     }
+
     public function updatePassword()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = $_POST['token'];
-            $password = $_POST['password'];
-
-            $usuario = $this->userModel->getByResetToken($token);
-
-            if ($usuario && $this->userModel->actualizarPassword($usuario->id, $password)) {
-                // --- CAMBIO AQUÍ ---
-                // Antes: Redirigía a auth/login
-                // Ahora: Redirige a home con el mensaje 'pass_actualizada'
+            $user = $this->userModel->getByResetToken($token);
+            if ($user && $this->userModel->actualizarPassword($user->id, $_POST['password'])) {
                 header("Location: " . BASE_URL . "home?msg=pass_actualizada");
-                exit();
             } else {
-                echo "Error al actualizar.";
+                echo "Error en la actualización.";
             }
+            exit();
         }
     }
 
+    // =========================================================
+    // 🕵️ SECCIÓN 4: UTILIDADES EXTERNAS (SII Y MAPAS)
+    // =========================================================
+
     public function consultarSii()
     {
-        // ... (Tu código existente para SII) ...
-        // Para ahorrar espacio aquí no lo repito, pero déjalo tal cual en tu archivo final
         if (ob_get_length()) ob_clean();
         header('Content-Type: application/json');
-        // ... (Copia y pega la lógica de SII que ya tenías) ...
-        // SI LA NECESITAS COMPLETA, PÍDEMELA Y TE PEGO EL ARCHIVO ENTERO DE NUEVO
-        $rut = $_GET['rut'] ?? '';
-        $rut = preg_replace('/[^0-9kK]/', '', $rut);
 
+        $rut = preg_replace('/[^0-9kK]/', '', $_GET['rut'] ?? '');
         if (strlen($rut) < 8) {
             echo json_encode(['success' => false, 'message' => 'RUT inválido']);
             exit;
         }
 
-        $apiUrl = "https://api.libreapi.cl/rut/activities?rut=" . $rut;
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $apiUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        // Intento de consulta API Real
+        $ch = curl_init("https://api.libreapi.cl/rut/activities?rut=" . $rut);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_SSL_VERIFYPEER => false, CURLOPT_TIMEOUT => 2]);
+        $res = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($httpCode === 200 && $response) {
-            $data = json_decode($response, true);
+        if ($code === 200 && $res) {
+            $data = json_decode($res, true);
             if (isset($data['data'])) {
-                $info = $data['data'];
-                $giro = isset($info['activities'][0]['activity_name']) ? $info['activities'][0]['activity_name'] : '';
-
-                echo json_encode([
-                    'success' => true,
-                    'razon_social' => $info['name'],
-                    'giro' => $giro,
-                    'direccion' => '',
-                    'origen' => 'ONLINE (API REAL)'
-                ]);
+                echo json_encode(['success' => true, 'razon_social' => $data['data']['name'], 'giro' => $data['data']['activities'][0]['activity_name'] ?? '', 'origen' => 'API']);
                 exit;
             }
         }
 
-        $nombre = "EMPRESA GENÉRICA S.A.";
-        $giro = "VENTA DE INSUMOS AUTOMOTRICES";
-
-        if (strpos($rut, '96547640') !== false || strpos($rut, '70251100') !== false) {
-            $nombre = "CENCOCAL S.A.";
-            $giro = "DISTRIBUIDORA DE REPUESTOS Y LUBRICANTES";
-        }
-
-        echo json_encode([
-            'success' => true,
-            'razon_social' => $nombre,
-            'giro' => $giro,
-            'direccion' => "Av. Principal 1234 (Dato Simulado Local)",
-            'message' => '⚠️ Modo Offline: Tu red bloquea la API, usando datos internos.',
-            'origen' => 'OFFLINE'
-        ]);
+        // Fallback: Modo Simulado o Offline
+        $nombre = (strpos($rut, '96547640') !== false) ? "CENCOCAL S.A." : "EMPRESA GENÉRICA S.A.";
+        echo json_encode(['success' => true, 'razon_social' => $nombre, 'giro' => 'VENTA DE INSUMOS', 'origen' => 'OFFLINE']);
         exit;
     }
 
@@ -336,97 +260,58 @@ public function login()
     {
         if (ob_get_length()) ob_clean();
         header('Content-Type: application/json');
-
         $direccion = $_GET['direccion'] ?? '';
-
-        if (strlen($direccion) < 4) {
-            echo json_encode([]);
-            exit;
-        }
+        if (strlen($direccion) < 4) { echo json_encode([]); exit; }
 
         $url = "https://nominatim.openstreetmap.org/search?format=json&q=" . urlencode($direccion) . "&countrycodes=cl&limit=1";
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, "CencocalWeb/1.0 (contacto@cencocal.cl)");
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_USERAGENT => "CencocalWeb/1.0", CURLOPT_SSL_VERIFYPEER => false, CURLOPT_TIMEOUT => 3]);
+        $res = curl_exec($ch);
         curl_close($ch);
-
-        if ($httpCode === 200 && $response) {
-            echo $response;
-        } else {
-            echo json_encode([]);
-        }
+        echo $res ?: json_encode([]);
         exit;
     }
 
-    // En controllers/AuthController.php
+    // =========================================================
+    // 🛒 SECCIÓN 5: INVITADOS Y SESIONES
+    // =========================================================
 
-    public function logout()
-    {
-        // 1. Limpiar sesión
-        $_SESSION = array();
-
-        // 2. Borrar cookie
-        if (ini_get("session.use_cookies")) {
-            $params = session_get_cookie_params();
-            setcookie(
-                session_name(),
-                '',
-                time() - 42000,
-                $params["path"],
-                $params["domain"],
-                $params["secure"],
-                $params["httponly"]
-            );
-        }
-
-        // 3. Destruir
-        session_destroy();
-
-        // 4. REDIRECCIÓN CORRECTA -> HOME con mensaje
-        header("Location: " . BASE_URL . "home?msg=logout_exito");
-        exit();
-    }
-
-    // ==========================================
-    // COMPRA COMO INVITADO (SESIÓN VOLÁTIL)
-    // ==========================================
-   public function guestLogin()
+    public function guestLogin()
     {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            // 1. Limpiamos y capturamos (Usando los 'name' exactos del modal)
-            $nombre = trim($_POST['guest_nombre'] ?? 'Invitado');
-            $email  = trim($_POST['guest_email'] ?? '');
-            $rut    = trim($_POST['guest_rut'] ?? '');
-            $tel    = trim($_POST['guest_telefono'] ?? '');
-
-            // 2. Validación mínima: Si no hay RUT o Nombre, algo salió mal en el envío
-            if (empty($nombre) || empty($rut)) {
-                header("Location: " . BASE_URL . "carrito/ver?error=datos_incompletos");
-                exit();
-            }
-
-            // 3. Crear sesión de invitado
+            $tel = str_replace(['+569', ' ', '+'], '', $_POST['guest_telefono'] ?? '');
             $_SESSION['invitado'] = [
-                'nombre'   => $nombre,
-                'email'    => $email,
-                'rut'      => $rut,
-                'telefono' => "+569" . str_replace(['+569', ' ', '+'], '', $tel)
+                'nombre'   => trim($_POST['guest_nombre'] ?? 'Invitado'),
+                'email'    => trim($_POST['guest_email'] ?? ''),
+                'rut'      => trim($_POST['guest_rut'] ?? ''),
+                'telefono' => "+569" . $tel
             ];
-
-            // 4. Forzar persistencia de sesión antes de redirigir
             session_write_close(); 
-
-            // 5. Redirigir al Checkout
             header("Location: " . BASE_URL . "checkout");
             exit();
         }
+    }
+
+    private function setSession($user)
+    {
+        $_SESSION['user_id'] = $user->id;
+        $_SESSION['user_nombre'] = $user->nombre;
+        $_SESSION['rol'] = $user->rol;
+
+        if ($user->rol === 'admin') {
+            $_SESSION['admin_sucursal'] = $user->sucursal_admin_id ?? null;
+        }
+
+        // Lógica de sucursal basada en comuna
+        $suc_asignada = 29; // La Calera por defecto
+        if (!empty($user->comuna_id)) {
+            try {
+                $stmt = $this->db->prepare("SELECT sucursal_id FROM comunas WHERE id = ?");
+                $stmt->execute([$user->comuna_id]);
+                $found = $stmt->fetchColumn();
+                if ($found) $suc_asignada = $found;
+            } catch (PDOException $e) { error_log("Error sucursal sesión: " . $e->getMessage()); }
+        }
+        $_SESSION['sucursal_activa'] = $suc_asignada;
     }
 }

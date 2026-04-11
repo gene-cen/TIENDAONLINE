@@ -1,39 +1,33 @@
 <?php
-// Preparar variables
-$nombre = !empty($producto['nombre_web']) ? $producto['nombre_web'] : $producto['nombre'];
+// Preparar variables del producto principal
+$nombre = !empty($producto['nombre_web']) ? $producto['nombre_web'] : ($producto['nombre'] ?? 'Producto');
 $marca = $producto['marca'] ?? 'Genérico';
 $precio = number_format($producto['precio'], 0, ',', '.');
 $img = !empty($producto['imagen']) ? (strpos($producto['imagen'], 'http') === 0 ? $producto['imagen'] : BASE_URL . 'img/productos/' . $producto['imagen']) : BASE_URL . 'img/no-image.png';
 
-// 🔥 EL FIX ESTÁ AQUÍ: Obligamos a PHP a buscar 'stock_web' primero
 $stock = (int)($producto['stock_web'] ?? $producto['stock'] ?? 0);
-
-$sku = $producto['cod_producto'];
-$desc = $producto['descripcion'];
+$sku = $producto['cod_producto'] ?? '';
+$desc = $producto['descripcion'] ?? '';
 
 // Verificar si está en carrito
 $enCarro = isset($_SESSION['carrito'][$producto['id']]);
 $cantEnCarro = $enCarro ? $_SESSION['carrito'][$producto['id']]['cantidad'] : 0;
-
-// Nueva lógica de visibilidad: O tiene 5 o más, o ya lo tienes en tu carro
-$puedeComprar = ($stock >= 0 || $enCarro);
+$puedeComprar = ($stock > 0 || $enCarro);
 ?>
 
 <div class="container py-5">
-
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb small">
             <li class="breadcrumb-item"><a href="<?= BASE_URL ?>home" class="text-decoration-none text-muted">Inicio</a></li>
             <li class="breadcrumb-item"><a href="<?= BASE_URL ?>home/catalogo" class="text-decoration-none text-muted">Catálogo</a></li>
             <?php if (!empty($producto['categoria_web'])): ?>
-                <li class="breadcrumb-item"><a href="<?= BASE_URL ?>home/catalogo?categoria=<?= urlencode($producto['categoria_web']) ?>" class="text-decoration-none text-muted"><?= $producto['categoria_web'] ?></a></li>
+                <li class="breadcrumb-item"><a href="<?= BASE_URL ?>home/catalogo?categoria=<?= urlencode($producto['categoria_web']) ?>" class="text-decoration-none text-muted"><?= htmlspecialchars($producto['categoria_web']) ?></a></li>
             <?php endif; ?>
             <li class="breadcrumb-item active text-cenco-indigo fw-bold" aria-current="page">Producto</li>
         </ol>
     </nav>
 
     <div class="row g-5">
-
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden position-relative bg-white h-100" style="min-height: 400px;">
                 <div class="d-flex align-items-center justify-content-center h-100 p-5">
@@ -59,12 +53,12 @@ $puedeComprar = ($stock >= 0 || $enCarro);
                 <div class="mb-3">
                     <span class="badge bg-light text-dark border fw-bold text-uppercase ls-1 mb-2"><?= htmlspecialchars($marca) ?></span>
                     <h2 class="fw-bold text-cenco-indigo lh-sm mb-2"><?= htmlspecialchars($nombre) ?></h2>
-                    <small class="text-muted">COD: <?= $sku ?></small>
+                    <small class="text-muted">COD: <?= htmlspecialchars($sku) ?></small>
                 </div>
+                
                 <div class="d-flex align-items-center flex-wrap gap-3 mb-4 border-bottom pb-4">
                     <div>
                         <h1 class="fw-black text-cenco-red mb-0">$<?= $precio ?></h1>
-
                         <?php if (!empty($producto['precio_unidad_medida'])): ?>
                             <div class="text-muted small mt-1 fw-bold">
                                 <i class="bi bi-info-circle me-1"></i> Precio Ref: <?= htmlspecialchars($producto['precio_unidad_medida']) ?>
@@ -101,7 +95,7 @@ $puedeComprar = ($stock >= 0 || $enCarro);
                             <input type="hidden" name="id" value="<?= $producto['id'] ?>">
                             <input type="hidden" name="nombre" value="<?= htmlspecialchars($nombre) ?>">
                             <input type="hidden" name="precio" value="<?= $producto['precio'] ?>">
-                            <input type="hidden" name="imagen" value="<?= $img ?>">
+                            <input type="hidden" name="imagen" value="<?= htmlspecialchars($img) ?>">
 
                             <div class="d-grid gap-2">
                                 <button class="btn btn-cenco-green btn-lg fw-bold rounded-pill shadow-sm hover-scale" type="submit">
@@ -122,7 +116,6 @@ $puedeComprar = ($stock >= 0 || $enCarro);
                             </div>
                             <div class="text-success small fw-bold mt-2"><i class="bi bi-check-lg"></i> Producto en tu carro</div>
                         </div>
-
                     <?php else: ?>
                         <button class="btn btn-secondary btn-lg w-100 rounded-pill fw-bold shadow-sm" disabled>
                             <i class="bi bi-shop me-2"></i> Solo Venta Presencial
@@ -140,8 +133,8 @@ $puedeComprar = ($stock >= 0 || $enCarro);
                         <div id="flush-collapseOne" class="accordion-collapse collapse" data-bs-parent="#accordionProduct">
                             <div class="accordion-body small text-muted">
                                 <ul class="list-unstyled mb-0">
-                                    <li><strong>Categoría:</strong> <?= $producto['categoria_web'] ?? 'General' ?></li>
-                                    <li><strong>Subcategoría:</strong> <?= $producto['subcategoria'] ?? 'N/A' ?></li>
+                                    <li><strong>Categoría:</strong> <?= htmlspecialchars($producto['categoria_web'] ?? 'General') ?></li>
+                                    <li><strong>Subcategoría:</strong> <?= htmlspecialchars($producto['subcategoria'] ?? 'N/A') ?></li>
                                     <li><strong>Formato:</strong> Unidad</li>
                                 </ul>
                             </div>
@@ -166,36 +159,16 @@ $puedeComprar = ($stock >= 0 || $enCarro);
     <?php if (!empty($relacionados)): ?>
         <div class="mt-5 pt-5 border-top">
             <h3 class="fw-bold text-cenco-indigo mb-4">También te podría interesar</h3>
-
-            <div class="row row-cols-2 row-cols-md-4 g-4">
+            <div class="row row-cols-2 row-cols-md-4 row-cols-xl-5 g-4">
                 <?php foreach ($relacionados as $rel):
-                    $rImg = !empty($rel['imagen']) ? (strpos($rel['imagen'], 'http') === 0 ? $rel['imagen'] : BASE_URL . 'img/productos/' . $rel['imagen']) : BASE_URL . 'img/no-image.png';
-                    $rNombre = !empty($rel['nombre_web']) ? $rel['nombre_web'] : $rel['nombre'];
-                ?>
-                    <div class="col">
-                        <a href="<?= BASE_URL ?>home/producto?id=<?= $rel['id'] ?>" class="text-decoration-none">
-                            <div class="card h-100 border-0 shadow-sm transition-hover rounded-4 overflow-hidden">
-                                <div class="p-3 bg-white text-center" style="height: 180px;">
-                                    <img src="<?= $rImg ?>" class="h-100 w-100 object-fit-contain" alt="<?= htmlspecialchars($rNombre) ?>">
-                                </div>
-                                <div class="card-body bg-light">
-                                    <small class="text-muted text-uppercase fw-bold" style="font-size: 0.7rem;"><?= htmlspecialchars($rel['marca'] ?? '') ?></small>
-                                    <h6 class="card-title text-dark fw-bold text-truncate mb-2"><?= htmlspecialchars($rNombre) ?></h6>
-                                    <span class="text-cenco-red fw-black">$<?= number_format($rel['precio'], 0, ',', '.') ?></span>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                <?php endforeach; ?>
+                    // 🔥 MAGIA: Asignamos el producto relacionado a la variable $p que espera la tarjeta
+                    $p = $rel; 
+                    include __DIR__ . '/partials/tarjeta_producto.php';
+                endforeach; ?>
             </div>
         </div>
     <?php endif; ?>
 
 </div>
 
-<script>
-    // JS para la Ficha de Producto adaptado a la lógica global
-    function gestionarClickTarjeta(id, accion, esDetalle) {
-        cambiarCantidad(id, accion);
-    }
-</script>
+<script src="<?= BASE_URL ?>js/shop/producto.js"></script>

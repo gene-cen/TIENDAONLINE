@@ -20,33 +20,45 @@ class WebpayController
     /**
      * Paso 1: Generar el token y redirigir a Transbank
      */
-    public function iniciar($idPedido)
+    /**
+     * Paso 1: Generar el token y redirigir a Transbank
+     */
+    public function iniciar($idPedido = null)
     {
+        // 1. Soportamos que el ID venga por segmento MVC o por parámetro $_GET
+        $idPedido = $idPedido ?? $_GET['id'] ?? null;
+
+        if (!$idPedido) {
+            die("<h3 style='color:red;'>Error Backend: No se recibió el ID del pedido para ir a Webpay.</h3>");
+        }
+
         $pedido = $this->pedidoModel->obtenerPorId($idPedido);
 
         if (!$pedido) {
-            header("Location: " . BASE_URL . "checkout?error=pedido_no_encontrado");
-            exit();
+            die("<h3 style='color:red;'>Error Backend: El pedido #$idPedido no existe en la BD.</h3>");
         }
 
         $session_id = session_id();
         $buy_order = "ORD-" . $idPedido;
-        // Transbank requiere que el monto sea entero
         $amount = (int)round($pedido['monto_total']);
         $return_url = BASE_URL . "webpay/confirmar";
 
         try {
-            // Configuración con credenciales del .env
-            $options = new Options(
-                $_ENV['WEBPAY_API_KEY'],
-                $_ENV['WEBPAY_COMMERCE_CODE'],
-                $_ENV['WEBPAY_ENVIRONMENT']
-            );
-            $tx = new Transaction($options);
+            // 2. USO SEGURO DE CREDENCIALES (Igual que en tu método de captura diferida)
+            $commerceCode = getenv('WEBPAY_COMMERCE_CODE') ?: '597055555540';
+            $apiKey       = getenv('WEBPAY_API_KEY') ?: '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C';
+            $envMode      = getenv('WEBPAY_ENVIRONMENT') ?: 'integration';
+
+            $environment = ($envMode === 'production')
+                ? \Transbank\Webpay\Options::ENVIRONMENT_PRODUCTION
+                : \Transbank\Webpay\Options::ENVIRONMENT_INTEGRATION;
+
+            $options = new \Transbank\Webpay\Options($apiKey, $commerceCode, $environment);
+            $tx = new \Transbank\Webpay\WebpayPlus\Transaction($options);
 
             $response = $tx->create($buy_order, $session_id, $amount, $return_url);
 
-            // INSERT ADAPTADO A TU TABLA ACTUAL
+            // 3. REGISTRO EN LA BASE DE DATOS
             $sql = "INSERT INTO transacciones_webpay (pedido_id, token_ws, amount, status) 
                     VALUES (?, ?, ?, 'inicializada')";
             $stmt = $this->db->prepare($sql);
@@ -63,9 +75,11 @@ class WebpayController
                   <script>document.getElementById("webpay-form").submit();</script>';
             exit();
         } catch (\Exception $e) {
-            error_log("Error inicializando Webpay: " . $e->getMessage());
-            header("Location: " . BASE_URL . "checkout?msg=error_webpay_init");
-            exit();
+            // 4. SI ALGO FALLA, FRENAMOS TODO Y MOSTRAMOS EL ERROR REAL
+            die("<div style='padding: 20px; border: 2px solid red; font-family: sans-serif;'>
+                    <h3 style='color:red;'>Falló la conexión con Transbank o la BD</h3>
+                    <p><strong>Detalle Técnico:</strong> " . $e->getMessage() . "</p>
+                 </div>");
         }
     }
 

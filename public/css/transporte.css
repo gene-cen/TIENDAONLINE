@@ -1,0 +1,141 @@
+/* public/css/transporte.css */
+:root {
+    --cenco-indigo: #2A1B5E;
+    --cenco-green: #76C043;
+    --cenco-light: #F4F6F8;
+    --text-dark: #2D3748;
+    --text-muted: #718096;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: var(--cenco-light);
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* --- ENCABEZADO FIJO --- */
+.app-header {
+    background: var(--cenco-indigo);
+    color: white;
+    padding: 20px;
+    border-bottom-left-radius: 25px;
+    border-bottom-right-radius: 25px;
+    box-shadow: 0 4px 15px rgba(42, 27, 94, 0.2);
+    margin-bottom: 25px;
+}
+
+/* --- TARJETAS DE PEDIDO --- */
+.driver-card {
+    background: #fff;
+    border-radius: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    border: 1px solid rgba(0,0,0,0.02);
+    margin-bottom: 25px;
+    overflow: hidden;
+}
+
+.card-top-bar {
+    background: #fafafa;
+    padding: 12px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 900;
+    color: var(--text-dark);
+}
+
+.badge-orden {
+    background: rgba(42, 27, 94, 0.1);
+    color: var(--cenco-indigo);
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+}
+
+.card-content { padding: 20px; }
+
+.cliente-nombre {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    font-size: 1.3rem;
+    color: var(--cenco-indigo);
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.cliente-direccion {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+
+/* --- BOTONES DE ACCIÓN --- */
+.action-grid {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 25px;
+}
+
+.btn-app-action {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 15px 5px;
+    border-radius: 18px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.85rem;
+    transition: 0.2s;
+}
+
+.btn-mapa { background: #EBF4FF; color: #3182CE; }
+.btn-mapa:active { background: #bee3f8; }
+
+.btn-llamar { background: #F0FFF4; color: #38A169; }
+.btn-llamar:active { background: #c6f6d5; }
+
+.btn-app-action i { font-size: 1.5rem; margin-bottom: 5px; }
+
+/* --- ÁREA DE CÁMARA --- */
+.upload-zone {
+    border: 2px dashed #CBD5E0;
+    border-radius: 18px;
+    padding: 20px;
+    text-align: center;
+    background: #F7FAFC;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.3s;
+    display: block;
+    margin-bottom: 20px;
+}
+
+.upload-zone.foto-ok {
+    border-color: var(--cenco-green);
+    background: #F0FFF4;
+    color: var(--cenco-green);
+}
+
+.upload-zone input[type="file"] { display: none; }
+
+.btn-submit-app {
+    background: var(--cenco-green);
+    color: white;
+    border: none;
+    width: 100%;
+    padding: 18px;
+    border-radius: 18px;
+    font-weight: 900;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0 10px 20px rgba(118, 192, 67, 0.25);
+}

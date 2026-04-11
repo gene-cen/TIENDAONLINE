@@ -51,15 +51,14 @@ public function index()
         $categorias = $this->cargarCategorias();
         $sucursal_id = (int)$_SESSION['sucursal_activa'];
 
-        // --- DETECTOR HÍBRIDO DE MOTOR DE BASE DE DATOS ---
+        // 1. Detector híbrido de motor para orden aleatorio
         $motor = $this->db->getAttribute(\PDO::ATTR_DRIVER_NAME);
         $fnRand = ($motor === 'pgsql') ? 'RANDOM()' : 'RAND()';
 
-        // Marcas para el filtro superior
-        $stmtMarcas = $this->db->query("SELECT * FROM marcas WHERE activo = 1 ORDER BY nombre ASC");
-        $marcas = $stmtMarcas->fetchAll(\PDO::FETCH_ASSOC);
+        // 2. Marcas para el filtro superior
+        $marcas = $this->db->query("SELECT * FROM marcas WHERE activo = 1 ORDER BY nombre ASC")->fetchAll(\PDO::FETCH_ASSOC);
 
-        // C. NOVEDADES
+        // 3. NOVEDADES (Consultas Preparadas)
         $sqlNovedades = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
                                 COALESCE(ps.precio, 0) as precio, 
                                 ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
@@ -69,13 +68,15 @@ public function index()
                          INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                          LEFT JOIN marcas m ON piw.marca_id = m.id
                          LEFT JOIN web_categorias wc ON piw.web_categoria_id = wc.id
-                         WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
+                         WHERE p.activo = 1 AND ps.sucursal_id = :sucursal
                          AND COALESCE(ps.precio, 0) > 0 
                          AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0 
                          ORDER BY p.id DESC LIMIT 5";
-        $productos = $this->db->query($sqlNovedades)->fetchAll(\PDO::FETCH_ASSOC);
+        $stmtNov = $this->db->prepare($sqlNovedades);
+        $stmtNov->execute([':sucursal' => $sucursal_id]);
+        $productos = $stmtNov->fetchAll(\PDO::FETCH_ASSOC);
 
-        // E. MÁS VENDIDOS
+        // 4. MÁS VENDIDOS (Orden Aleatorio Seguro)
         $sqlMasVendidos = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
                                   COALESCE(ps.precio, 0) as precio, 
                                   ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
@@ -84,47 +85,70 @@ public function index()
                            INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
                            INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
                            LEFT JOIN marcas m ON piw.marca_id = m.id
-                           WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
+                           WHERE p.activo = 1 AND ps.sucursal_id = :sucursal
                            AND COALESCE(ps.precio, 0) > 0 
                            AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0 
-                           ORDER BY " . $fnRand . " LIMIT 5";
-        $masVendidos = $this->db->query($sqlMasVendidos)->fetchAll(\PDO::FETCH_ASSOC);
+                           ORDER BY $fnRand LIMIT 5";
+        $stmtMV = $this->db->prepare($sqlMasVendidos);
+        $stmtMV->execute([':sucursal' => $sucursal_id]);
+        $masVendidos = $stmtMV->fetchAll(\PDO::FETCH_ASSOC);
 
-        // BANNERS PRINCIPALES Y SECUNDARIOS
-        $sqlBanners = "SELECT * FROM carrusel_banners WHERE estado_activo = 1 AND (sucursal_id = 0 OR sucursal_id = $sucursal_id) AND (fecha_inicio IS NULL OR fecha_inicio <= NOW()) AND (fecha_fin IS NULL OR fecha_fin >= NOW()) ORDER BY orden ASC";
-        $bannersHome = $this->db->query($sqlBanners)->fetchAll(\PDO::FETCH_ASSOC);
+        // 5. BANNERS (Principal y Secundario con filtros de tiempo)
+        $sqlBanners = "SELECT * FROM carrusel_banners 
+                       WHERE estado_activo = 1 
+                       AND (sucursal_id = 0 OR sucursal_id = :sucursal) 
+                       AND (fecha_inicio IS NULL OR fecha_inicio <= NOW()) 
+                       AND (fecha_fin IS NULL OR fecha_fin >= NOW()) 
+                       ORDER BY orden ASC";
+        $stmtBanners = $this->db->prepare($sqlBanners);
+        $stmtBanners->execute([':sucursal' => $sucursal_id]);
+        $bannersHome = $stmtBanners->fetchAll(\PDO::FETCH_ASSOC);
 
         $bannersSecundarios = [];
         try {
-            $sqlBannersSec = "SELECT * FROM carrusel_secundario WHERE estado_activo = 1 AND (sucursal_id = 0 OR sucursal_id = $sucursal_id) AND (fecha_inicio IS NULL OR fecha_inicio <= NOW()) AND (fecha_fin IS NULL OR fecha_fin >= NOW()) ORDER BY orden ASC";
-            $bannersSecundarios = $this->db->query($sqlBannersSec)->fetchAll(\PDO::FETCH_ASSOC);
-        } catch (\Exception $e) {}
+            $sqlBannersSec = "SELECT * FROM carrusel_secundario 
+                              WHERE estado_activo = 1 
+                              AND (sucursal_id = 0 OR sucursal_id = :sucursal) 
+                              AND (fecha_inicio IS NULL OR fecha_inicio <= NOW()) 
+                              AND (fecha_fin IS NULL OR fecha_fin >= NOW()) 
+                              ORDER BY orden ASC";
+            $stmtSec = $this->db->prepare($sqlBannersSec);
+            $stmtSec->execute([':sucursal' => $sucursal_id]);
+            $bannersSecundarios = $stmtSec->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            error_log("Error banners secundarios: " . $e->getMessage());
+        }
 
-        // 🔥 MARCAS DESTACADAS Y SUS PRODUCTOS (SHOWCASE PREMIUM)
+        // 6. MARCAS DESTACADAS (Showcase Premium)
         $marcasHome = $this->db->query("SELECT * FROM marcas_destacadas WHERE estado_activo = 1 ORDER BY orden ASC LIMIT 8")->fetchAll(\PDO::FETCH_ASSOC);
         
+        $sqlProdMarca = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
+                                COALESCE(ps.precio, 0) as precio, 
+                                ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
+                                p.imagen, piw.nombre_web, m.nombre as marca 
+                         FROM productos p 
+                         INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                         INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
+                         INNER JOIN marcas m ON piw.marca_id = m.id
+                         WHERE p.activo = 1 AND ps.sucursal_id = :sucursal 
+                         AND m.nombre = :marcaName 
+                         AND COALESCE(ps.precio, 0) > 0 
+                         AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0 
+                         ORDER BY $fnRand LIMIT 4";
+        $stmtPM = $this->db->prepare($sqlProdMarca);
+
         foreach ($marcasHome as &$marcaDestacada) {
-            $nombreMarca = $marcaDestacada['nombre'];
-            $sqlProdMarca = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
-                                    COALESCE(ps.precio, 0) as precio, 
-                                    ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
-                                    p.imagen, piw.nombre_web, m.nombre as marca 
-                             FROM productos p 
-                             INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
-                             INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
-                             INNER JOIN marcas m ON piw.marca_id = m.id
-                             WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
-                             AND m.nombre = ? 
-                             AND COALESCE(ps.precio, 0) > 0 
-                             AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0 
-                             ORDER BY " . $fnRand . " LIMIT 4";
-            $stmtPM = $this->db->prepare($sqlProdMarca);
-            $stmtPM->execute([$nombreMarca]);
+            $stmtPM->execute([
+                ':sucursal' => $sucursal_id, 
+                ':marcaName' => $marcaDestacada['nombre']
+            ]);
             $marcaDestacada['productos'] = $stmtPM->fetchAll(\PDO::FETCH_ASSOC);
         }
 
-        $listaCategorias = $this->cargarCategorias();
+        // Alias para compatibilidad con la vista sidebar
+        $listaCategorias = $categorias;
 
+        // Renderizado
         ob_start();
         require __DIR__ . '/../../views/home/home.php';
         $content = ob_get_clean();

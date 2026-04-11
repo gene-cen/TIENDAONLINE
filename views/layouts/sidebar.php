@@ -90,8 +90,19 @@
                             class="list-group-item list-group-item-action border-0 py-2 mb-1 d-flex align-items-center gap-3 rounded-end-pill me-2 <?= isActiveAdmin('admin/marcas', $currentUrl) ?>" style="font-size: 0.9rem;">
                             <i class="bi bi-star-fill text-warning"></i> Marcas Destacadas
                         </a>
+
+                        <a href="<?= BASE_URL ?>admin/usuarios"
+                            class="list-group-item list-group-item-action border-0 px-4 py-3 mb-1 d-flex align-items-center gap-3 fw-bold rounded-end-pill me-2 <?= isActiveAdmin('admin/usuarios', $currentUrl ?? '') ?>">
+                            <i class="bi bi-people fs-5 text-cenco-green"></i> Clientes y Roles
+                        </a>
+
+
                     </div>
                 </div>
+
+
+
+
             </div>
         </div>
 

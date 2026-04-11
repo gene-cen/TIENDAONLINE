@@ -44,16 +44,16 @@ if ((int)($pedido['forma_pago_id'] ?? 0) === 7 && (int)($pedido['estado_pedido_i
 // --- CONFIGURACIÓN DE SEGURIDAD ---
 $idPagoMetodo = (int)($pedido['forma_pago_id'] ?? 0);
 $nombreMetodo = strtolower($pedido['forma_pago_nombre'] ?? '');
-$statusWP     = $estadoWebpay ?? 'sin_pago'; 
+$statusWP     = $estadoWebpay ?? 'sin_pago';
 
 // El monto que el sistema dice que hay que cobrar AHORA (Post-edición)
-$montoASolicitar = (int)$cobroCliente; 
+$montoASolicitar = (int)$cobroCliente;
 
 // Verificamos si es Webpay (ID 5 o por nombre)
 if ($idPagoMetodo === 5 || str_contains($nombreMetodo, 'webpay')): ?>
 
     <?php if ($statusWP === 'autorizado' || $statusWP === 'authorized'): ?>
-        
+
         <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-4 border-success bg-white">
             <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3">
@@ -62,31 +62,31 @@ if ($idPagoMetodo === 5 || str_contains($nombreMetodo, 'webpay')): ?>
                     </div>
                     <h6 class="fw-bold mb-0 text-success">Captura Automatizada</h6>
                 </div>
-                
+
                 <form action="<?= BASE_URL ?>admin/pedido/capturar_pago" method="POST" id="formCapturaWebpay">
                     <input type="hidden" name="pedido_id" value="<?= $idPedido ?>">
-                    
+
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">Monto calculado por Sistema:</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light border-0 text-cenco-indigo fw-bold">$</span>
-                            <input type="number" 
-                                   class="form-control fw-black text-cenco-indigo fs-4 bg-light border-0" 
-                                   name="monto_final"
-                                   value="<?= $montoASolicitar ?>" 
-                                   readonly 
-                                   style="pointer-events: none;">
+                            <input type="number"
+                                class="form-control fw-black text-cenco-indigo fs-4 bg-light border-0"
+                                name="monto_final"
+                                value="<?= $montoASolicitar ?>"
+                                readonly
+                                style="pointer-events: none;">
                         </div>
-                        
+
                         <div class="form-text mt-3 p-2 bg-light rounded-3" style="font-size: 0.75rem;">
-                            <i class="bi bi-info-circle-fill text-primary me-1"></i> 
-                            Este monto corresponde al total de productos vigentes + despacho + servicio. 
+                            <i class="bi bi-info-circle-fill text-primary me-1"></i>
+                            Este monto corresponde al total de productos vigentes + despacho + servicio.
                             <strong>Máximo permitido por banco: $<?= number_format($montoFijoBanco, 0, ',', '.') ?></strong>
                         </div>
                     </div>
-                    
-                    <button type="button" class="btn btn-success w-100 fw-bold shadow-sm py-3 rounded-pill" 
-                            onclick="confirmarCapturaWebpay(this.form, <?= $montoASolicitar ?>)">
+
+                    <button type="button" class="btn btn-success w-100 fw-bold shadow-sm py-3 rounded-pill"
+                        onclick="confirmarCapturaWebpay(this.form, <?= $montoASolicitar ?>)">
                         <i class="bi bi-check-all me-2"></i>CONFIRMAR CAPTURA
                     </button>
                 </form>
@@ -94,7 +94,7 @@ if ($idPagoMetodo === 5 || str_contains($nombreMetodo, 'webpay')): ?>
         </div>
 
     <?php elseif ($statusWP === 'capturado' || $statusWP === 'captured'): ?>
-        
+
         <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-4 border-secondary bg-light">
             <div class="card-body p-4 text-center">
                 <div class="bg-white d-inline-flex p-3 rounded-circle shadow-sm mb-3">
@@ -190,27 +190,76 @@ if (isset($pedido['forma_pago_id']) && $pedido['forma_pago_id'] == 8):
                     <div>Sube la foto de la boleta o voucher TBK para enviar a preparación.</div>
                 </div>
 
-                <form action="<?= BASE_URL ?>admin/subirComprobantePago" method="POST" enctype="multipart/form-data">
-                    <input type="hidden" name="pedido_id" value="<?= $pedido['id'] ?>">
+                <form id="form-comprobante" action="<?= BASE_URL ?>admin/pedidos/subir_comprobante" method="POST" enctype="multipart/form-data" onsubmit="return validarFolioPreparacion(event)">
+                    <input type="hidden" name="id_pedido" value="<?= $pedido['id'] ?>">
 
-                    <div class="mb-3 text-start">
-                        <label class="small fw-bold text-dark mb-1">Medio de Pago Real *</label>
-                        <select name="metodo_pago_real" class="form-select form-select-sm border-success" required>
+                    <input type="hidden" id="flag_confianza" value="<?= $pedido['es_cliente_confianza'] ?? 0 ?>">
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Medio de Pago Real *</label>
+                        <select class="form-select form-select-sm" name="medio_pago_real" required>
                             <option value="">Selecciona...</option>
-                            <option value="Efectivo">💵 Efectivo (Caja)</option>
-                            <option value="Tarjeta (Transbank POS)">💳 Tarjeta (Transbank POS)</option>
+                            <option value="efectivo">Efectivo</option>
+                            <option value="tarjeta">Tarjeta / Transbank</option>
+                            <option value="transferencia">Transferencia</option>
                         </select>
                     </div>
 
-                    <div class="mb-3 text-start">
-                        <label class="small fw-bold text-dark mb-1">Foto del Comprobante *</label>
-                        <input class="form-control form-control-sm" type="file" name="comprobante" accept="image/*,application/pdf" required>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Foto del Comprobante *</label>
+                        <input class="form-control form-control-sm" type="file" name="foto_comprobante" required>
                     </div>
 
-                    <button type="submit" class="btn btn-success w-100 fw-bold rounded-pill shadow-sm">
-                        <i class="bi bi-cloud-arrow-up-fill me-1"></i> Subir y Preparar
+                    <div class="mb-3" id="bloque_folio">
+                        <label class="form-label small fw-bold">N° Folio Boleta/Factura <span class="text-danger">*</span></label>
+                        <input type="text" name="folio_documento" id="folio_documento" class="form-control form-control-sm border-cenco-indigo" placeholder="8 dígitos" maxlength="8" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 fw-bold shadow-sm">
+                        <i class="bi bi-cloud-upload-fill me-1"></i> Subir y Preparar
                     </button>
                 </form>
+
+                <script>
+                    document.addEventListener("DOMContentLoaded", function() {
+                        const esConfianza = document.getElementById('flag_confianza').value == "1";
+                        const bloqueFolio = document.getElementById('bloque_folio');
+                        const inputFolio = document.getElementById('folio_documento');
+
+                        // Si ES de confianza, ocultamos y deshabilitamos el folio en esta etapa (se pedirá al entregar)
+                        if (esConfianza) {
+                            bloqueFolio.style.display = 'none';
+                            inputFolio.disabled = true;
+                        }
+                    });
+
+                    function validarFolioPreparacion(event) {
+                        const esConfianza = document.getElementById('flag_confianza').value == "1";
+
+                        // Si NO es de confianza, el folio es obligatorio aquí.
+                        if (!esConfianza) {
+                            const folio = document.getElementById('folio_documento').value.trim();
+                            if (folio.length !== 8) {
+                                event.preventDefault(); // Detiene el envío del formulario
+
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Folio Incompleto',
+                                    text: 'Debes ingresar los 8 dígitos del número de boleta o factura para mandar este pedido a preparación.',
+                                    confirmButtonColor: '#E53935'
+                                });
+
+                                document.getElementById('folio_documento').classList.add('is-invalid', 'border-danger');
+                                setTimeout(() => document.getElementById('folio_documento').classList.remove('is-invalid', 'border-danger'), 3000);
+
+                                return false;
+                            }
+                        }
+
+                        // Si todo está ok, el formulario sigue su curso al backend
+                        return true;
+                    }
+                </script>
             <?php endif; ?>
 
         </div>

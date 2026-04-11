@@ -143,6 +143,15 @@
                     </div>
 
                     <div class="list-group list-group-flush">
+                        <?php
+                        // Filtramos para ignorar los negativos ANTES de verificar si está vacío
+                        if (!empty($stockCritico)) {
+                            $stockCritico = array_filter($stockCritico, function ($prod) {
+                                return $prod['stock'] >= 0;
+                            });
+                        }
+                        ?>
+
                         <?php if (empty($stockCritico)): ?>
                             <div class="text-center text-muted small py-3">Inventario saludable <i class="bi bi-check-circle text-success"></i></div>
                         <?php else: ?>
@@ -150,7 +159,7 @@
                                 <div class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
                                     <div class="d-flex align-items-center">
                                         <i class="bi bi-exclamation-triangle-fill text-danger me-2 small"></i>
-                                        <span class="small text-dark fw-bold text-truncate" style="max-width: 150px;"><?= $prod['nombre'] ?></span>
+                                        <span class="small text-dark fw-bold text-truncate" style="max-width: 150px;"><?= htmlspecialchars($prod['nombre']) ?></span>
                                     </div>
                                     <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill"><?= $prod['stock'] ?> un.</span>
                                 </div>

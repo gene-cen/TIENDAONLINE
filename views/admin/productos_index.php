@@ -9,6 +9,9 @@
         </div>
 
         <div class="d-flex gap-2 mt-3 mt-md-0">
+            <button type="button" id="btnExportar" class="btn btn-outline-success border shadow-sm fw-bold hover-scale">
+                <i class="bi bi-file-earmark-excel me-1"></i> Exportar
+            </button>
             <a href="<?= BASE_URL ?>admin/importar_erp" class="btn btn-white text-cenco-indigo border shadow-sm fw-bold hover-scale">
                 <i class="bi bi-arrow-repeat me-1 text-primary"></i> Sincronizar ERP
             </a>
@@ -21,19 +24,18 @@
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-body p-3">
             <form id="formFiltros" class="row g-3 align-items-center" onsubmit="return false;">
-
-                <div class="col-md-5">
+                
+                <div class="col-md-2">
                     <div class="input-group">
                         <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                         <input type="text" id="inputBusqueda" class="form-control border-start-0 ps-0"
-                            placeholder="Escribe para buscar (ej: aceite, 1020...)"
-                            value="<?= htmlspecialchars($_GET['q'] ?? '') ?>" autocomplete="off">
+                            placeholder="Buscar..." value="<?= htmlspecialchars($_GET['q'] ?? '') ?>" autocomplete="off">
                     </div>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-2">
                     <select id="selectCategoria" class="form-select text-muted">
-                        <option value="">Todas las Categorías</option>
+                        <option value="">Categorías (Todas)</option>
                         <?php if (!empty($listaCategorias)): ?>
                             <?php foreach ($listaCategorias as $cat): ?>
                                 <?php
@@ -48,13 +50,53 @@
                     </select>
                 </div>
 
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="button" id="btnLimpiar" class="btn btn-outline-danger w-100" title="Borrar filtros">
-                        <i class="bi bi-eraser-fill me-2"></i>Borrar
-                    </button>
+                <div class="col-md-2">
+                    <select id="selectMarca" class="form-select text-muted">
+                        <option value="">Marcas (Todas)</option>
+                        <?php if (!empty($listaMarcas)): ?>
+                            <?php foreach ($listaMarcas as $marca): ?>
+                                <option value="<?= $marca['id'] ?>" <?= (isset($_GET['marca']) && $_GET['marca'] == $marca['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($marca['nombre']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
+                </div>
 
+                <div class="col-md-2">
+                    <select id="selectFiltroStock" class="form-select text-muted">
+                        <option value="">Stock (Todos)</option>
+                        <option value="agotados" <?= (isset($_GET['filtro_stock']) && $_GET['filtro_stock'] === 'agotados') ? 'selected' : '' ?>>Agotados (0)</option>
+                        <option value="0_50" <?= (isset($_GET['filtro_stock']) && $_GET['filtro_stock'] === '0_50') ? 'selected' : '' ?>>De 1 a 50 un.</option>
+                        <option value="51_100" <?= (isset($_GET['filtro_stock']) && $_GET['filtro_stock'] === '51_100') ? 'selected' : '' ?>>De 51 a 100 un.</option>
+                        <option value="100_mas" <?= (isset($_GET['filtro_stock']) && $_GET['filtro_stock'] === '100_mas') ? 'selected' : '' ?>>Más de 100 un.</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <select id="selectOrdenStock" class="form-select text-muted">
+                        <option value="">Ordenar por...</option>
+                        <optgroup label="Por Stock">
+                            <option value="desc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'desc') ? 'selected' : '' ?>>Mayor a Menor Stock</option>
+                            <option value="asc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'asc') ? 'selected' : '' ?>>Menor a Mayor Stock</option>
+                        </optgroup>
+                        <optgroup label="Por Precio">
+                            <option value="precio_desc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'precio_desc') ? 'selected' : '' ?>>Mayor a Menor Precio</option>
+                            <option value="precio_asc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'precio_asc') ? 'selected' : '' ?>>Menor a Mayor Precio</option>
+                        </optgroup>
+                        <optgroup label="Por Nombre">
+                            <option value="nombre_asc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'nombre_asc') ? 'selected' : '' ?>>A - Z</option>
+                            <option value="nombre_desc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'nombre_desc') ? 'selected' : '' ?>>Z - A</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="button" id="btnLimpiar" class="btn btn-outline-danger w-100" title="Borrar filtros">
+                        <i class="bi bi-eraser-fill me-1"></i>Limpiar
+                    </button>
                     <div id="loadingSpinner" class="spinner-border text-cenco-indigo spinner-border-sm ms-2 d-none align-self-center" role="status">
-                        <span class="visually-hidden">Cargando...</span>
+                        <span class="visually-hidden">...</span>
                     </div>
                 </div>
             </form>
@@ -68,7 +110,7 @@
                     <thead class="bg-light border-bottom">
                         <tr>
                             <th class="ps-4 py-3 text-muted small fw-bold text-uppercase border-0">Imagen</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0">Producto</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0">Producto (Web / ERP)</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0">Precio</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Stock</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Estado</th>
@@ -80,11 +122,17 @@
                             <tr>
                                 <td colspan="6" class="text-center py-5 text-muted">
                                     <i class="bi bi-search fs-1 d-block mb-2 opacity-50"></i>
-                                    No se encontraron productos.
+                                    No se encontraron productos con esos filtros.
                                 </td>
                             </tr>
                             <?php else: foreach ($productos as $prod):
-                                $nombre = $prod->nombre_mostrar ?? $prod->nombre ?? 'Sin Nombre';
+                                $nombreERP = $prod->nombre ?? 'Sin Nombre';
+                                
+                                // 🔥 DETECCIÓN DE PRODUCTO DESCONTINUADO
+                                $esDescontinuado = (strpos(trim($nombreERP), '#') === 0);
+                                $claseFila = $esDescontinuado ? 'table-warning' : '';
+                                
+                                $nombreWeb = $prod->nombre_web ?? '<span class="text-danger small">No asignado</span>';
                                 $codigo = $prod->cod_producto ?? '---';
                                 $catNombre = $prod->categoria_nombre ?? 'General';
                                 $id = $prod->id;
@@ -96,16 +144,30 @@
                                 if (empty($imgRaw)) $rutaImagen = BASE_URL . 'img/no-photo_small.png';
                                 elseif (strpos($imgRaw, 'http') === 0) $rutaImagen = $imgRaw;
                                 else $rutaImagen = BASE_URL . 'img/productos/' . $imgRaw;
+
+                                $dataModal = htmlspecialchars(json_encode([
+                                    'imagen' => $rutaImagen,
+                                    'nombreWeb' => strip_tags($nombreWeb),
+                                    'nombreERP' => $nombreERP,
+                                    'precio' => number_format($precio, 0, ',', '.'),
+                                    'stock' => $stock,
+                                    'estado' => $activo ? 'Visible' : 'Oculto'
+                                ]), ENT_QUOTES, 'UTF-8');
                             ?>
-                                <tr>
+                                <tr class="<?= $claseFila ?>">
                                     <td class="ps-4 py-2">
-                                        <div class="bg-white border rounded-3 p-1 shadow-sm position-relative" style="width: 50px; height: 50px;">
-                                            <img src="<?= $rutaImagen ?>" class="w-100 h-100 object-fit-contain" onerror="this.src='<?= BASE_URL ?>img/no-image.png';">
-                                        </div>
+                                        <button class="btn p-0 border-0 bg-transparent hover-scale" onclick="abrirModalResumen(this)" data-producto="<?= $dataModal ?>">
+                                            <div class="bg-white border rounded-3 p-1 shadow-sm position-relative" style="width: 50px; height: 50px;">
+                                                <img src="<?= $rutaImagen ?>" class="w-100 h-100 object-fit-contain" onerror="this.src='<?= BASE_URL ?>img/no-image.png';">
+                                            </div>
+                                        </button>
                                     </td>
                                     <td>
-                                        <div class="fw-bold text-dark text-truncate" style="max-width: 300px;" title="<?= htmlspecialchars($nombre) ?>">
-                                            <?= htmlspecialchars($nombre) ?>
+                                        <div class="fw-bold text-dark text-truncate" style="max-width: 250px;" title="<?= strip_tags($nombreWeb) ?>">
+                                            <?= $nombreWeb ?>
+                                        </div>
+                                        <div class="text-secondary small text-truncate" style="max-width: 250px;" title="ERP: <?= htmlspecialchars($nombreERP) ?>">
+                                            <i class="bi bi-box me-1"></i><?= htmlspecialchars($nombreERP) ?>
                                         </div>
                                         <div class="d-flex align-items-center gap-2 mt-1">
                                             <span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.7rem;">
@@ -118,11 +180,6 @@
                                     </td>
                                     <td>
                                         <div class="fw-bold text-cenco-indigo">$<?= number_format($precio, 0, ',', '.') ?></div>
-                                        <?php if (!empty($prod->precio_unidad_medida)): ?>
-                                            <div class="text-muted" style="font-size: 0.7rem;">
-                                                <i class="bi bi-tag-fill small"></i> <?= htmlspecialchars($prod->precio_unidad_medida) ?>
-                                            </div>
-                                        <?php endif; ?>
                                     </td>
                                     <td class="text-center">
                                         <?php if ($stock > 10): ?><span class="badge bg-success bg-opacity-10 text-success border border-success px-2 rounded-pill"><?= $stock ?> un.</span>
@@ -144,16 +201,28 @@
                                 </tr>
                         <?php endforeach;
                         endif; ?>
+                   
                     </tbody>
                 </table>
             </div>
 
-            <div id="paginacionContainer" class="card-footer bg-white border-top py-4" style="display: <?= (!empty($_GET['q'])) ? 'none' : 'block' ?>;">
-                <?php if (isset($total_paginas) && $total_paginas > 1): ?>
+            <div id="paginacionContainer" class="card-footer bg-white border-top py-4">
+                <?php 
+                $urlParams = '';
+                if (!empty($_GET['q'])) $urlParams .= '&q=' . urlencode($_GET['q']);
+                if (!empty($_GET['categoria'])) $urlParams .= '&categoria=' . urlencode($_GET['categoria']);
+                if (!empty($_GET['marca'])) $urlParams .= '&marca=' . urlencode($_GET['marca']);
+                if (!empty($_GET['orden'])) $urlParams .= '&orden=' . urlencode($_GET['orden']);
+                if (!empty($_GET['filtro_stock'])) $urlParams .= '&filtro_stock=' . urlencode($_GET['filtro_stock']);
+                
+                if (isset($total_paginas) && $total_paginas > 1): ?>
                     <nav aria-label="Navegación de productos">
                         <ul class="pagination justify-content-center mb-0">
                             <li class="page-item <?= ($pagina_actual <= 1) ? 'disabled' : '' ?>">
-                                <a class="page-link rounded-start-pill border-end-0" href="<?= BASE_URL ?>admin/productos?page=<?= $pagina_actual - 1 ?>"><i class="bi bi-chevron-left small"></i></a>
+                                <a class="page-link rounded-start-pill px-3 <?= ($pagina_actual <= 1) ? 'text-muted bg-light' : 'text-cenco-indigo' ?>" 
+                                   href="<?= BASE_URL ?>admin/productos?page=<?= $pagina_actual - 1 ?><?= $urlParams ?>">
+                                    <i class="bi bi-chevron-left small me-1"></i> Anterior
+                                </a>
                             </li>
 
                             <?php
@@ -162,15 +231,19 @@
                                 if ($i == 1 || $i == $total_paginas || ($i >= $pagina_actual - $rango && $i <= $pagina_actual + $rango)):
                             ?>
                                     <li class="page-item <?= ($pagina_actual == $i) ? 'active' : '' ?>">
-                                        <a class="page-link <?= ($pagina_actual == $i) ? 'bg-cenco-indigo border-cenco-indigo' : 'text-muted' ?>" href="<?= BASE_URL ?>admin/productos?page=<?= $i ?>"><?= $i ?></a>
+                                        <a class="page-link <?= ($pagina_actual == $i) ? 'bg-cenco-indigo border-cenco-indigo' : 'text-muted' ?>" 
+                                           href="<?= BASE_URL ?>admin/productos?page=<?= $i ?><?= $urlParams ?>"><?= $i ?></a>
                                     </li>
                                 <?php elseif ($i == $pagina_actual - $rango - 1 || $i == $pagina_actual + $rango + 1): ?>
-                                    <li class="page-item disabled"><span class="page-link border-0">...</span></li>
+                                    <li class="page-item disabled"><span class="page-link border-0 text-muted">...</span></li>
                             <?php endif;
                             endfor; ?>
 
                             <li class="page-item <?= ($pagina_actual >= $total_paginas) ? 'disabled' : '' ?>">
-                                <a class="page-link rounded-end-pill border-start-0" href="<?= BASE_URL ?>admin/productos?page=<?= $pagina_actual + 1 ?>"><i class="bi bi-chevron-right small"></i></a>
+                                <a class="page-link rounded-end-pill px-3 <?= ($pagina_actual >= $total_paginas) ? 'text-muted bg-light' : 'text-cenco-indigo' ?>" 
+                                   href="<?= BASE_URL ?>admin/productos?page=<?= $pagina_actual + 1 ?><?= $urlParams ?>">
+                                    Siguiente <i class="bi bi-chevron-right small ms-1"></i>
+                                </a>
                             </li>
                         </ul>
                     </nav>
@@ -181,87 +254,141 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalResumenProducto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center pt-0 px-4 pb-4">
+                <div class="bg-light rounded-4 p-3 mb-3 d-inline-block shadow-sm">
+                    <img id="modalProdImagen" src="" alt="Producto" class="img-fluid object-fit-contain" style="max-height: 200px; max-width: 250px;">
+                </div>
+                
+                <h5 id="modalProdWeb" class="fw-bold text-dark mb-1">Nombre Web</h5>
+                <p id="modalProdERP" class="text-muted small mb-3"><i class="bi bi-box me-1"></i> Nombre ERP</p>
+                
+                <div class="row g-2 justify-content-center">
+                    <div class="col-4">
+                        <div class="p-2 border rounded-3 bg-white">
+                            <small class="text-muted d-block" style="font-size: 0.7rem;">PRECIO</small>
+                            <strong id="modalProdPrecio" class="text-cenco-indigo fs-5">$0</strong>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 border rounded-3 bg-white">
+                            <small class="text-muted d-block" style="font-size: 0.7rem;">STOCK</small>
+                            <strong id="modalProdStock" class="text-dark fs-5">0</strong>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 border rounded-3 bg-white">
+                            <small class="text-muted d-block" style="font-size: 0.7rem;">ESTADO</small>
+                            <strong id="modalProdEstado" class="text-success fs-6 mt-1 d-block">Visible</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    function confirmarEliminar(id) {
-        if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
-            window.location.href = '<?= BASE_URL ?>admin/producto/eliminar/' + id;
-        }
-    }
+    let modalInstance = null;
 
     document.addEventListener('DOMContentLoaded', function() {
+        modalInstance = new bootstrap.Modal(document.getElementById('modalResumenProducto'));
+
         const inputBusqueda = document.getElementById('inputBusqueda');
         const selectCategoria = document.getElementById('selectCategoria');
-        const btnLimpiar = document.getElementById('btnLimpiar'); // Capturamos el botón
-        const tablaResultados = document.getElementById('tablaResultados');
+        const selectMarca = document.getElementById('selectMarca'); // Nuevo
+        const selectFiltroStock = document.getElementById('selectFiltroStock'); 
+        const selectOrdenStock = document.getElementById('selectOrdenStock'); 
+        const btnLimpiar = document.getElementById('btnLimpiar');
+        const btnExportar = document.getElementById('btnExportar'); 
         const spinner = document.getElementById('loadingSpinner');
-        const paginacion = document.getElementById('paginacionContainer');
         let timeout = null;
 
-        // 1. FUNCIÓN DE BÚSQUEDA
-        function realizarBusqueda() {
+        function aplicarFiltros() {
             const q = inputBusqueda.value.trim();
             const cat = selectCategoria.value;
+            const marca = selectMarca.value; // Capturamos marca
+            const stock = selectFiltroStock.value;
+            const orden = selectOrdenStock.value;
 
             if (spinner) spinner.classList.remove('d-none');
 
-            // AJAX
-            const url = `<?= BASE_URL ?>admin/productos/ajax?q=${encodeURIComponent(q)}&categoria=${encodeURIComponent(cat)}`;
-
-            fetch(url)
-                .then(response => response.text())
-                .then(html => {
-                    tablaResultados.innerHTML = html;
-
-                    // LÓGICA DE PAGINACIÓN (RECUPERAR BOTONES)
-                    if (q.length > 0 || cat.length > 0) {
-                        // Si hay filtros activos, ocultamos la paginación normal
-                        if (paginacion) paginacion.style.display = 'none';
-                    } else {
-                        // Si NO hay filtros (está vacío), mostramos la paginación original
-                        if (paginacion) paginacion.style.display = 'block';
-                    }
-                })
-                .catch(error => console.error('Error:', error))
-                .finally(() => {
-                    if (spinner) spinner.classList.add('d-none');
-                });
+            window.location.href = `<?= BASE_URL ?>admin/productos?q=${encodeURIComponent(q)}&categoria=${encodeURIComponent(cat)}&marca=${encodeURIComponent(marca)}&filtro_stock=${encodeURIComponent(stock)}&orden=${encodeURIComponent(orden)}`;
         }
 
-        // 2. EVENTO: ESCRIBIR EN INPUT
         inputBusqueda.addEventListener('input', function() {
             clearTimeout(timeout);
-            timeout = setTimeout(realizarBusqueda, 300);
+            timeout = setTimeout(aplicarFiltros, 800);
         });
 
-        // 3. EVENTO: CAMBIAR CATEGORÍA
-        selectCategoria.addEventListener('change', function() {
-            realizarBusqueda();
+        inputBusqueda.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                clearTimeout(timeout);
+                aplicarFiltros();
+            }
         });
 
-        // 4. EVENTO: BOTÓN LIMPIAR (GOMITA)
+        selectCategoria.addEventListener('change', aplicarFiltros);
+        selectMarca.addEventListener('change', aplicarFiltros); // Escuchador marca
+        selectFiltroStock.addEventListener('change', aplicarFiltros);
+        selectOrdenStock.addEventListener('change', aplicarFiltros);
+
         if (btnLimpiar) {
             btnLimpiar.addEventListener('click', function() {
-                // Borramos los valores
                 inputBusqueda.value = '';
                 selectCategoria.value = '';
+                selectMarca.value = '';
+                selectFiltroStock.value = '';
+                selectOrdenStock.value = '';
+                aplicarFiltros(); 
+            });
+        }
 
-                // Disparamos la búsqueda vacía para resetear la tabla
-                realizarBusqueda();
-
-                // Opcional: Si quieres reiniciar totalmente la URL (quitar ?q= de la barra)
-                // window.history.pushState({}, document.title, window.location.pathname);
+        if(btnExportar) {
+            btnExportar.addEventListener('click', function() {
+                const q = inputBusqueda.value.trim();
+                const cat = selectCategoria.value;
+                const marca = selectMarca.value;
+                const stock = selectFiltroStock.value;
+                const orden = selectOrdenStock.value;
+                
+                window.location.href = `<?= BASE_URL ?>admin/exportarProductosExcel?q=${encodeURIComponent(q)}&categoria=${encodeURIComponent(cat)}&marca=${encodeURIComponent(marca)}&filtro_stock=${encodeURIComponent(stock)}&orden=${encodeURIComponent(orden)}`;
             });
         }
     });
 
-    // FUNCION TOGGLE ESTADO (OJITO) CORREGIDA
+    // ABRIR MODAL (Asignación inversa ERP/WEB aplicada)
+    function abrirModalResumen(btn) {
+        const data = JSON.parse(btn.getAttribute('data-producto'));
+        
+        document.getElementById('modalProdImagen').src = data.imagen;
+        document.getElementById('modalProdWeb').innerHTML = data.nombreWeb; 
+        document.getElementById('modalProdERP').innerHTML = '<i class="bi bi-box me-1"></i>' + data.nombreERP; 
+        document.getElementById('modalProdPrecio').textContent = '$' + data.precio;
+        document.getElementById('modalProdStock').textContent = data.stock;
+        
+        const elEstado = document.getElementById('modalProdEstado');
+        elEstado.textContent = data.estado;
+        if(data.estado === 'Visible') {
+            elEstado.className = 'text-success fs-6 mt-1 d-block';
+        } else {
+            elEstado.className = 'text-secondary fs-6 mt-1 d-block';
+        }
+
+        modalInstance.show();
+    }
+
     function toggleProducto(id, btn) {
         btn.disabled = true;
         const icon = btn.querySelector('i');
         const originalClass = icon.className;
         icon.className = 'spinner-border spinner-border-sm text-secondary';
 
-        // Usamos FormData para que PHP lo lea perfectamente con $_POST['id']
         const formData = new FormData();
         formData.append('id', id);
 
@@ -298,11 +425,17 @@
 
     function actualizarBadgeEstado(btn, activo) {
         const row = btn.closest('tr');
-        const cell = row.cells[4];
+        const cell = row.cells[4]; 
         if (activo) {
             cell.innerHTML = '<span class="badge rounded-pill bg-success px-3">Visible</span>';
         } else {
             cell.innerHTML = '<span class="badge rounded-pill bg-secondary px-3">Oculto</span>';
+        }
+    }
+
+    function confirmarEliminar(id) {
+        if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
+            window.location.href = '<?= BASE_URL ?>admin/producto/eliminar/' + id;
         }
     }
 </script>

@@ -1,0 +1,27 @@
+/* public/css/shop/locales.css */
+.border-end-lg { border-right: 1px solid #eee; }
+@media (max-width: 991px) {
+    .border-end-lg { border-right: none; border-bottom: 1px solid #eee; }
+}
+
+.object-fit-cover { object-fit: cover; }
+
+.spacing-list li { padding: 8px 0; border-bottom: 1px dashed #f0f0f0; }
+.spacing-list li:last-child { border-bottom: none; }
+
+.transition-hover { transition: transform 0.5s ease; }
+.card:hover .transition-hover { transform: scale(1.05); }
+
+/* Ajuste de altura del mapa para celulares vs escritorio */
+.map-container { min-height: 300px; height: 100%; width: 100%; }
+
+@media (min-width: 992px) {
+    .map-container { min-height: 500px; }
+}
+
+/* Interacción del mapa en móviles */
+@media (max-width: 991px) {
+    .map-container { pointer-events: none; /* Desactiva el mapa por defecto en móvil */ }
+    .card:active .map-container,
+    .card:focus .map-container { pointer-events: auto; /* Se activa al tocar la tarjeta */ }
+}

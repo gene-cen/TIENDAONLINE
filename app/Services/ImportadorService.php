@@ -112,12 +112,15 @@ class ImportadorService
                 $precio    = (int)trim($data[$stockIndex - 1]);
                 $categoria = trim($data[$stockIndex - 3]);
 
-                // Capturamos la IMAGEN (índice siguiente al stock)
+                // Capturamos la IMAGEN (índice siguiente al stock: +1)
                 $img = isset($data[$stockIndex + 1]) ? trim($data[$stockIndex + 1], " \t\n\r\0\x0B\"'") : '';
 
-                // 🔥 CAPTURAMOS EL PPUM (Precio por Unidad de Medida)
-                // Según tu captura, viene en la última columna ($stockIndex + 2)
-                $pum = isset($data[$stockIndex + 2]) ? trim($data[$stockIndex + 2]) : null;
+                // Capturamos el NUEVO CAMPO DESCRIPCIÓN NULO (índice: +2)
+                // Lo guardamos en una variable por si a futuro decides insertarlo en la BD
+                $descripcion_nula = isset($data[$stockIndex + 2]) ? trim($data[$stockIndex + 2]) : null;
+
+                // 🔥 EL PPUM SE DESPLAZA (índice: +3)
+                $pum = isset($data[$stockIndex + 3]) ? trim($data[$stockIndex + 3]) : null;
                 
                 // Si el dato es un string vacío, lo convertimos a NULL para la base de datos
                 if ($pum === "") { $pum = null; }

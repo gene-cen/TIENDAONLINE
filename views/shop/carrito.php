@@ -1,12 +1,16 @@
 <?php
+// views/shop/carrito.php
+
 // Calculamos el total inicial
 $total = 0;
 if (!empty($_SESSION['carrito'])) {
     foreach ($_SESSION['carrito'] as $item) {
-        $total += ($item['precio'] * $item['cantidad']);
+        $total += (($item['precio'] ?? 0) * ($item['cantidad'] ?? 1));
     }
 }
 ?>
+
+<link rel="stylesheet" href="<?= BASE_URL ?>css/shop/carrito.css">
 
 <div class="container py-5">
 
@@ -20,7 +24,6 @@ if (!empty($_SESSION['carrito'])) {
     </div>
 
     <?php if (empty($_SESSION['carrito'])): ?>
-
         <div class="card border-0 shadow-sm rounded-4 text-center py-5 bg-white">
             <div class="card-body">
                 <div class="mb-4">
@@ -35,11 +38,10 @@ if (!empty($_SESSION['carrito'])) {
                 </a>
             </div>
         </div>
-
     <?php else: ?>
 
-        <div class="row g-4">
-
+    <div class="row g-4">
+            
             <div class="col-lg-8">
                 <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
                     <div class="card-body p-0">
@@ -57,17 +59,11 @@ if (!empty($_SESSION['carrito'])) {
                                 <tbody>
                                     <?php foreach ($_SESSION['carrito'] as $id => $item):
                                         $subtotal = ($item['precio'] ?? 0) * ($item['cantidad'] ?? 1);
-                                        $img = !empty($item['imagen'])
-                                            ? (strpos($item['imagen'], 'http') === 0 ? $item['imagen'] : BASE_URL . 'img/productos/' . $item['imagen'])
-                                            : BASE_URL . 'img/no-image.png';
+                                        $img = !empty($item['imagen']) ? (strpos($item['imagen'], 'http') === 0 ? $item['imagen'] : BASE_URL . 'img/productos/' . $item['imagen']) : BASE_URL . 'img/no-image.png';
 
-                                        // --- LÓGICA DE VALIDACIÓN DE STOCK EN TIEMPO REAL ---
+                                        // Validación de stock en tiempo real
                                         $sucursal_activa = $_SESSION['sucursal_activa'] ?? 29;
-                                        // Usamos $this->db que está disponible en el contexto de la vista si viene del controlador
-                                        $stmtStock = $this->db->prepare("SELECT (ps.stock - ps.stock_reservado) as disponible 
-                                                                         FROM productos_sucursales ps 
-                                                                         INNER JOIN productos p ON ps.cod_producto = p.cod_producto 
-                                                                         WHERE p.id = ? AND ps.sucursal_id = ?");
+                                        $stmtStock = $this->db->prepare("SELECT (ps.stock - ps.stock_reservado) as disponible FROM productos_sucursales ps INNER JOIN productos p ON ps.cod_producto = p.cod_producto WHERE p.id = ? AND ps.sucursal_id = ?");
                                         $stmtStock->execute([$id, $sucursal_activa]);
                                         $stockReal = (int)$stmtStock->fetchColumn();
 
@@ -75,6 +71,7 @@ if (!empty($_SESSION['carrito'])) {
                                         $esCritico = ($stockReal > 0 && $stockReal < 5);
                                     ?>
                                         <tr class="<?= $hayQuiebre ? 'opacity-50 bg-light' : '' ?>" id="fila-carrito-<?= $id ?>">
+                                            
                                             <td class="ps-4 py-3 border-bottom-0">
                                                 <div class="d-flex align-items-center">
                                                     <div class="bg-white border rounded-3 p-1 me-3 flex-shrink-0 shadow-sm position-relative" style="width: 70px; height: 70px;">
@@ -88,7 +85,6 @@ if (!empty($_SESSION['carrito'])) {
                                                             <?= htmlspecialchars($item['nombre'] ?? 'Producto') ?>
                                                         </h6>
                                                         <small class="text-muted d-block mb-1">COD: <?= $id ?></small>
-
                                                         <div id="status-stock-<?= $id ?>">
                                                             <?php if ($hayQuiebre): ?>
                                                                 <span class="text-danger small fw-bold"><i class="bi bi-x-circle"></i> Sin stock disponible</span>
@@ -96,12 +92,8 @@ if (!empty($_SESSION['carrito'])) {
                                                                 <span class="badge bg-light text-dark border fw-normal" style="font-size: 0.75rem;">
                                                                     Stock disponible: <strong id="stock-num-<?= $id ?>"><?= $stockReal - $item['cantidad'] ?></strong>
                                                                 </span>
-
                                                                 <?php if ($esCritico): ?>
-                                                                    <br>
-                                                                    <span class="text-danger extra-small fw-bold animate__animated animate__flash animate__infinite">
-                                                                        <i class="bi bi-exclamation-triangle"></i> ¡Últimas unidades!
-                                                                    </span>
+                                                                    <br><span class="text-danger extra-small fw-bold animate__animated animate__flash animate__infinite"><i class="bi bi-exclamation-triangle"></i> ¡Últimas unidades!</span>
                                                                 <?php endif; ?>
                                                             <?php endif; ?>
                                                         </div>
@@ -113,21 +105,13 @@ if (!empty($_SESSION['carrito'])) {
 
                                             <td class="text-center border-bottom-0">
                                                 <div class="d-inline-flex align-items-center border rounded-pill px-1 py-1 shadow-sm bg-white">
-                                                    <button type="button" class="btn btn-sm btn-white rounded-circle text-danger border-0" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;" onclick="cambiarCantidad(<?= $id ?>, 'bajar')">
+                                                    <button type="button" class="btn btn-sm btn-white rounded-circle text-danger border-0 d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;" onclick="cambiarCantidad(<?= $id ?>, 'bajar')">
                                                         <i class="bi bi-dash"></i>
                                                     </button>
-
                                                     <input type="text" id="input-cant-<?= $id ?>" data-precio="<?= $item['precio'] ?>" class="form-control border-0 text-center bg-transparent p-0 fw-bold text-cenco-indigo" value="<?= $item['cantidad'] ?? 1 ?>" readonly style="width: 35px; font-size: 0.9rem;">
-
-                                                    <?php if ($item['cantidad'] < $stockReal): ?>
-                                                        <button type="button" id="btn-subir-<?= $id ?>" class="btn btn-sm btn-white rounded-circle text-success border-0" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;" onclick="cambiarCantidad(<?= $id ?>, 'subir')">
-                                                            <i class="bi bi-plus"></i>
-                                                        </button>
-                                                    <?php else: ?>
-                                                        <button type="button" id="btn-subir-<?= $id ?>" class="btn btn-sm btn-white rounded-circle text-muted border-0" style="width: 28px; height: 28px;" disabled title="Máximo disponible alcanzado">
-                                                            <i class="bi bi-plus"></i>
-                                                        </button>
-                                                    <?php endif; ?>
+                                                    <button type="button" id="btn-subir-<?= $id ?>" class="btn btn-sm btn-white rounded-circle <?= ($item['cantidad'] < $stockReal) ? 'text-success' : 'text-muted' ?> border-0 d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;" <?= ($item['cantidad'] >= $stockReal) ? 'disabled title="Máximo disponible alcanzado"' : '' ?> onclick="cambiarCantidad(<?= $id ?>, 'subir')">
+                                                        <i class="bi bi-plus"></i>
+                                                    </button>
                                                 </div>
                                             </td>
 
@@ -138,6 +122,7 @@ if (!empty($_SESSION['carrito'])) {
                                                     <i class="bi bi-trash-fill"></i>
                                                 </button>
                                             </td>
+                                            
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -149,7 +134,6 @@ if (!empty($_SESSION['carrito'])) {
                         <a href="<?= BASE_URL ?>home/catalogo" class="text-decoration-none fw-bold text-muted small hover-link">
                             <i class="bi bi-arrow-left me-1"></i> Seguir Comprando
                         </a>
-
                         <button type="button" class="btn btn-link text-decoration-none fw-bold text-danger small hover-link p-0 border-0" data-bs-toggle="modal" data-bs-target="#modalVaciarCarrito">
                             <i class="bi bi-trash me-1"></i> Vaciar Carrito
                         </button>
@@ -175,9 +159,9 @@ if (!empty($_SESSION['carrito'])) {
                                 <span id="resumen-total" class="fw-black text-cenco-green fs-3">$<?= number_format($total, 0, ',', '.') ?></span>
                             </div>
                         </div>
+
                         <div class="d-grid gap-2">
                             <?php
-                            // Lógica inteligente: Si es admin, lo mandamos al modo asistido
                             $checkoutUrl = BASE_URL . "checkout";
                             if (isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin') {
                                 $checkoutUrl .= "?modo=asistido";
@@ -185,10 +169,7 @@ if (!empty($_SESSION['carrito'])) {
                             ?>
 
                             <?php if (!isset($_SESSION['user_id']) && !isset($_SESSION['invitado'])): ?>
-                                <button type="button"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#checkoutAuthModal"
-                                    class="btn btn-cenco-green rounded-pill py-3 fw-bold shadow hover-scale text-white">
+                                <button type="button" data-bs-toggle="modal" data-bs-target="#checkoutAuthModal" class="btn btn-cenco-green rounded-pill py-3 fw-bold shadow hover-scale text-white">
                                     Ir a Pagar <i class="bi bi-person-badge-fill ms-2"></i>
                                 </button>
                             <?php else: ?>
@@ -202,34 +183,5 @@ if (!empty($_SESSION['carrito'])) {
             </div>
 
         </div>
-
     <?php endif; ?>
 </div>
-
-<div class="modal fade" id="modalVaciarCarrito" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg text-center p-4">
-            <div class="modal-body p-2">
-                <div class="mb-3 position-relative d-inline-block">
-                    <div class="position-absolute top-50 start-50 translate-middle bg-danger bg-opacity-10 rounded-circle" style="width: 120px; height: 120px; filter: blur(15px);"></div>
-                    <img src="<?= BASE_URL ?>img/cencocalin/cencocalin_preocupado.png" alt="¿Seguro?" style="width: 130px; position: relative; z-index: 2; transform: rotate(-5deg);">
-                </div>
-
-                <h3 class="fw-black text-cenco-indigo mb-2">¿Estás seguro?</h3>
-                <p class="text-muted mb-4">Estás a punto de eliminar todos los productos de tu carrito.</p>
-
-                <div class="d-flex justify-content-center gap-2">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancelar</button>
-                    <a href="<?= BASE_URL ?>carrito/vaciar" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm">Sí, vaciar todo</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-    .grayscale {
-        filter: grayscale(1);
-        opacity: 0.6;
-    }
-</style>

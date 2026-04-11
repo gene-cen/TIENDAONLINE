@@ -78,30 +78,33 @@ class LocationController
     if (ob_get_level()) ob_end_clean();
     header('Content-Type: application/json');
 
-    $nombre = trim($_POST['nombre'] ?? '');
+    $nombreOriginal = trim($_POST['nombre'] ?? '');
     $confirmado = isset($_POST['confirmado']) ? (int)$_POST['confirmado'] : 0;
     
-    // 🔥 NUEVO: Atrapamos la sucursal exacta que el usuario seleccionó en el Modal (10 o 29)
+    // Atrapamos la sucursal exacta que el usuario seleccionó en el Modal (10 o 29)
     $sucursal_js = isset($_POST['sucursal_id']) ? (int)$_POST['sucursal_id'] : null;
 
+    // 🔥 TRUCO DE MAPEADO: 
+    // Como Peñablanca es un sector de Villa Alemana y no suele estar en la tabla 'comunas',
+    // lo traducimos internamente para que la consulta SQL no falle.
+    $nombreParaBuscar = ($nombreOriginal === 'Peñablanca') ? 'Villa Alemana' : $nombreOriginal;
+
     $stmt = $this->db->prepare("SELECT id, nombre, sucursal_id FROM comunas WHERE nombre LIKE ? LIMIT 1");
-    $stmt->execute([$nombre]);
+    $stmt->execute([$nombreParaBuscar]);
     $comuna = $stmt->fetch(\PDO::FETCH_ASSOC);
 
     if ($comuna) {
-        // Si el JS nos mandó el ID explícito (10 o 29), usamos ese. 
-        // Si por alguna razón no viene, usamos el que tiene la comuna en la base de datos por defecto.
+        // Determinamos la sucursal: Prioridad al JS, sino la de la BD.
         $nueva_sucursal_id = $sucursal_js ?: (int)$comuna['sucursal_id'];
 
         require_once __DIR__ . '/CarritoController.php';
         $carrito = new \App\Controllers\CarritoController($this->db);
 
-        // 🚨 PASO 1: SIMULACRO (Si no está confirmado y hay productos en el carrito)
+        // 🚨 PASO 1: SIMULACRO (Validación de Stock/Precios al cambiar de sucursal)
         if ($confirmado === 0) {
-            $reporte = $carrito->validarCambioSucursal($nueva_sucursal_id, false); // false = modo simulacro
+            $reporte = $carrito->validarCambioSucursal($nueva_sucursal_id, false); // false = simulacro
 
             if (!empty($reporte['cambios'])) {
-                // Hay conflictos, detenemos todo y pedimos confirmación
                 $nombreSucursalAlerta = ($nueva_sucursal_id == 29) ? 'La Calera' : 'Villa Alemana';
                 
                 echo json_encode([
@@ -113,21 +116,32 @@ class LocationController
             }
         }
 
-        // 🚨 PASO 2: EJECUCIÓN (Si el usuario confirmó o si no hubo conflictos)
+        // 🚨 PASO 2: EJECUCIÓN (Confirmado o sin conflictos)
         
-        // Guardamos la comuna para visualización
+        // Guardamos en sesión. 
+        // Nota: Guardamos el ID de la comuna encontrada (Villa Alemana si era Peñablanca)
+        // pero en 'comuna_nombre' dejamos el nombre original para que el Navbar diga "Peñablanca".
         $_SESSION['comuna_id'] = $comuna['id'];
-        $_SESSION['comuna_nombre'] = $comuna['nombre'];
+        $_SESSION['comuna_nombre'] = $nombreOriginal; 
         
-        // 🔥 EL PASO CRÍTICO: Cambiamos la sucursal activa en la sesión
+        // El PASO CRÍTICO: Cambiamos la sucursal activa
         $_SESSION['sucursal_activa'] = $nueva_sucursal_id;
 
-        // Ahora sí, ejecutamos la limpieza real del carrito
-        $carrito->validarCambioSucursal($nueva_sucursal_id, true); // true = limpiar carro/ajustar stock
+        // Ejecutamos la limpieza real del carrito en la nueva sucursal
+        $carrito->validarCambioSucursal($nueva_sucursal_id, true); 
 
-        echo json_encode(['status' => 'success', 'sucursal' => $nueva_sucursal_id]);
+        echo json_encode([
+            'status' => 'success', 
+            'sucursal' => $nueva_sucursal_id,
+            'comuna_final' => $nombreOriginal
+        ]);
+
     } else {
-        echo json_encode(['status' => 'error', 'message' => 'No encontramos la comuna']);
+        // Si no se encuentra ni por el nombre original ni por el mapeado
+        echo json_encode([
+            'status' => 'error', 
+            'message' => "La zona '$nombreOriginal' no está disponible para despacho en este momento."
+        ]);
     }
     exit;
 }

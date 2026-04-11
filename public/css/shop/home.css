@@ -1,0 +1,34 @@
+/* public/css/shop/home.css */
+
+/* --- FRANJA DE NOTIFICACIONES --- */
+.franja-wrapper { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 0.6s ease-in-out, opacity 0.5s ease-in-out; }
+.franja-wrapper.desplegado { max-height: 180px; opacity: 1; }
+.franja-content { display: flex; align-items: center; justify-content: center; gap: 25px; padding: 15px 35px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); margin: 1.5rem auto 1rem auto; max-width: 700px; }
+.franja-img { width: 90px; height: 90px; object-fit: contain; background: transparent; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3)); transform: scale(1.15); }
+
+/* --- CARRUSELES BANNERS --- */
+.carousel-container { width: 100%; margin: 0 auto; }
+.banner-img { 
+    width: 100%; 
+    height: 400px; 
+    object-fit: contain; 
+    object-position: center; 
+    display: block; 
+    border-radius: 1.5rem; 
+    background-color: #f8f9fa; 
+}
+
+/* --- INFO CARDS (FOOTER) --- */
+.info-card-item { position: relative; padding: 2.5rem 1rem; }
+
+/* MEDIA QUERIES */
+@media (min-width: 992px) { .info-card-item:not(:last-child)::after { content: ""; position: absolute; top: 20%; bottom: 20%; right: 0; width: 1px; background-color: rgba(0, 0, 0, 0.1); } }
+@media (min-width: 768px) and (max-width: 991px) {
+    .info-card-item:nth-child(odd)::after { content: ""; position: absolute; top: 20%; bottom: 20%; right: 0; width: 1px; background-color: rgba(0, 0, 0, 0.1); }
+    .info-card-item:nth-child(-n+2) { border-bottom: 1px solid rgba(0, 0, 0, 0.1); }
+}
+@media (max-width: 767px) { 
+    .banner-img { border-radius: 0; height: 220px; object-fit: contain; } 
+    .carousel-container { padding-left: 0 !important; padding-right: 0 !important; } 
+    .info-card-item:not(:last-child) { border-bottom: 1px solid rgba(0, 0, 0, 0.1); } 
+}

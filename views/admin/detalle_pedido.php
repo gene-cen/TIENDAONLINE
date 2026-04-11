@@ -102,7 +102,7 @@ $badgeClass = match ($estadoStr) {
 
     const COSTO_ENVIO_FIJO = <?= (int)($pedido['costo_envio'] ?? 0) ?>;
     const CARRITO_ORIGINAL = <?= json_encode($detalles ?? []) ?>;
-    const BASE_URL = '<?= BASE_URL ?>';
+    var BASE_URL = '<?= BASE_URL ?>';
 </script>
 
 <script src="<?= BASE_URL ?>js/admin/detalle-pedido.js"></script>

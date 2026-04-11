@@ -1,0 +1,38 @@
+/* public/css/shop/footer.css */
+
+.info-card-item { position: relative; padding: 2.5rem 1rem; }
+@media (min-width: 992px) {
+    .info-card-item:not(:last-child)::after { content: ""; position: absolute; top: 20%; bottom: 20%; right: 0; width: 1px; background-color: rgba(0, 0, 0, 0.1); }
+}
+@media (min-width: 768px) and (max-width: 991px) {
+    .info-card-item:nth-child(odd)::after { content: ""; position: absolute; top: 20%; bottom: 20%; right: 0; width: 1px; background-color: rgba(0, 0, 0, 0.1); }
+    .info-card-item:nth-child(-n+2) { border-bottom: 1px solid rgba(0, 0, 0, 0.1); }
+}
+@media (max-width: 767px) {
+    .info-card-item:not(:last-child) { border-bottom: 1px solid rgba(0, 0, 0, 0.1); }
+}
+
+/* === TIPOGRAFÍA PREMIUM FOOTER === */
+.footer-heading { font-weight: 600; color: var(--cenco-green); margin-bottom: 1.2rem; font-size: 1.1rem; letter-spacing: 0.5px; }
+.footer-text { font-size: 0.95rem; font-weight: 300; line-height: 1.6; color: rgba(255, 255, 255, 0.8); }
+.footer-link { font-size: 0.95rem; font-weight: 300; text-decoration: none; color: rgba(255, 255, 255, 0.7); transition: all 0.3s ease; display: block; margin-bottom: 8px; }
+.footer-link:hover { color: white !important; transform: translateX(5px); }
+
+/* === BOTÓN TRABAJA CON NOSOTROS === */
+.trabaja-card { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 15px; border: 1px solid rgba(255, 255, 255, 0.1); text-align: center; transition: transform 0.3s; }
+.trabaja-card:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-5px); }
+.btn-trabaja { background: var(--cenco-green); color: white; border-radius: 50px; padding: 8px 20px; font-size: 0.9rem; font-weight: 600; text-decoration: none; display: inline-block; margin-top: 10px; width: 100%; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); transition: all 0.3s; }
+.btn-trabaja:hover { background: white; color: var(--cenco-green); }
+
+/* === REDES SOCIALES === */
+.social-btn-clean { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); color: white; border-radius: 50%; transition: all 0.3s ease; text-decoration: none; font-size: 1.2rem; }
+.social-btn-clean:hover { background: var(--cenco-green); color: white; transform: scale(1.1); }
+
+/* === LOGOS DE PAGO Y ALIANZA === */
+.trust-badge { background: white; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; height: 50px; width: 100%; transition: transform 0.3s; }
+.trust-badge:hover { transform: scale(1.05); }
+.trust-badge img { max-height: 100%; max-width: 100%; object-fit: contain; }
+
+/* === BOTÓN FLOTANTE ACCESIBILIDAD === */
+.btn-accessibility { width: 55px; height: 55px; border: 2px solid rgba(255, 255, 255, 0.8); background-color: var(--cenco-indigo); color: white; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2000; }
+.btn-accessibility:hover { transform: scale(1.1) rotate(10deg); background-color: var(--cenco-green); border-color: white; color: white; }

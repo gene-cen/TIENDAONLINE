@@ -4,9 +4,8 @@
  */
 
 // =========================================================
-// 1. BUSCADOR PREDICTIVO
+// 1. BUSCADOR PREDICTIVO (FIX ANTI-CHOQUES)
 // =========================================================
-let timeoutPredictivo = null;
 
 function buscarPredictivo(texto) {
     const lista = document.getElementById('lista-predictiva');
@@ -18,10 +17,10 @@ function buscarPredictivo(texto) {
         return;
     }
     
-    clearTimeout(timeoutPredictivo);
+    // 🔥 Usamos el objeto window directamente para evitar declarar variables y que se rompa el JS
+    if (window._timeoutPredictivo) clearTimeout(window._timeoutPredictivo);
     
-    timeoutPredictivo = setTimeout(() => {
-        // Usamos la variable global BASE_URL definida en el layout
+    window._timeoutPredictivo = setTimeout(() => {
         fetch(BASE_URL + 'home/autocomplete?q=' + encodeURIComponent(texto))
             .then(response => response.json())
             .then(d => {

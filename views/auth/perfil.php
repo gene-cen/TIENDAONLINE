@@ -535,7 +535,7 @@
 <script>
     // Variable global para usar en perfil.js
     if (typeof BASE_URL === 'undefined') {
-        const BASE_URL = '<?= BASE_URL ?>';
+        var BASE_URL = '<?= BASE_URL ?>';
     }
 
     // ==========================================

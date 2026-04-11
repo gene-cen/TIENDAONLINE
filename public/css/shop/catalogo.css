@@ -1,0 +1,29 @@
+/* public/css/shop/catalogo.css */
+.container-fluid-catalogo { padding-left: 2rem; padding-right: 2rem; }
+.filter-sidebar { background-color: #fff; border-right: 1px solid #eee; height: 100%; padding-right: 20px; }
+.filter-title { font-weight: 800; color: var(--cenco-indigo); margin-bottom: 12px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: var(--cenco-green) #f1f1f1; }
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: var(--cenco-green); border-radius: 10px; }
+
+.filter-link { color: #666; text-decoration: none; display: block; padding: 4px 0; transition: all 0.2s; font-size: 0.95rem; }
+.filter-link:hover, .filter-link.active { color: var(--cenco-green); font-weight: bold; padding-left: 5px; }
+
+/* Slider noUiSlider */
+.noUi-connect { background: var(--cenco-indigo); }
+.noUi-horizontal { height: 6px; border: none; background: #e0e0e0; border-radius: 5px; }
+.noUi-handle { width: 18px; height: 18px; right: -9px; top: -7px; border-radius: 50%; border: 2px solid var(--cenco-indigo); background: var(--cenco-green); box-shadow: none; cursor: pointer; }
+.noUi-handle::before, .noUi-handle::after { display: none; }
+.noUi-handle:hover { transform: scale(1.2); transition: transform 0.2s; }
+
+/* Cards */
+.card-prod { border: 1px solid #f0f0f0; transition: all 0.3s ease; }
+.card-prod:hover { border-color: var(--cenco-green); transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08); z-index: 2; }
+.card-img-wrapper { height: 280px; padding: 20px; display: flex; align-items: center; justify-content: center; }
+.card-img-wrapper img { max-height: 100%; max-width: 100%; object-fit: contain; transition: transform 0.3s; }
+.card-prod:hover .card-img-wrapper img { transform: scale(1.05); }
+
+/* Paginación */
+.page-link { color: var(--cenco-indigo); border: none; margin: 0 3px; border-radius: 8px; font-weight: bold; }
+.page-item.active .page-link { background-color: var(--cenco-green); color: white; }

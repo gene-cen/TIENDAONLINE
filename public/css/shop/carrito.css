@@ -1,0 +1,14 @@
+/* public/css/shop/carrito.css */
+.grayscale {
+    filter: grayscale(1);
+    opacity: 0.6;
+}
+
+/* Opcional: si quieres añadir el hover-link aquí */
+.hover-link {
+    transition: all 0.2s ease;
+}
+.hover-link:hover {
+    transform: translateX(-3px);
+    color: var(--cenco-green) !important;
+}

@@ -1,42 +1,36 @@
-/* --- CENCOCAL CORPORATE COLOR PALETTE --- */
+/* --- CENCOCAL CORPORATE STYLE - REFACTORIZADO --- */
+
 :root {
     --cenco-indigo: #2A1B5E;
     --cenco-green: #76C043;
     --cenco-red: #E53935;
     --cenco-light: #F8F9FA;
     --sidebar-width: 260px;
-    /* Standardized variable */
+    --nav-height: 110px; /* Altura estandarizada */
+    
+    /* JERARQUÍA DE CAPAS (Z-INDEX) */
+    --z-modal: 2000;
+    --z-backdrop: 1950;
+    --z-navbar: 1060;
+    --z-offcanvas: 1050;
 }
 
-body {
-    font-family: 'Roboto', sans-serif;
-    background-color: var(--cenco-light);
-    overflow-x: hidden;
-    margin: 0;
-    padding: 0;
-}
-
-/* === RESETEO BÁSICO (Para evitar bordes blancos con filtros) === */
-html,
-body {
+/* === BASE & RESET === */
+html, body {
     margin: 0 !important;
     padding: 0 !important;
     width: 100%;
     height: 100%;
+    font-family: 'Roboto', sans-serif;
+    background-color: var(--cenco-light);
     overflow-x: hidden;
-    /* Evita scroll horizontal innecesario */
 }
 
-/* Aseguramos que el wrapper cubra todo, incluso con filtros activos */
+/* === ESTRUCTURA DE CONTENEDORES === */
 #wrapper {
     min-height: 100vh;
     width: 100%;
-    margin: 0;
-    padding: 0;
-    background-color: inherit;
-    /* Hereda el color de fondo correcto */
-    position: relative;
-    /* Ayuda a estabilizar el renderizado */
+    display: flex;
 }
 
 #sidebar-wrapper {
@@ -44,80 +38,68 @@ body {
     max-width: var(--sidebar-width);
     background-color: #fff;
     border-right: 1px solid #dee2e6;
-    transition: margin 0.25s ease-out;
+    transition: all 0.3s ease;
 }
 
 #page-content-wrapper {
-    width: 100%;
     flex: 1;
-    /* Takes up remaining space */
     min-width: 0;
-    /* Prevents overflow issues */
+    padding-top: var(--nav-height); /* Espacio para la Navbar fija */
     display: flex;
     flex-direction: column;
     min-height: 100vh;
 }
 
-/* --- RESPONSIVE BEHAVIOR --- */
-
-/* MOBILE (Default): Sidebar Hidden */
-@media (max-width: 767.98px) {
-    #sidebar-wrapper {
-        margin-left: calc(var(--sidebar-width) * -1);
-        /* Hide off-screen */
-        position: fixed;
-        /* Float above content */
-        height: 100vh;
-        z-index: 1000;
-        overflow-y: auto;
-    }
-
-    /* When toggled ON in mobile */
-    body.sb-sidenav-toggled #sidebar-wrapper {
-        margin-left: 0;
-        box-shadow: 5px 0 15px rgba(0, 0, 0, 0.1);
-    }
-}
-
-/* DESKTOP: Sidebar Visible */
-@media (min-width: 768px) {
-    #sidebar-wrapper {
-        margin-left: 0;
-        position: relative;
-        /* Sit next to content */
-        height: auto;
-    }
-
-    /* When toggled OFF in desktop (optional, to hide it) */
-    body.sb-sidenav-toggled #sidebar-wrapper {
-        margin-left: calc(var(--sidebar-width) * -1);
-    }
-}
-
-/* --- COLOR UTILITIES --- */
-.bg-cenco-indigo {
+/* === NAVBAR: CAPA FIJA Y SUPREMA (Solo debajo de Modales) === */
+nav.navbar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--nav-height);
+    z-index: var(--z-navbar) !important;
     background-color: var(--cenco-indigo) !important;
-    color: white;
+    border-bottom: 3px solid var(--cenco-green) !important;
 }
 
-.bg-cenco-green {
-    background-color: var(--cenco-green) !important;
-    color: white;
+/* === OFFCANVAS (CARRITO Y CATEGORÍAS) === */
+#offcanvasCategorias,
+#offcanvasCarrito,
+#adminSidebar {
+    top: var(--nav-height) !important;
+    height: calc(100vh - var(--nav-height)) !important;
+    z-index: var(--z-offcanvas) !important;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
 }
 
-.text-cenco-indigo {
-    color: var(--cenco-indigo) !important;
+.offcanvas-backdrop {
+    top: var(--nav-height) !important;
+    z-index: calc(var(--z-offcanvas) - 10) !important;
 }
 
-.text-cenco-green {
-    color: var(--cenco-green) !important;
+/* === FIX DEFINITIVO PARA MODALES (Peñablanca & Calera Fix) === */
+/* Eliminamos los z-index específicos por ID y usamos una regla global */
+.modal {
+    z-index: var(--z-modal) !important;
 }
 
-.text-cenco-red {
-    color: var(--cenco-red) !important;
+.modal-backdrop {
+    z-index: var(--z-backdrop) !important;
 }
 
-/* --- BUTTONS --- */
+/* Evita que el fondo oscuro bloquee la interacción */
+body.modal-open {
+    overflow: hidden !important;
+    padding-right: 0 !important;
+}
+
+/* === UTILIDADES DE COLOR Y BOTONES === */
+.bg-cenco-indigo { background-color: var(--cenco-indigo) !important; color: white; }
+.bg-cenco-green { background-color: var(--cenco-green) !important; color: white; }
+.text-cenco-indigo { color: var(--cenco-indigo) !important; }
+.text-cenco-green { color: var(--cenco-green) !important; }
+.text-cenco-red { color: var(--cenco-red) !important; }
+
 .btn-cenco-green {
     background-color: var(--cenco-green);
     border: none;
@@ -128,215 +110,11 @@ body {
 
 .btn-cenco-green:hover {
     background-color: #5E9C36;
-    color: white;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(118, 192, 67, 0.3);
 }
 
-.btn-cenco-red {
-    background-color: var(--cenco-red);
-    border: none;
-    color: white;
-    font-weight: bold;
-}
-
-.btn-cenco-red:hover {
-    background-color: #C62828;
-    color: white;
-}
-
-.btn-outline-cenco-indigo {
-    border: 2px solid var(--cenco-indigo);
-    color: var(--cenco-indigo);
-    font-weight: bold;
-    background: transparent;
-}
-
-.btn-outline-cenco-indigo:hover {
-    background-color: var(--cenco-indigo);
-    color: white;
-}
-
-/* --- FOOTER --- */
-footer {
-    background-color: var(--cenco-indigo) !important;
-    margin-top: auto;
-}
-
-footer a {
-    text-decoration: none;
-    color: #B0BEC5;
-    transition: 0.3s;
-}
-
-footer a:hover {
-    color: var(--cenco-green);
-}
-
-.footer-title {
-    color: var(--cenco-green);
-    font-weight: bold;
-    margin-bottom: 1.2rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-/* --- EXTRAS --- */
-.ls-1 {
-    letter-spacing: 1px;
-}
-
-.fw-black {
-    font-weight: 900;
-}
-
-.transition-hover:hover {
-    transform: translateY(-5px);
-    transition: all 0.3s ease;
-}
-
-.drop-shadow {
-    filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.2));
-}
-
-/* =========================================
-   ESTILOS PERFIL DE USUARIO
-   ========================================= */
-
-/* Pestañas personalizadas */
-.nav-tabs .nav-link {
-    color: #6c757d;
-    transition: color 0.3s ease;
-}
-
-.nav-tabs .nav-link.active {
-    color: var(--cenco-indigo);
-    /* Asegúrate que esta variable exista en tu :root */
-    border-bottom: 3px solid var(--cenco-green);
-    background: transparent;
-}
-
-/* Estrella de favoritos con efecto hover */
-.hover-star:hover {
-    color: #ffc107 !important;
-    /* Amarillo */
-    transform: scale(1.2);
-    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    cursor: pointer;
-}
-
-/* Ajustes para el mapa */
-.leaflet-container {
-    font-family: inherit;
-    /* Heredar fuente del sitio */
-}
-
-/* =========================================
-   ADMIN PANEL - SIDEBAR
-   ========================================= */
-
-/* Contenedor principal */
-#sidebar-wrapper {
-    min-height: 100vh;
-    width: 250px;
-    /* Ancho fijo estándar */
-    transition: all 0.3s ease;
-    border-right: 1px solid #eee;
-}
-
-/* Cabecera del sidebar */
-.sidebar-heading {
-    height: 80px;
-    /* Misma altura que un navbar estándar */
-}
-
-/* Ítems del menú */
-.list-group-item {
-    transition: all 0.2s ease-in-out;
-}
-
-/* Efecto Hover (El que tenías inline) */
-.hover-scale-small:hover {
-    background-color: #f8f9fa;
-    color: var(--cenco-indigo) !important;
-    padding-left: 1.8rem !important;
-    /* Pequeño desplazamiento a la derecha */
-}
-
-/* Estado Activo (Cuando estás en esa página) */
-.list-group-item.active-nav {
-    background-color: var(--cenco-indigo) !important;
-    color: white !important;
-    border-left: 5px solid var(--cenco-green) !important;
-    /* Borde verde característico */
-    font-weight: bold;
-}
-
-/* Ajuste para iconos en estado activo */
-.list-group-item.active-nav i {
-    color: var(--cenco-green) !important;
-    /* Icono verde sobre fondo índigo */
-}
-
-/* =========================================
-   ESTILOS ESPECÍFICOS DE HOME
-   ========================================= */
-
-/* --- Utilidades de Opacidad --- */
-.opacity-10 {
-    opacity: 0.1;
-}
-
-.opacity-25 {
-    opacity: 0.25;
-}
-
-.opacity-90 {
-    opacity: 0.9;
-}
-
-/* --- Tipografía --- */
-.fw-black {
-    font-weight: 900;
-}
-
-/* --- Animación Banner Flotante --- */
-@keyframes floatUpDown {
-    0% {
-        transform: translateY(0px) rotate(5deg);
-    }
-
-    50% {
-        transform: translateY(-15px) rotate(5deg);
-    }
-
-    100% {
-        transform: translateY(0px) rotate(5deg);
-    }
-}
-
-.floating-anim {
-    animation: floatUpDown 4s ease-in-out infinite;
-}
-
-/* --- Buscador Predictivo --- */
-#lista-predictiva li:hover {
-    background-color: #f8f9fa;
-    color: var(--cenco-green);
-    font-weight: 500;
-    cursor: pointer;
-}
-
-/* --- Tarjetas de Productos (Estados visuales) --- */
-.bg-success-subtle {
-    background-color: #d1e7dd !important;
-}
-
-.border-cenco-green {
-    border: 2px solid var(--cenco-green) !important;
-}
-
-/* --- Carrusel de Marcas (Brand Cards) --- */
+/* === COMPONENTES: BRAND CARDS & HOVERS === */
 .brand-card {
     min-height: 120px;
     background-color: #fff;
@@ -347,547 +125,140 @@ footer a:hover {
 .brand-card:hover {
     border-color: var(--cenco-green) !important;
     transform: translateY(-10px) scale(1.02);
-    box-shadow: 0 20px 35px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(46, 125, 50, 0.15) !important;
-    z-index: 10;
+    box-shadow: 0 20px 35px rgba(0, 0, 0, 0.1) !important;
 }
 
-.brand-logo-img {
-    max-height: 85px;
-    max-width: 90%;
-    filter: grayscale(20%) opacity(0.9);
-    transition: all 0.3s ease;
+.hover-star:hover {
+    color: #ffc107 !important;
+    transform: scale(1.2);
+    transition: all 0.2s ease;
+    cursor: pointer;
 }
 
-.brand-card:hover .brand-logo-img {
-    filter: grayscale(0%) opacity(1);
-    transform: scale(1.05);
-}
-
-/* --- Footer Home (Bordes) --- */
-@media (min-width: 768px) {
-    .border-end-md {
-        border-right: 1px solid #eee;
-    }
-}
-
-/* =========================================
-   FIXES DE LAYOUT (Z-INDEX NAVBAR Y CARRITO)
-   ========================================= */
-
-/* 1. Navbar siempre arriba */
-nav.navbar {
-    position: sticky;
-    top: 0;
-    z-index: 1060 !important;
-    width: 100%;
-}
-
-/* 2. Carrito Lateral (Debajo del Navbar) */
-#offcanvasCarrito {
-    top: 76px !important;
-    /* Ajustar según altura real del navbar */
-    height: calc(100vh - 76px) !important;
-    z-index: 1055 !important;
-    border-top-left-radius: 0 !important;
-    border-bottom-left-radius: 0 !important;
-    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
-}
-
-/* 3. Sombra de fondo (Backdrop) */
-.offcanvas-backdrop {
-    top: 76px !important;
-    height: calc(100vh - 76px) !important;
-    z-index: 1040 !important;
-}
-
-/* =========================================
-   ESTILOS LAYOUT PRINCIPAL (MAIN)
-   ========================================= */
-
-/* Estructura Flex (Sidebar + Contenido) */
-#wrapper {
-    overflow-x: hidden;
-}
-
-#page-content-wrapper {
-    min-width: 100vw;
-}
-
-@media (min-width: 768px) {
-    #page-content-wrapper {
-        min-width: 0;
-        width: 100%;
-    }
-}
-
-/* Offcanvas Categorías */
-#offcanvasCategorias {
-    max-width: 320px;
-}
-
-/* Efecto hover lista categorías */
-.hover-bg-white:hover {
-    background-color: white !important;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    color: var(--cenco-green) !important;
-}
-
-/* Estilos Específicos Modales */
-.bg-gradient-success-light {
-    background: linear-gradient(180deg, #ffffff 70%, #e8f5e9 100%);
-}
-
-.img-mascota-modal {
-    width: 150px;
-    margin-top: -60px;
-    filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.2));
-}
-
-.hover-underline:hover {
-    text-decoration: underline !important;
-}
-
-/* --- GESTIÓN DE CAPAS (Z-INDEX) --- */
-/* Navbar: 1060 */
-/* Carrito: 1055 */
-#loginModal {
-    z-index: 1055 !important;
-}
-
-#registerModal {
-    z-index: 1057 !important;
-}
-
-#successModal {
-    z-index: 1060 !important;
-}
-
-#forgotModal {
-    z-index: 1062 !important;
-}
-
-#termsModal {
-    z-index: 1065 !important;
-}
-
-#localesModal {
-    z-index: 1070 !important;
-}
-
-/* =========================================
-   FOOTER Y MODALES INFORMATIVOS
-   ========================================= */
-
-/* --- FOOTER PRINCIPAL --- */
-footer {
-    border-top: 5px solid var(--cenco-green);
-}
-
-/* Botones Redes Sociales */
-.social-btn {
-    width: 35px;
-    height: 35px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    text-decoration: none;
-    transition: all 0.3s ease;
-}
-
-.social-btn:hover {
-    background: var(--cenco-green);
-    color: white;
-    transform: translateY(-3px);
-}
-
-/* Enlaces con efecto deslizante */
-.hover-link {
-    transition: all 0.3s ease;
-    display: inline-block;
-}
-
-.hover-link:hover {
-    color: var(--cenco-green) !important;
-    transform: translateX(5px);
-}
-
-/* --- MODAL NOSOTROS (Misión/Visión) --- */
-
-/* Pestañas (Pills) personalizadas */
-.nav-pills .nav-link {
-    color: var(--cenco-indigo);
-    transition: all 0.3s ease;
-}
-
-.nav-pills .nav-link:hover {
-    background-color: #f0f0f0;
-}
-
-.nav-pills .nav-link.active {
-    background-color: var(--cenco-indigo) !important;
-    color: white !important;
-    transform: scale(1.05);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-/* Utilidades de texto e imagen */
-.text-justify {
-    text-align: justify;
-}
-
-.grayscale {
-    filter: grayscale(100%);
-}
-
-.hover-opacity-100 {
-    transition: all 0.3s ease;
-    opacity: 0.75;
-}
-
-.hover-opacity-100:hover {
-    filter: grayscale(0%) !important;
-    opacity: 1 !important;
-}
-
-/* Corrección: El padding va en el wrapper, no en el body */
-body {
-    padding-top: 0 !important;
-    /* Importante: Body sin relleno */
-    background-color: #f8f9fa;
-}
-
-#page-content-wrapper {
-    padding-top: 85px;
-    /* El espacio lo damos aquí adentro */
-}
-
-/* 1. MODO OSCURO (Solo afecta al contenido, no a los modales emergentes) */
+/* === MODO ACCESIBILIDAD === */
+/* Usamos el wrapper para no afectar a los modales de configuración */
 body.access-dark #wrapper {
     filter: invert(1) hue-rotate(180deg);
     background-color: #1a1a1a;
-    /* Fondo oscuro de respaldo */
 }
 
-/* Re-invertir imágenes dentro del contenido para que se vean naturales */
-body.access-dark #wrapper img,
-body.access-dark #wrapper video,
+body.access-dark #wrapper img, 
 body.access-dark .map-container {
     filter: invert(1) hue-rotate(180deg);
 }
 
-/* 2. INVERTIR COLORES (Solo contenido) */
-body.access-invert #wrapper {
-    filter: invert(1);
-}
-
-/* 3. ALTO CONTRASTE (Inteligente) */
-/* Usamos selectores específicos para NO romper el Modal de Bootstrap */
 body.access-high-contrast #wrapper,
 body.access-high-contrast #wrapper * {
     background-color: #000 !important;
     color: #ff0 !important;
     border-color: #ff0 !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
 }
 
-/* Excepción: Imágenes en alto contraste */
-body.access-high-contrast img {
-    filter: grayscale(100%) contrast(200%);
-    background-color: transparent !important;
-    /* Para que no se vea un cuadro negro alrededor */
-}
-
-/* Aseguramos que los botones se vean (bordes amarillos) */
-body.access-high-contrast .btn {
-    border: 2px solid #ff0 !important;
-}
-
-/* === NIVELES DE TEXTO (ZOOM) === */
-
-/* Nivel 1: Un poco más grande (115%) */
-body.access-lvl-1 {
-    font-size: 115% !important;
-}
-
-body.access-lvl-1 h1 {
-    font-size: 2.2rem !important;
-}
-
-body.access-lvl-1 h2 {
-    font-size: 1.8rem !important;
-}
-
-/* Nivel 2: Grande (130%) */
-body.access-lvl-2 {
-    font-size: 130% !important;
-}
-
-body.access-lvl-2 h1 {
-    font-size: 2.4rem !important;
-    line-height: 1.2 !important;
-}
-
-body.access-lvl-2 h2 {
-    font-size: 2.0rem !important;
-}
-
-body.access-lvl-2 .btn {
-    font-size: 1.1rem !important;
-}
-
-/* Nivel 3: Gigante (150%) - Ideal para baja visión severa */
-body.access-lvl-3 {
-    font-size: 150% !important;
-}
-
-body.access-lvl-3 h1 {
-    font-size: 2.6rem !important;
-    line-height: 1.1 !important;
-}
-
-body.access-lvl-3 h2 {
-    font-size: 2.2rem !important;
-}
-
-body.access-lvl-3 .container {
-    max-width: 95% !important;
-}
-
-/* Aprovechar ancho */
-body.access-lvl-3 .btn {
-    font-size: 1.2rem !important;
-    white-space: normal !important;
-}
-
-/* 5. FUENTE DISLEXIA */
-@font-face {
-    font-family: 'OpenDyslexic';
-    src: url('https://cdn.jsdelivr.net/npm/opendyslexic@2.1.0-beta1/fonts/OpenDyslexic-Regular.otf');
-    font-display: swap;
-}
-
+/* Fuente Dislexia */
 body.access-dyslexic * {
     font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
-    letter-spacing: 0.05em !important;
-    word-spacing: 0.1em !important;
 }
 
-/* 6. SIN ANIMACIONES */
-body.access-no-anim *,
-body.access-no-anim *:before,
-body.access-no-anim *:after {
-    transition: none !important;
-    animation: none !important;
-    scroll-behavior: auto !important;
-}
-
-/* === PARCHE FINAL PARA FILTROS (Tapa huecos blancos) === */
-
-/* Cuando estos modos están activos, pintamos el fondo del body de negro */
-body.access-invert,
-body.filter-grayscale,
-body.access-high-contrast {
-    background-color: #000 !important;
-}
-
-/* Forzamos renderizado por hardware para evitar líneas finas */
-body.access-invert #wrapper,
-body.filter-grayscale #wrapper {
-    transform: translateZ(0);
-}
-
-/* 7. FILTROS DE COLOR (Aplicados al wrapper para no afectar el modal de config) */
-body.filter-grayscale #wrapper {
-    filter: grayscale(100%);
-}
-
-body.filter-protanopia #wrapper {
-    filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'protanopia\'><feColorMatrix type=\'matrix\' values=\'0.567, 0.433, 0, 0, 0 0.558, 0.442, 0, 0, 0 0, 0.242, 0.758, 0, 0 0, 0, 0, 1, 0\'/></filter></svg>#protanopia");
-}
-
-body.filter-deuteranopia #wrapper {
-    filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'deuteranopia\'><feColorMatrix type=\'matrix\' values=\'0.625, 0.375, 0, 0, 0 0.7, 0.3, 0, 0, 0 0, 0.3, 0.7, 0, 0 0, 0, 0, 1, 0\'/></filter></svg>#deuteranopia");
-}
-
-body.filter-tritanopia #wrapper {
-    filter: url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'tritanopia\'><feColorMatrix type=\'matrix\' values=\'0.95, 0.05, 0, 0, 0 0, 0.433, 0.567, 0, 0 0, 0.475, 0.525, 0, 0 0, 0, 0, 1, 0\'/></filter></svg>#tritanopia");
-}
-
-/* Efecto para el Logo en Navbar */
-.brand-hover {
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    border: 2px solid transparent;
-    /* Reserva espacio para el borde */
-}
-
-.brand-hover:hover {
-    transform: scale(1.05);
-    /* Crece un poquito */
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2) !important;
-    /* Sombra más fuerte */
-    border-color: var(--cenco-green);
-    /* Borde verde sutil al pasar el mouse */
-}
-
-/* Ajuste para móviles */
-@media (max-width: 768px) {
-    .brand-hover {
-        height: 45px !important;
-        /* Un poco más pequeño en celular */
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-        min-width: auto !important;
-    }
-
-    .brand-hover img {
-        max-height: 30px !important;
-    }
-}
-
-/* =========================================
-   ESTILOS PÁGINA CHECKOUT
-   ========================================= */
-
-/* --- Mapas Leaflet --- */
-#mapa_seleccion,
-#mapa-retiro-inline,
-#mapa-direccion-guardada {
-    height: 250px;
-    width: 100%;
-    border-radius: 8px;
-    border: 2px solid #eee;
-    z-index: 1;
-}
-
-/* --- Radio Buttons (Tarjetas de Selección) --- */
-.btn-outline-cenco-indigo {
-    color: var(--cenco-indigo);
-    border: 2px solid #dee2e6;
-    background-color: white;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-.btn-outline-cenco-indigo:hover {
-    border-color: var(--cenco-indigo) !important;
-    background-color: #f8f9fa !important;
-    transform: translateY(-3px);
-}
-
-/* Estado Seleccionado */
-.btn-check:checked+.btn-outline-cenco-indigo {
-    background-color: var(--cenco-green) !important;
-    border-color: var(--cenco-green) !important;
-    color: white !important;
-    box-shadow: 0 8px 15px rgba(118, 192, 67, 0.3);
-}
-
-.btn-check:checked+.btn-outline-cenco-indigo .text-muted {
-    color: rgba(255, 255, 255, 0.9) !important;
-}
-
-/* --- Tarjetas de Detalle (Retiro y Dirección) --- */
-.sucursal-card-detail {
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    overflow: hidden;
-    animation: fadeIn 0.5s ease;
-    background: #fff;
-}
-
-.sucursal-info-list li {
-    padding: 6px 0;
-    border-bottom: 1px dashed #f0f0f0;
-    font-size: 0.9rem;
-    color: #6c757d;
-}
-
-.sucursal-info-list li:last-child {
-    border-bottom: none;
-}
-
-/* --- Badges y Alertas --- */
-.badge-gratis {
-    background-color: var(--cenco-green);
-    color: white;
-    font-size: 0.75rem;
-    padding: 4px 10px;
-    border-radius: 20px;
-    position: absolute;
-    top: -10px;
-    right: -10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-    animation: bounce 2s infinite;
-    font-weight: bold;
-    border: 2px solid white;
-    z-index: 10;
-}
-
-.shipping-alert {
-    background: #fff3cd;
-    border: 1px solid #ffeeba;
-    color: #856404;
-    border-radius: 12px;
-    padding: 15px;
-    font-size: 0.95rem;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-}
-
-/* --- Utilidades Checkout --- */
-.btn-lupa-azul {
-    background-color: #007bff;
-    color: white;
-    border: none;
-    padding: 0 15px;
-}
-
-.btn-lupa-azul:hover {
-    background-color: #0056b3;
-}
-
-/* Animaciones */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes bounce {
-
-    0%,
-    20%,
-    50%,
-    80%,
-    100% {
-        transform: translateY(0);
-    }
-
-    40% {
-        transform: translateY(-5px);
-    }
-
-    60% {
-        transform: translateY(-3px);
-    }
-}
-
+/* === ANIMACIONES === */
 @keyframes ping {
     0% { transform: scale(1); opacity: 1; }
-    70% { transform: scale(2); opacity: 0; }
+    70% { transform: scale(1.5); opacity: 0; }
     100% { transform: scale(1); opacity: 0; }
 }
+
 .animate-ping {
     animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 767.98px) {
+    #sidebar-wrapper {
+        margin-left: calc(var(--sidebar-width) * -1);
+        position: fixed;
+        height: 100vh;
+        z-index: 1500;
+    }
+    body.sb-sidenav-toggled #sidebar-wrapper { margin-left: 0; }
+}
+
+/* Personalización Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: var(--cenco-indigo); border-radius: 10px; }
+
+/* =========================================
+   RESCATE DE COLORES: CHECKOUT PREMIUM
+   ========================================= */
+
+/* 1. Tarjetas de Selección (Envío / Retiro) */
+.checkout-method-card {
+    border: 2px solid #eee !important;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    background: white;
+    cursor: pointer;
+    position: relative;
+}
+
+.checkout-method-card:hover {
+    border-color: var(--cenco-indigo) !important;
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+}
+
+/* Estado SELECCIONADO (La magia del color) */
+.btn-check:checked + .checkout-method-card {
+    background-color: #f0f9eb !important; /* Un toque verde muy sutil de fondo */
+    border-color: var(--cenco-green) !important;
+    box-shadow: 0 8px 20px rgba(118, 192, 67, 0.2) !important;
+}
+
+.btn-check:checked + .checkout-method-card i,
+.btn-check:checked + .checkout-method-card h5,
+.btn-check:checked + .checkout-method-card .fw-bold {
+    color: var(--cenco-green) !important; /* Iconos y textos se vuelven verdes al marcar */
+}
+
+/* 2. Resumen del Pedido (Colores de acento) */
+#resumen-fijo .card {
+    border-top: 5px solid var(--cenco-indigo) !important;
+}
+
+.text-total-checkout {
+    color: var(--cenco-red) !important;
+    font-size: 1.5rem;
+    font-weight: 900;
+}
+
+/* 3. Inputs y Labels (Más contraste) */
+.form-label.fw-bold {
+    color: var(--cenco-indigo) !important;
+    opacity: 0.9;
+}
+
+.form-control:focus {
+    border-color: var(--cenco-indigo) !important;
+    box-shadow: 0 0 0 0.25rem rgba(42, 27, 94, 0.1) !important;
+}
+
+/* 4. Mapa y Alertas */
+#mapa_seleccion, #mapa-retiro-inline {
+    border: 2px solid var(--cenco-indigo) !important;
+    border-radius: 12px;
+}
+
+.alert-success-soft {
+    background-color: #f0f9eb;
+    border: 1px solid var(--cenco-green);
+    color: #3c763d;
+}
+
+/* Badge de "¡GRATIS!" */
+.badge-promo-checkout {
+    background-color: var(--cenco-green);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-weight: 800;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
 }

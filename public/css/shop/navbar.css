@@ -1,0 +1,113 @@
+/* public/css/shop/navbar.css */
+
+:root {
+    --nav-height: 110px;
+    --z-index-navbar: 1060;
+    --z-index-offcanvas: 1050;
+    --z-index-modal: 1080;
+}
+
+/* 1. NAVBAR: CAPA FIJA */
+nav.navbar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--nav-height);
+    z-index: var(--z-index-navbar) !important;
+    background-color: var(--cenco-indigo) !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* 2. COMPENSACIÓN DEL CUERPO */
+body {
+    padding-top: var(--nav-height);
+    overflow-x: hidden;
+}
+
+/* 3. MENÚS LATERALES (OFFCANVAS) 
+   Se posicionan justo DEBAJO de la navbar */
+#offcanvasCategorias,
+#offcanvasCarrito,
+#adminSidebar {
+    top: var(--nav-height) !important;
+    height: calc(100vh - var(--nav-height)) !important;
+    z-index: var(--z-index-offcanvas) !important;
+    border-top: none !important;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Fondo oscuro solo para Offcanvas */
+.offcanvas-backdrop {
+    z-index: calc(var(--z-index-offcanvas) - 5) !important;
+    top: var(--nav-height) !important;
+}
+
+/* 4. MODALES: AUTORIDAD MÁXIMA 
+   Deben estar por encima de la Navbar para que Cencocalín no quede bloqueado */
+.modal {
+    z-index: var(--z-index-modal) !important;
+}
+
+.modal-backdrop {
+    z-index: calc(var(--z-index-modal) - 10) !important;
+}
+
+/* 5. FIX DE INTERACCIÓN Y SCROLL */
+/* Evita que el cuerpo salte cuando desaparece el scrollbar */
+body.modal-open, 
+body.offcanvas-open {
+    padding-right: 0 !important;
+    overflow: hidden;
+}
+
+/* Evita que elementos "invisibles" bloqueen clics (Relacionado con ARIA) */
+[aria-hidden="true"] {
+    pointer-events: none;
+}
+
+/* 6. PERSONALIZACIÓN DE SCROLLBAR (Estilo Cencocal) */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--cenco-indigo);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #303f9f;
+}
+
+/* 7. ANIMACIONES Y UTILIDADES */
+@keyframes ping {
+    0% { transform: scale(1); opacity: 1; }
+    70% { transform: scale(1.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 0; }
+}
+
+.animate-ping {
+    animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.hover-scale {
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.hover-scale:hover {
+    transform: scale(1.05);
+}
+
+.transition-hover {
+    transition: all 0.3s ease;
+}
+
+.transition-hover:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
