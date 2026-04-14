@@ -22,28 +22,6 @@ class Analytics
     // SECCIÓN 1: CAPTURA DE DATOS (ESCRITURA)
     // ==========================================================================
 
-    public function registrarVisita($url, $userId = null)
-    {
-        if ($this->esRutaExcluida($url)) return;
-
-        if (session_status() === PHP_SESSION_NONE) session_start();
-        
-        $sql = "INSERT INTO analytics_visitas (session_id, user_id, url, ip_address, user_agent) 
-                VALUES (:sid, :uid, :url, :ip, :agent)";
-
-        try {
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([
-                ':sid'   => session_id(),
-                ':uid'   => $userId,
-                ':url'   => $url,
-                ':ip'    => $_SERVER['REMOTE_ADDR'] ?? null,
-                ':agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
-            ]);
-        } catch (Exception $e) {
-            error_log("Analytics Write Error: " . $e->getMessage());
-        }
-    }
 
     public function registrarEvento($tipoEvento, $etiqueta)
     {
@@ -165,22 +143,38 @@ class Analytics
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function obtenerVisitasPorComuna($fechaInicio, $fechaFin, $busqueda = '')
-    {
-        list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'v');
-
-        $sql = "SELECT c.nombre as comuna, COUNT(*) as visitas
-                FROM analytics_visitas v
-                INNER JOIN usuarios u ON v.user_id = u.id
-                INNER JOIN comunas c ON u.comuna_id = c.id
-                $where
-                GROUP BY c.nombre ORDER BY visitas DESC";
-
+    public function registrarVisita($usuario_id, $comuna_id, $url, $ip, $agent) {
+    $sql = "INSERT INTO analitica_visitas (usuario_id, comuna_id, url_visitada, ip_address, user_agent, fecha) 
+            VALUES (?, ?, ?, ?, ?, NOW())";
+    
+    try {
         $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $stmt->execute([
+            $usuario_id, 
+            $comuna_id, // 🔥 El ID que rescatamos de la sesión
+            $url, 
+            $ip, 
+            $agent
+        ]);
+    } catch (Exception $e) {
+        error_log("Error en Analytics: " . $e->getMessage());
+        return false;
     }
+}
+public function obtenerVisitasPorComuna($desde, $hasta, $busqueda = '')
+{
+    // Ya no necesitamos entrar a direcciones_usuarios. ¡Directo al grano!
+    $sql = "SELECT c.nombre as comuna, COUNT(av.id) as visitas
+            FROM analitica_visitas av
+            INNER JOIN comunas c ON av.comuna_id = c.id
+            WHERE av.fecha BETWEEN ? AND ?
+            GROUP BY av.comuna_id
+            ORDER BY visitas DESC";
 
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute([$desde, $hasta]);
+    return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+}
     // ==========================================================================
     // HELPERS
     // ==========================================================================

@@ -8,7 +8,15 @@
             <p class="text-muted mb-0">Administra tu catálogo, precios y stock.</p>
         </div>
 
-        <div class="d-flex gap-2 mt-3 mt-md-0">
+        <div class="d-flex flex-wrap align-items-center gap-3 mt-3 mt-md-0">
+            <div class="bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-pill px-3 py-2 d-flex align-items-center shadow-sm">
+                <i class="bi bi-safe-fill text-primary fs-4 me-2"></i>
+                <div class="lh-1 text-start">
+                    <span class="d-block text-primary fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">TOTAL EN BODEGA</span>
+                    <span class="text-dark fw-black" style="font-size: 1.05rem;">$<?= number_format($totalValorizado ?? 0, 0, ',', '.') ?></span>
+                </div>
+            </div>
+
             <button type="button" id="btnExportar" class="btn btn-outline-success border shadow-sm fw-bold hover-scale">
                 <i class="bi bi-file-earmark-excel me-1"></i> Exportar
             </button>
@@ -21,10 +29,19 @@
         </div>
     </div>
 
+
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-body p-3">
+
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
+            <style>
+                .noUi-connect { background: var(--cenco-green); }
+                .noUi-handle { border: 2px solid var(--cenco-indigo); border-radius: 50%; box-shadow: none; cursor: grab; }
+                .noUi-handle:active { cursor: grabbing; }
+            </style>
+
             <form id="formFiltros" class="row g-3 align-items-center" onsubmit="return false;">
-                
+
                 <div class="col-md-2">
                     <div class="input-group">
                         <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
@@ -74,13 +91,17 @@
                 </div>
 
                 <div class="col-md-2">
-                    <select id="selectOrdenStock" class="form-select text-muted">
+                   <select id="selectOrdenStock" class="form-select text-muted">
                         <option value="">Ordenar por...</option>
-                        <optgroup label="Por Stock">
+                        <optgroup label="Por Stock Físico">
                             <option value="desc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'desc') ? 'selected' : '' ?>>Mayor a Menor Stock</option>
                             <option value="asc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'asc') ? 'selected' : '' ?>>Menor a Mayor Stock</option>
                         </optgroup>
-                        <optgroup label="Por Precio">
+                        <optgroup label="Por Valor en Bodega">
+                            <option value="valor_desc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'valor_desc') ? 'selected' : '' ?>>Mayor a Menor Valor ($)</option>
+                            <option value="valor_asc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'valor_asc') ? 'selected' : '' ?>>Menor a Mayor Valor ($)</option>
+                        </optgroup>
+                        <optgroup label="Por Precio Unitario">
                             <option value="precio_desc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'precio_desc') ? 'selected' : '' ?>>Mayor a Menor Precio</option>
                             <option value="precio_asc" <?= (isset($_GET['orden']) && $_GET['orden'] === 'precio_asc') ? 'selected' : '' ?>>Menor a Mayor Precio</option>
                         </optgroup>
@@ -99,6 +120,9 @@
                         <span class="visually-hidden">...</span>
                     </div>
                 </div>
+
+
+
             </form>
         </div>
     </div>
@@ -112,7 +136,8 @@
                             <th class="ps-4 py-3 text-muted small fw-bold text-uppercase border-0">Imagen</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0">Producto (Web / ERP)</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0">Precio</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Stock</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Stock Físico</th>
+                            <th class="py-3 text-cenco-indigo small fw-bold text-uppercase border-0 text-center bg-primary bg-opacity-10">Stock Valorizado</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Estado</th>
                             <th class="pe-4 py-3 text-muted small fw-bold text-uppercase border-0 text-end">Acciones</th>
                         </tr>
@@ -120,18 +145,17 @@
                     <tbody id="tablaResultados">
                         <?php if (empty($productos)): ?>
                             <tr>
-                                <td colspan="6" class="text-center py-5 text-muted">
+                                <td colspan="7" class="text-center py-5 text-muted">
                                     <i class="bi bi-search fs-1 d-block mb-2 opacity-50"></i>
                                     No se encontraron productos con esos filtros.
                                 </td>
                             </tr>
                             <?php else: foreach ($productos as $prod):
                                 $nombreERP = $prod->nombre ?? 'Sin Nombre';
-                                
-                                // 🔥 DETECCIÓN DE PRODUCTO DESCONTINUADO
+
                                 $esDescontinuado = (strpos(trim($nombreERP), '#') === 0);
                                 $claseFila = $esDescontinuado ? 'table-warning' : '';
-                                
+
                                 $nombreWeb = $prod->nombre_web ?? '<span class="text-danger small">No asignado</span>';
                                 $codigo = $prod->cod_producto ?? '---';
                                 $catNombre = $prod->categoria_nombre ?? 'General';
@@ -140,6 +164,9 @@
                                 $stock = $prod->stock ?? 0;
                                 $activo = $prod->activo ?? 0;
                                 $imgRaw = $prod->imagen ?? '';
+
+                                // 🔥 CÁLCULO DE STOCK VALORIZADO PARA LA VISTA
+                                $valorizado = $precio * $stock;
 
                                 if (empty($imgRaw)) $rutaImagen = BASE_URL . 'img/no-photo_small.png';
                                 elseif (strpos($imgRaw, 'http') === 0) $rutaImagen = $imgRaw;
@@ -186,6 +213,9 @@
                                         <?php elseif ($stock > 0): ?><span class="badge bg-warning bg-opacity-10 text-warning border border-warning px-2 rounded-pill"><?= $stock ?> un.</span>
                                         <?php else: ?><span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 rounded-pill">Agotado</span><?php endif; ?>
                                     </td>
+                                    <td class="text-center bg-primary bg-opacity-10 fw-black text-cenco-indigo">
+                                        $<?= number_format($valorizado, 0, ',', '.') ?>
+                                    </td>
                                     <td class="text-center">
                                         <?= $activo ? '<span class="badge rounded-pill bg-success px-3">Visible</span>' : '<span class="badge rounded-pill bg-secondary px-3">Oculto</span>' ?>
                                     </td>
@@ -201,26 +231,28 @@
                                 </tr>
                         <?php endforeach;
                         endif; ?>
-                   
                     </tbody>
                 </table>
             </div>
 
             <div id="paginacionContainer" class="card-footer bg-white border-top py-4">
-                <?php 
+                <?php
                 $urlParams = '';
                 if (!empty($_GET['q'])) $urlParams .= '&q=' . urlencode($_GET['q']);
                 if (!empty($_GET['categoria'])) $urlParams .= '&categoria=' . urlencode($_GET['categoria']);
                 if (!empty($_GET['marca'])) $urlParams .= '&marca=' . urlencode($_GET['marca']);
                 if (!empty($_GET['orden'])) $urlParams .= '&orden=' . urlencode($_GET['orden']);
                 if (!empty($_GET['filtro_stock'])) $urlParams .= '&filtro_stock=' . urlencode($_GET['filtro_stock']);
-                
+                // Retener parámetros del slider
+                if (isset($_GET['min_val'])) $urlParams .= '&min_val=' . urlencode($_GET['min_val']);
+                if (isset($_GET['max_val'])) $urlParams .= '&max_val=' . urlencode($_GET['max_val']);
+
                 if (isset($total_paginas) && $total_paginas > 1): ?>
                     <nav aria-label="Navegación de productos">
                         <ul class="pagination justify-content-center mb-0">
                             <li class="page-item <?= ($pagina_actual <= 1) ? 'disabled' : '' ?>">
-                                <a class="page-link rounded-start-pill px-3 <?= ($pagina_actual <= 1) ? 'text-muted bg-light' : 'text-cenco-indigo' ?>" 
-                                   href="<?= BASE_URL ?>admin/productos?page=<?= $pagina_actual - 1 ?><?= $urlParams ?>">
+                                <a class="page-link rounded-start-pill px-3 <?= ($pagina_actual <= 1) ? 'text-muted bg-light' : 'text-cenco-indigo' ?>"
+                                    href="<?= BASE_URL ?>admin/productos?page=<?= $pagina_actual - 1 ?><?= $urlParams ?>">
                                     <i class="bi bi-chevron-left small me-1"></i> Anterior
                                 </a>
                             </li>
@@ -231,8 +263,8 @@
                                 if ($i == 1 || $i == $total_paginas || ($i >= $pagina_actual - $rango && $i <= $pagina_actual + $rango)):
                             ?>
                                     <li class="page-item <?= ($pagina_actual == $i) ? 'active' : '' ?>">
-                                        <a class="page-link <?= ($pagina_actual == $i) ? 'bg-cenco-indigo border-cenco-indigo' : 'text-muted' ?>" 
-                                           href="<?= BASE_URL ?>admin/productos?page=<?= $i ?><?= $urlParams ?>"><?= $i ?></a>
+                                        <a class="page-link <?= ($pagina_actual == $i) ? 'bg-cenco-indigo border-cenco-indigo' : 'text-muted' ?>"
+                                            href="<?= BASE_URL ?>admin/productos?page=<?= $i ?><?= $urlParams ?>"><?= $i ?></a>
                                     </li>
                                 <?php elseif ($i == $pagina_actual - $rango - 1 || $i == $pagina_actual + $rango + 1): ?>
                                     <li class="page-item disabled"><span class="page-link border-0 text-muted">...</span></li>
@@ -240,8 +272,8 @@
                             endfor; ?>
 
                             <li class="page-item <?= ($pagina_actual >= $total_paginas) ? 'disabled' : '' ?>">
-                                <a class="page-link rounded-end-pill px-3 <?= ($pagina_actual >= $total_paginas) ? 'text-muted bg-light' : 'text-cenco-indigo' ?>" 
-                                   href="<?= BASE_URL ?>admin/productos?page=<?= $pagina_actual + 1 ?><?= $urlParams ?>">
+                                <a class="page-link rounded-end-pill px-3 <?= ($pagina_actual >= $total_paginas) ? 'text-muted bg-light' : 'text-cenco-indigo' ?>"
+                                    href="<?= BASE_URL ?>admin/productos?page=<?= $pagina_actual + 1 ?><?= $urlParams ?>">
                                     Siguiente <i class="bi bi-chevron-right small ms-1"></i>
                                 </a>
                             </li>
@@ -264,10 +296,8 @@
                 <div class="bg-light rounded-4 p-3 mb-3 d-inline-block shadow-sm">
                     <img id="modalProdImagen" src="" alt="Producto" class="img-fluid object-fit-contain" style="max-height: 200px; max-width: 250px;">
                 </div>
-                
                 <h5 id="modalProdWeb" class="fw-bold text-dark mb-1">Nombre Web</h5>
                 <p id="modalProdERP" class="text-muted small mb-3"><i class="bi bi-box me-1"></i> Nombre ERP</p>
-                
                 <div class="row g-2 justify-content-center">
                     <div class="col-4">
                         <div class="p-2 border rounded-3 bg-white">
@@ -293,6 +323,8 @@
     </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+
 <script>
     let modalInstance = null;
 
@@ -301,26 +333,64 @@
 
         const inputBusqueda = document.getElementById('inputBusqueda');
         const selectCategoria = document.getElementById('selectCategoria');
-        const selectMarca = document.getElementById('selectMarca'); // Nuevo
-        const selectFiltroStock = document.getElementById('selectFiltroStock'); 
-        const selectOrdenStock = document.getElementById('selectOrdenStock'); 
+        const selectMarca = document.getElementById('selectMarca'); 
+        const selectFiltroStock = document.getElementById('selectFiltroStock');
+        const selectOrdenStock = document.getElementById('selectOrdenStock');
         const btnLimpiar = document.getElementById('btnLimpiar');
-        const btnExportar = document.getElementById('btnExportar'); 
+        const btnExportar = document.getElementById('btnExportar');
         const spinner = document.getElementById('loadingSpinner');
         let timeout = null;
 
-        function aplicarFiltros() {
+        // 🔥 INICIALIZAR EL SLIDER INTELIGENTE
+        const inputMin = document.getElementById('inputMinVal');
+        const inputMax = document.getElementById('inputMaxVal');
+        const slider = document.getElementById('slider-valorizado');
+        
+        if (slider) {
+            noUiSlider.create(slider, {
+                start: [inputMin.value, inputMax.value],
+                connect: true,
+                step: 50000, 
+                range: {
+                    'min': 0,
+                    'max': 10000000
+                },
+                format: {
+                    to: value => Math.round(value),
+                    from: value => Number(value)
+                }
+            });
+
+            slider.noUiSlider.on('update', function (values, handle) {
+                if (handle === 0) {
+                    document.getElementById('val-min').innerText = '$' + values[0].toLocaleString('es-CL');
+                    inputMin.value = values[0];
+                } else {
+                    let textMax = '$' + values[1].toLocaleString('es-CL');
+                    if(values[1] == 10000000) textMax += '+';
+                    document.getElementById('val-max').innerText = textMax;
+                    inputMax.value = values[1];
+                }
+            });
+
+            // Dispara el filtro al soltar el slider
+            slider.noUiSlider.on('change', function () {
+                aplicarFiltros();
+            });
+        }
+
+      function aplicarFiltros() {
             const q = inputBusqueda.value.trim();
             const cat = selectCategoria.value;
-            const marca = selectMarca.value; // Capturamos marca
+            const marca = selectMarca.value; 
             const stock = selectFiltroStock.value;
             const orden = selectOrdenStock.value;
 
             if (spinner) spinner.classList.remove('d-none');
 
+            // URL Limpia sin variables del slider
             window.location.href = `<?= BASE_URL ?>admin/productos?q=${encodeURIComponent(q)}&categoria=${encodeURIComponent(cat)}&marca=${encodeURIComponent(marca)}&filtro_stock=${encodeURIComponent(stock)}&orden=${encodeURIComponent(orden)}`;
         }
-
         inputBusqueda.addEventListener('input', function() {
             clearTimeout(timeout);
             timeout = setTimeout(aplicarFiltros, 800);
@@ -334,7 +404,7 @@
         });
 
         selectCategoria.addEventListener('change', aplicarFiltros);
-        selectMarca.addEventListener('change', aplicarFiltros); // Escuchador marca
+        selectMarca.addEventListener('change', aplicarFiltros); 
         selectFiltroStock.addEventListener('change', aplicarFiltros);
         selectOrdenStock.addEventListener('change', aplicarFiltros);
 
@@ -345,36 +415,39 @@
                 selectMarca.value = '';
                 selectFiltroStock.value = '';
                 selectOrdenStock.value = '';
-                aplicarFiltros(); 
+                if(slider) slider.noUiSlider.set([0, 10000000]); // Resetea el slider
+                aplicarFiltros();
             });
         }
 
-        if(btnExportar) {
+        if (btnExportar) {
             btnExportar.addEventListener('click', function() {
                 const q = inputBusqueda.value.trim();
                 const cat = selectCategoria.value;
                 const marca = selectMarca.value;
                 const stock = selectFiltroStock.value;
                 const orden = selectOrdenStock.value;
-                
-                window.location.href = `<?= BASE_URL ?>admin/exportarProductosExcel?q=${encodeURIComponent(q)}&categoria=${encodeURIComponent(cat)}&marca=${encodeURIComponent(marca)}&filtro_stock=${encodeURIComponent(stock)}&orden=${encodeURIComponent(orden)}`;
+                const minV = inputMin ? inputMin.value : 0;
+                const maxV = inputMax ? inputMax.value : 10000000;
+
+                window.location.href = `<?= BASE_URL ?>admin/exportarProductosExcel?q=${encodeURIComponent(q)}&categoria=${encodeURIComponent(cat)}&marca=${encodeURIComponent(marca)}&filtro_stock=${encodeURIComponent(stock)}&orden=${encodeURIComponent(orden)}&min_val=${minV}&max_val=${maxV}`;
             });
         }
     });
 
-    // ABRIR MODAL (Asignación inversa ERP/WEB aplicada)
+    // ABRIR MODAL
     function abrirModalResumen(btn) {
         const data = JSON.parse(btn.getAttribute('data-producto'));
-        
+
         document.getElementById('modalProdImagen').src = data.imagen;
-        document.getElementById('modalProdWeb').innerHTML = data.nombreWeb; 
-        document.getElementById('modalProdERP').innerHTML = '<i class="bi bi-box me-1"></i>' + data.nombreERP; 
+        document.getElementById('modalProdWeb').innerHTML = data.nombreWeb;
+        document.getElementById('modalProdERP').innerHTML = '<i class="bi bi-box me-1"></i>' + data.nombreERP;
         document.getElementById('modalProdPrecio').textContent = '$' + data.precio;
         document.getElementById('modalProdStock').textContent = data.stock;
-        
+
         const elEstado = document.getElementById('modalProdEstado');
         elEstado.textContent = data.estado;
-        if(data.estado === 'Visible') {
+        if (data.estado === 'Visible') {
             elEstado.className = 'text-success fs-6 mt-1 d-block';
         } else {
             elEstado.className = 'text-secondary fs-6 mt-1 d-block';
@@ -425,7 +498,7 @@
 
     function actualizarBadgeEstado(btn, activo) {
         const row = btn.closest('tr');
-        const cell = row.cells[4]; 
+        const cell = row.cells[5]; // Ahora el estado está en la columna 5 por la nueva de Stock Valorizado
         if (activo) {
             cell.innerHTML = '<span class="badge rounded-pill bg-success px-3">Visible</span>';
         } else {
@@ -434,8 +507,20 @@
     }
 
     function confirmarEliminar(id) {
-        if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
-            window.location.href = '<?= BASE_URL ?>admin/producto/eliminar/' + id;
-        }
+        Swal.fire({
+            title: '¿Estás segura?',
+            text: "¡No podrás revertir esto! El producto se eliminará de la base de datos.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="bi bi-trash-fill me-1"></i> Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = '<?= BASE_URL ?>admin/producto/eliminar/' + id;
+            }
+        });
     }
 </script>

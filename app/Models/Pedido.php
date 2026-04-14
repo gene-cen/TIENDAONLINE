@@ -653,4 +653,94 @@ class Pedido
             return false;
         }
     }
+
+    // En app/Models/Pedido.php
+
+/**
+ * Obtiene todas las métricas consolidadas para el Dashboard Administrativo
+ */
+public function obtenerMetricasDashboard($desde, $hasta, $sucursalAsignada = null)
+{
+    $params = [':desde' => $desde, ':hasta' => $hasta];
+    $filtroSucursal = "";
+    $filtroSucursalTop = "";
+
+    if (!empty($sucursalAsignada)) {
+        $filtroSucursal = " AND sucursal_codigo = :sucursal";
+        $filtroSucursalTop = " AND ped.sucursal_codigo = :sucursal";
+        $params[':sucursal'] = strval($sucursalAsignada);
+    }
+
+    // 1. Venta Total y Despachos
+    $sqlVenta = "SELECT COALESCE(SUM(monto_total), 0) as total_general, 
+                        COALESCE(SUM(costo_envio), 0) as total_despacho
+                 FROM pedidos 
+                 WHERE estado_pedido_id NOT IN (1, 6) $filtroSucursal 
+                 AND DATE(fecha_creacion) BETWEEN :desde AND :hasta";
+    $stmtVenta = $this->db->prepare($sqlVenta);
+    $stmtVenta->execute($params);
+    $rowVenta = $stmtVenta->fetch(PDO::FETCH_ASSOC);
+
+    // 2. Pedidos Pendientes
+    $sqlPend = "SELECT COUNT(*) FROM pedidos WHERE estado_pedido_id = 1" . 
+               (!empty($sucursalAsignada) ? " AND sucursal_codigo = :sucursal" : "");
+    $paramsPend = !empty($sucursalAsignada) ? [':sucursal' => strval($sucursalAsignada)] : [];
+    $stmtPend = $this->db->prepare($sqlPend);
+    $stmtPend->execute($paramsPend);
+    $pendientes = $stmtPend->fetchColumn();
+
+    // 3. Gráfico de Ventas
+    $sqlGrafico = "SELECT DATE_FORMAT(fecha_creacion, '%d/%m') as fecha, SUM(monto_total) as total 
+                   FROM pedidos 
+                   WHERE estado_pedido_id NOT IN (1, 6) $filtroSucursal 
+                   AND DATE(fecha_creacion) BETWEEN :desde AND :hasta 
+                   GROUP BY DATE(fecha_creacion) ORDER BY fecha_creacion ASC";
+    $stmtGraf = $this->db->prepare($sqlGrafico);
+    $stmtGraf->execute($params);
+    $datosGrafico = $stmtGraf->fetchAll(PDO::FETCH_ASSOC);
+
+    // 4. Top 5 Productos (Usando el Modelo Producto para el nombre)
+    $sqlTop = "SELECT p.nombre, SUM(dp.cantidad) as vendidos 
+               FROM pedidos_detalle dp 
+               JOIN pedidos ped ON dp.pedido_id = ped.id 
+               JOIN productos p ON dp.producto_id = p.id 
+               WHERE ped.estado_pedido_id NOT IN (1, 6) $filtroSucursalTop 
+               AND DATE(ped.fecha_creacion) BETWEEN :desde AND :hasta 
+               GROUP BY p.id ORDER BY vendidos DESC LIMIT 5";
+    $stmtTop = $this->db->prepare($sqlTop);
+    $stmtTop->execute($params);
+    $topProductos = $stmtTop->fetchAll(PDO::FETCH_ASSOC);
+
+    return [
+        'venta_periodo'   => (float)$rowVenta['total_general'],
+        'ingreso_despacho' => (float)$rowVenta['total_despacho'],
+        'pendientes'      => $pendientes,
+        'datos_grafico'   => $datosGrafico,
+        'top_productos'   => $topProductos
+    ];
+}
+
+// En app/Models/Pedido.php (Añadir este método)
+
+public function obtenerUltimosPedidos($sucursalCodigo = null, $limite = 5)
+{
+    $filtro = "";
+    $params = [];
+
+    if (!empty($sucursalCodigo)) {
+        $filtro = " WHERE p.sucursal_codigo = :sucursal";
+        $params[':sucursal'] = strval($sucursalCodigo);
+    }
+
+    $sql = "SELECT p.*, u.nombre as nombre_cliente, ep.nombre as estado, ep.badge_class as color_estado 
+            FROM pedidos p 
+            LEFT JOIN usuarios u ON p.usuario_id = u.id 
+            LEFT JOIN estados_pedido ep ON p.estado_pedido_id = ep.id 
+            $filtro 
+            ORDER BY p.id DESC LIMIT " . (int)$limite;
+
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+}
 }

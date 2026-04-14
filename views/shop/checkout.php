@@ -5,9 +5,9 @@
 $umbralEnvioGratis = 39950;
 $umbralAlerta = 30000;
 $costoDespachoFijo = 2990;
-$costoServicioFijo = 490; 
+$costoServicioFijo = 490;
 
-$esAdmin = (isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin');
+$esAdmin = (isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2]));
 $esInvitado = !isset($_SESSION['user_id']);
 
 $sucursalActivaID = $_SESSION['sucursal_activa'] ?? 29;
@@ -20,7 +20,9 @@ $listaComunasFiltrada = array_filter($listaComunas ?? [], function ($c) use ($su
 
 $totalCarro = 0;
 if (!empty($_SESSION['carrito'])) {
-    foreach ($_SESSION['carrito'] as $item) { $totalCarro += $item['precio'] * $item['cantidad']; }
+    foreach ($_SESSION['carrito'] as $item) {
+        $totalCarro += $item['precio'] * $item['cantidad'];
+    }
 }
 
 $costoEnvio = ($totalCarro >= $umbralEnvioGratis) ? 0 : $costoDespachoFijo;
@@ -30,9 +32,13 @@ $mostrarAlerta = ($totalCarro >= $umbralAlerta && $totalCarro < $umbralEnvioGrat
 $jsSucursales = [];
 foreach ($sucursales as $s) {
     $jsSucursales[] = [
-        'codigo' => $s['codigo_erp'], 'nombre' => $s['nombre'], 'direccion' => $s['direccion'],
-        'comuna' => $s['nombre_comuna'] ?? 'Sin Comuna', 'lat' => !empty($s['latitud']) ? floatval($s['latitud']) : 0,
-        'lng' => !empty($s['longitud']) ? floatval($s['longitud']) : 0, 'horario' => $s['horario'] ?? '09:00 - 19:00',
+        'codigo' => $s['codigo_erp'],
+        'nombre' => $s['nombre'],
+        'direccion' => $s['direccion'],
+        'comuna' => $s['nombre_comuna'] ?? 'Sin Comuna',
+        'lat' => !empty($s['latitud']) ? floatval($s['latitud']) : 0,
+        'lng' => !empty($s['longitud']) ? floatval($s['longitud']) : 0,
+        'horario' => $s['horario'] ?? '09:00 - 19:00',
         'fono' => $s['fono'] ?? ''
     ];
 }
@@ -64,8 +70,13 @@ foreach ($sucursales as $s) {
                                 <div class="card border-primary border-2 bg-white rounded-4 p-4 shadow-sm">
                                     <h5 class="fw-bold text-primary mb-3 border-bottom pb-2"><i class="bi bi-person-vcard me-2"></i>Datos del Cliente</h5>
                                     <div class="row g-3">
-                                        <div class="col-md-6"><label class="small fw-bold text-dark">RUT Cliente *</label><input type="text" name="asistido_rut" id="asistido_rut" class="form-control border-primary" placeholder="12.345.678-9" maxlength="12" oninput="formatearRut(this)" onblur="verificarRutCliente(this.value)"></div>
-                                        <div class="col-md-6"><label class="small fw-bold text-dark">Teléfono Contacto *</label><div class="input-group"><span class="input-group-text bg-light border-primary">+569</span><input type="tel" name="asistido_telefono" id="asistido_telefono" class="form-control border-primary" maxlength="8" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></div></div>
+                                        <div class="col-md-6">
+                                            <label class="small fw-bold text-dark">RUT Cliente *</label>
+                                            <input type="text" name="asistido_rut" id="asistido_rut" class="form-control border-primary" placeholder="12.345.678-9" maxlength="12" oninput="this.value = formatearRut(this.value)" onblur="verificarRutCliente(this.value)">
+                                        </div>
+                                        <div class="col-md-6"><label class="small fw-bold text-dark">Teléfono Contacto *</label>
+                                            <div class="input-group"><span class="input-group-text bg-light border-primary">+569</span><input type="tel" name="asistido_telefono" id="asistido_telefono" class="form-control border-primary" maxlength="8" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></div>
+                                        </div>
                                         <div class="col-md-6"><label class="small fw-bold text-dark">Primer Nombre *</label><input type="text" name="asistido_p_nombre" id="asistido_p_nombre" class="form-control border-primary" oninput="capitalizarLetras(this)"></div>
                                         <div class="col-md-6"><label class="small fw-bold text-dark">Segundo Nombre</label><input type="text" name="asistido_s_nombre" class="form-control border-primary" oninput="capitalizarLetras(this)"></div>
                                         <div class="col-md-6"><label class="small fw-bold text-dark">Primer Apellido *</label><input type="text" name="asistido_p_apellido" id="asistido_p_apellido" class="form-control border-primary" oninput="capitalizarLetras(this)"></div>
@@ -77,20 +88,27 @@ foreach ($sucursales as $s) {
                         <?php else: ?>
                             <div id="datos_cliente_normal">
                                 <div class="row mb-3">
-                                    <div class="col-md-6"><label class="fw-bold text-muted small mb-1">Cliente</label><div class="p-2 bg-light rounded border small fw-bold text-truncate"><?= htmlspecialchars($usuario->nombre ?? 'Invitado') ?></div></div>
-                                    <div class="col-md-6"><label class="fw-bold text-muted small mb-1">RUT</label><div class="p-2 bg-light rounded border small fw-bold"><?= htmlspecialchars($usuario->rut ?? 'No Registrado') ?></div></div>
+                                    <div class="col-md-6"><label class="fw-bold text-muted small mb-1">Cliente</label>
+                                        <div class="p-2 bg-light rounded border small fw-bold text-truncate"><?= htmlspecialchars($usuario->nombre ?? 'Invitado') ?></div>
+                                    </div>
+                                    <div class="col-md-6"><label class="fw-bold text-muted small mb-1">RUT</label>
+                                        <div class="p-2 bg-light rounded border small fw-bold"><?= htmlspecialchars($usuario->rut ?? 'No Registrado') ?></div>
+                                    </div>
                                 </div>
                                 <div class="mb-4">
                                     <div class="row g-3">
-                                        <div class="col-md-6"><label class="fw-bold text-muted small mb-1">Teléfono Titular</label><div class="input-group"><span class="input-group-text bg-light"><i class="bi bi-person-check text-success"></i></span><input type="text" name="telefono_contacto" class="form-control bg-light" value="<?= htmlspecialchars($usuario->telefono_principal ?? '') ?>" <?= $esInvitado ? 'placeholder="Ej: 98765432" required' : 'readonly' ?>></div></div>
+                                        <div class="col-md-6"><label class="fw-bold text-muted small mb-1">Teléfono Titular</label>
+                                            <div class="input-group"><span class="input-group-text bg-light"><i class="bi bi-person-check text-success"></i></span><input type="text" name="telefono_contacto" class="form-control bg-light" value="<?= htmlspecialchars($usuario->telefono_principal ?? '') ?>" <?= $esInvitado ? 'placeholder="Ej: 98765432" required' : 'readonly' ?>></div>
+                                        </div>
                                         <?php if (!$esInvitado): ?>
                                             <div class="col-md-6">
                                                 <label class="fw-bold text-cenco-indigo small mb-1">Segundo Contacto</label>
                                                 <select class="form-select shadow-sm" id="selector_segundo_contacto" name="telefono_seleccionado_2" onchange="gestionarSegundoTelefono()">
                                                     <option value="">-- No indicar otro número --</option>
                                                     <?php foreach ($telefonos ?? [] as $tel): if (!$tel->es_principal): ?>
-                                                        <option value="<?= htmlspecialchars($tel->numero) ?>"><?= htmlspecialchars($tel->alias) ?>: <?= htmlspecialchars($tel->numero) ?></option>
-                                                    <?php endif; endforeach; ?>
+                                                            <option value="<?= htmlspecialchars($tel->numero) ?>"><?= htmlspecialchars($tel->alias) ?>: <?= htmlspecialchars($tel->numero) ?></option>
+                                                    <?php endif;
+                                                    endforeach; ?>
                                                     <option value="nuevo" class="text-primary fw-bold">+ Añadir nuevo número...</option>
                                                 </select>
                                             </div>
@@ -100,7 +118,9 @@ foreach ($sucursales as $s) {
                                         <div id="wrapper_nuevo_segundo_tel" class="d-none mt-3 p-3 bg-light rounded-3 border border-primary border-opacity-25 shadow-sm">
                                             <h6 class="small fw-bold text-cenco-indigo mb-2"><i class="bi bi-telephone-plus me-1"></i> Añadir Nuevo Contacto</h6>
                                             <div class="row g-2">
-                                                <div class="col-md-7"><label class="form-label small fw-bold">Número</label><div class="input-group shadow-sm rounded-3 overflow-hidden"><span class="input-group-text bg-white border-0 text-muted fw-bold">+569</span><input type="tel" id="telefono_nuevo_2" name="telefono_nuevo_2" class="form-control bg-white border-0" maxlength="8"></div></div>
+                                                <div class="col-md-7"><label class="form-label small fw-bold">Número</label>
+                                                    <div class="input-group shadow-sm rounded-3 overflow-hidden"><span class="input-group-text bg-white border-0 text-muted fw-bold">+569</span><input type="tel" id="telefono_nuevo_2" name="telefono_nuevo_2" class="form-control bg-white border-0" maxlength="8"></div>
+                                                </div>
                                                 <div class="col-md-5"><label class="small text-muted">Alias</label><input type="text" name="nuevo_alias_2" class="form-control form-control-sm" placeholder="Nombre"></div>
                                                 <div class="mt-3 d-flex align-items-center"><input type="hidden" name="guardar_nuevo_2" id="hidden_save_tel2" value="0"><button type="button" class="btn btn-sm btn-outline-cenco-indigo rounded-pill fw-bold px-3 transition-hover" id="btnConfirmarTel" onclick="confirmarNuevoTelefono()">Vincular Contacto</button></div>
                                             </div>
@@ -116,20 +136,22 @@ foreach ($sucursales as $s) {
                         <div class="row g-3 mb-4">
                             <div class="col-6">
                                 <input type="radio" class="btn-check" name="tipo_entrega" id="opcion_despacho" value="1" <?= $esSoloRetiro ? 'disabled' : 'checked' ?> onchange="cambiarMetodoEntrega()">
-                                <label class="btn btn-outline-cenco-indigo w-100 py-3 d-flex flex-column align-items-center justify-content-center gap-1 h-100 shadow-sm border-2 rounded-3 <?= $esSoloRetiro ? 'opacity-50 bg-light' : '' ?>" for="opcion_despacho" style="min-height: 120px;">
+                                <label class="btn btn-outline-cenco-indigo checkout-method-card w-100 py-3 d-flex flex-column align-items-center justify-content-center gap-1 h-100 shadow-sm border-2 rounded-3 <?= $esSoloRetiro ? 'opacity-50 bg-light' : '' ?>" for="opcion_despacho" style="min-height: 120px;">
                                     <i class="bi bi-house-door-fill fs-2"></i> <span class="fw-bold">A Domicilio</span>
                                     <?php if ($esSoloRetiro): ?>
                                         <span class="badge bg-danger mt-2 text-wrap shadow-sm"><i class="bi bi-cone-striped me-1"></i>No disponible</span>
                                     <?php else: ?>
-                                        <span class="small text-muted"><?= ($totalCarro >= $umbralEnvioGratis) ? '<span class="text-success fw-bold">¡GRATIS!</span>' : '$' . number_format($costoDespachoFijo, 0, ',', '.') ?></span>
+                                        <span class="small fw-bold"><?= ($totalCarro >= $umbralEnvioGratis) ? '<span class="text-success fw-black">¡GRATIS!</span>' : '$' . number_format($costoDespachoFijo, 0, ',', '.') ?></span>
                                         <span class="badge bg-light text-dark border mt-1"><i class="bi bi-clock text-primary"></i> 09:00 a 19:00 hrs</span>
                                     <?php endif; ?>
                                 </label>
                             </div>
+
                             <div class="col-6">
                                 <input type="radio" class="btn-check" name="tipo_entrega" id="opcion_retiro" value="2" <?= $esSoloRetiro ? 'checked' : '' ?> onchange="cambiarMetodoEntrega()">
-                                <label class="btn btn-outline-cenco-indigo w-100 py-3 d-flex flex-column align-items-center justify-content-center gap-2 h-100 shadow-sm border-2 position-relative rounded-3" for="opcion_retiro" style="min-height: 120px;">
-                                    <span class="badge-gratis">¡GRATIS!</span> <i class="bi bi-shop fs-2"></i> <span class="fw-bold">Retiro en Tienda</span> <span class="small text-muted">$0</span>
+                                <label class="btn btn-outline-cenco-indigo checkout-method-card w-100 py-3 d-flex flex-column align-items-center justify-content-center gap-2 h-100 shadow-sm border-2 position-relative rounded-3" for="opcion_retiro" style="min-height: 120px;">
+                                    <span class="badge-promo-checkout position-absolute top-0 start-50 translate-middle">¡GRATIS!</span>
+                                    <i class="bi bi-shop fs-2 mt-2"></i> <span class="fw-bold">Retiro en Tienda</span> <span class="small fw-bold">$0</span>
                                 </label>
                             </div>
                         </div>
@@ -137,14 +159,19 @@ foreach ($sucursales as $s) {
                         <div id="alerta-envio-gratis" class="mb-4 <?= $mostrarAlerta ? '' : 'd-none' ?>">
                             <div class="shipping-alert animate__animated animate__pulse">
                                 <i class="bi bi-piggy-bank-fill fs-3 text-warning"></i>
-                                <div><strong>¡Estás muy cerca!</strong><div class="small">Agrega <span class="fw-bold text-dark">$<?= number_format($faltaParaGratis, 0, ',', '.') ?></span> más para envío gratis.</div></div>
+                                <div><strong>¡Estás muy cerca!</strong>
+                                    <div class="small">Agrega <span class="fw-bold text-dark">$<?= number_format($faltaParaGratis, 0, ',', '.') ?></span> más para envío gratis.</div>
+                                </div>
                             </div>
                         </div>
 
                         <div id="bloque_despacho">
                             <div class="alert alert-primary bg-primary bg-opacity-10 border-0 shadow-sm d-flex align-items-center mb-4 p-3 rounded-4">
                                 <i class="bi bi-info-circle-fill text-primary fs-2 me-3"></i>
-                                <div><h6 class="fw-bold text-primary mb-1">Condiciones de Entrega</h6><p class="mb-0 text-dark small">Entregas de Lunes a Viernes entre 09:00 y 19:00 hrs.</p></div>
+                                <div>
+                                    <h6 class="fw-bold text-primary mb-1">Condiciones de Entrega</h6>
+                                    <p class="mb-0 text-dark small">Entregas de Lunes a Viernes entre 09:00 y 19:00 hrs.</p>
+                                </div>
                             </div>
 
                             <div class="mb-3" style="<?= ($esAdmin || $esInvitado) ? 'display:none;' : '' ?>">
@@ -167,8 +194,12 @@ foreach ($sucursales as $s) {
                             <div id="contenedor-detalle-direccion" class="mb-3" style="<?= ($esAdmin || $esInvitado) ? 'display:none;' : '' ?>">
                                 <div class="sucursal-card-detail shadow-sm">
                                     <div class="row g-0">
-                                        <div class="col-md-5 bg-light p-3"><h6 class="fw-bold text-cenco-indigo mb-3" id="card-dir-alias">...</h6><span id="card-dir-texto" class="fw-bold text-dark small">...</span></div>
-                                        <div class="col-md-7"><div id="mapa-direccion-guardada"></div></div>
+                                        <div class="col-md-5 bg-light p-3">
+                                            <h6 class="fw-bold text-cenco-indigo mb-3" id="card-dir-alias">...</h6><span id="card-dir-texto" class="fw-bold text-dark small">...</span>
+                                        </div>
+                                        <div class="col-md-7">
+                                            <div id="mapa-direccion-guardada"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -182,7 +213,7 @@ foreach ($sucursales as $s) {
                                     <label class="fw-bold small">Comuna *</label>
                                     <select name="nueva_comuna_id" id="selectComuna" class="form-select border-cenco-indigo" onchange="centrarMapaEnComuna()">
                                         <option value="">Selecciona comuna...</option>
-                                        <?php foreach ($listaComunasFiltrada as $c) echo '<option value="' . (is_object($c)?$c->id:$c['id']) . '">' . htmlspecialchars(is_object($c)?$c->nombre:$c['nombre']) . '</option>'; ?>
+                                        <?php foreach ($listaComunasFiltrada as $c) echo '<option value="' . (is_object($c) ? $c->id : $c['id']) . '">' . htmlspecialchars(is_object($c) ? $c->nombre : $c['nombre']) . '</option>'; ?>
                                     </select>
                                 </div>
                                 <div class="mb-3">
@@ -198,10 +229,12 @@ foreach ($sucursales as $s) {
                             <input type="hidden" name="direccion" id="direccion_final_texto" value="<?= htmlspecialchars($usuario->direccion ?? '') ?>">
                         </div>
 
-                       <div id="bloque_retiro" class="d-none">
+                        <div id="bloque_retiro" class="d-none">
                             <div class="mb-3">
                                 <label class="fw-bold text-cenco-indigo small mb-1">Sucursal de Retiro</label>
-                                <select id="filtro_comuna_retiro" class="form-select border-cenco-green" disabled><option selected><?= $comunaRetiroPredefinida ?></option></select>
+                                <select id="filtro_comuna_retiro" class="form-select border-cenco-green" disabled>
+                                    <option selected><?= $comunaRetiroPredefinida ?></option>
+                                </select>
                             </div>
                             <div id="contenedor-detalle-sucursal" class="d-none">
                                 <div class="sucursal-card-detail shadow-sm border border-success border-opacity-25 rounded-4 overflow-hidden">
@@ -214,10 +247,16 @@ foreach ($sucursales as $s) {
                                                 <li class="d-flex align-items-center"><i class="bi bi-telephone text-primary me-2"></i><span id="card-sucursal-fono">...</span></li>
                                             </ul>
                                         </div>
-                                        <div class="col-md-7"><div id="mapa-retiro-inline" style="height: 180px;"></div></div>
+                                        <div class="col-md-7">
+                                            <div id="mapa-retiro-inline" style="height: 180px;"></div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="alert alert-success d-flex align-items-center mt-3 py-2 px-3 rounded-3 shadow-sm border-0"><i class="bi bi-check-circle-fill fs-4 me-2"></i><div><small class="fw-bold">¡Confirmada!</small><div style="font-size:0.75rem;">Retiro sin costo.</div></div></div>
+                                <div class="alert alert-success d-flex align-items-center mt-3 py-2 px-3 rounded-3 shadow-sm border-0"><i class="bi bi-check-circle-fill fs-4 me-2"></i>
+                                    <div><small class="fw-bold">¡Confirmada!</small>
+                                        <div style="font-size:0.75rem;">Retiro sin costo.</div>
+                                    </div>
+                                </div>
                             </div>
                             <input type="hidden" name="sucursal_codigo" id="input_sucursal_codigo">
                         </div>
@@ -233,16 +272,17 @@ foreach ($sucursales as $s) {
                     <h5 class="fw-black mb-4 text-cenco-indigo ls-1">Resumen del Pedido</h5>
 
                     <div class="mb-3 border-bottom pb-3 pe-3 pt-2" style="max-height: 250px; overflow-y: auto;">
-                        <?php if (!empty($_SESSION['carrito'])): foreach ($_SESSION['carrito'] as $item): $img = !empty($item['imagen']) ? (strpos($item['imagen'], 'http')===0?$item['imagen']:BASE_URL.'img/productos/'.$item['imagen']) : BASE_URL.'img/no-image.png'; ?>
-                            <div class="d-flex align-items-center mb-3 item-carrito-resumen">
-                                <div class="position-relative me-3 mt-1">
-                                    <img src="<?= $img ?>" class="rounded border bg-white" style="width: 50px; height: 50px; object-fit: contain;">
-                                    <span class="position-absolute badge rounded-pill bg-cenco-indigo shadow-sm qty-badge" style="top:-8px; right:-8px; font-size:0.75rem; z-index:10; border:2px solid white;"><?= $item['cantidad'] ?></span>
+                        <?php if (!empty($_SESSION['carrito'])): foreach ($_SESSION['carrito'] as $item): $img = !empty($item['imagen']) ? (strpos($item['imagen'], 'http') === 0 ? $item['imagen'] : BASE_URL . 'img/productos/' . $item['imagen']) : BASE_URL . 'img/no-image.png'; ?>
+                                <div class="d-flex align-items-center mb-3 item-carrito-resumen">
+                                    <div class="position-relative me-3 mt-1">
+                                        <img src="<?= $img ?>" class="rounded border bg-white" style="width: 50px; height: 50px; object-fit: contain;">
+                                        <span class="position-absolute badge rounded-pill bg-cenco-indigo shadow-sm qty-badge" style="top:-8px; right:-8px; font-size:0.75rem; z-index:10; border:2px solid white;"><?= $item['cantidad'] ?></span>
+                                    </div>
+                                    <div class="flex-grow-1 lh-sm ps-1"><small class="d-block text-dark fw-bold nombre-item-resumen"><?= htmlspecialchars($item['nombre']) ?></small></div>
+                                    <div class="text-end ps-2"><small class="fw-bold text-cenco-indigo">$<?= number_format($item['precio'] * $item['cantidad'], 0, ',', '.') ?></small></div>
                                 </div>
-                                <div class="flex-grow-1 lh-sm ps-1"><small class="d-block text-dark fw-bold nombre-item-resumen"><?= htmlspecialchars($item['nombre']) ?></small></div>
-                                <div class="text-end ps-2"><small class="fw-bold text-cenco-indigo">$<?= number_format($item['precio'] * $item['cantidad'], 0, ',', '.') ?></small></div>
-                            </div>
-                        <?php endforeach; endif; ?>
+                        <?php endforeach;
+                        endif; ?>
                     </div>
 
                     <div class="bg-light rounded-3 p-3 mb-4">

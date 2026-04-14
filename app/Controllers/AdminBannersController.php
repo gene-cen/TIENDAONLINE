@@ -9,15 +9,14 @@ class AdminBannersController {
     
     private $modelo;
 
-    public function __construct($conexion) {
-        // Validar que el usuario tenga sesión activa y sea administrador
-        // Ajusta esta validación según cómo manejes los roles en tu tabla 'usuarios'
-        if (!isset($_SESSION['usuario_id']) || $_SESSION['rol'] !== 'admin') {
-            header("Location: /auth/login");
-            exit();
-        }
-        $this->modelo = new CarruselBanner($conexion);
+public function __construct($conexion) {
+    // Validar con rol_id
+    if (!isset($_SESSION['rol_id']) || !in_array((int)$_SESSION['rol_id'], [1, 2])) {
+        header("Location: " . BASE_URL . "auth/login");
+        exit();
     }
+    $this->modelo = new CarruselBanner($conexion);
+}
 
     public function index() {
         $banners = $this->modelo->obtenerTodos();

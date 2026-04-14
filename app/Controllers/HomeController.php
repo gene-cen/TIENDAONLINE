@@ -39,14 +39,14 @@ class HomeController
         return $categorias;
     }
 
-
     public function buscar()
     {
         $q = $_GET['q'] ?? '';
         header("Location: " . BASE_URL . "home/catalogo?q=" . urlencode($q));
         exit;
     }
-public function index()
+
+    public function index()
     {
         $categorias = $this->cargarCategorias();
         $sucursal_id = (int)$_SESSION['sucursal_activa'];
@@ -58,10 +58,13 @@ public function index()
         // 2. Marcas para el filtro superior
         $marcas = $this->db->query("SELECT * FROM marcas WHERE activo = 1 ORDER BY nombre ASC")->fetchAll(\PDO::FETCH_ASSOC);
 
+        // 🔥 OBTENEMOS LA REGLA DE STOCK
+        $sqlStock = \App\Models\Producto::getSqlStockDisponible('ps', 'piw');
+
         // 3. NOVEDADES (Consultas Preparadas)
         $sqlNovedades = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
                                 COALESCE(ps.precio, 0) as precio, 
-                                ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
+                                {$sqlStock} as stock, 
                                 p.imagen, piw.nombre_web, m.nombre as marca, wc.nombre as categoria 
                          FROM productos p 
                          INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
@@ -70,7 +73,7 @@ public function index()
                          LEFT JOIN web_categorias wc ON piw.web_categoria_id = wc.id
                          WHERE p.activo = 1 AND ps.sucursal_id = :sucursal
                          AND COALESCE(ps.precio, 0) > 0 
-                         AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0 
+                         AND {$sqlStock} > 0 
                          ORDER BY p.id DESC LIMIT 5";
         $stmtNov = $this->db->prepare($sqlNovedades);
         $stmtNov->execute([':sucursal' => $sucursal_id]);
@@ -79,7 +82,7 @@ public function index()
         // 4. MÁS VENDIDOS (Orden Aleatorio Seguro)
         $sqlMasVendidos = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
                                   COALESCE(ps.precio, 0) as precio, 
-                                  ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
+                                  {$sqlStock} as stock, 
                                   p.imagen, piw.nombre_web, m.nombre as marca 
                            FROM productos p 
                            INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
@@ -87,7 +90,7 @@ public function index()
                            LEFT JOIN marcas m ON piw.marca_id = m.id
                            WHERE p.activo = 1 AND ps.sucursal_id = :sucursal
                            AND COALESCE(ps.precio, 0) > 0 
-                           AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0 
+                           AND {$sqlStock} > 0 
                            ORDER BY $fnRand LIMIT 5";
         $stmtMV = $this->db->prepare($sqlMasVendidos);
         $stmtMV->execute([':sucursal' => $sucursal_id]);
@@ -119,12 +122,12 @@ public function index()
             error_log("Error banners secundarios: " . $e->getMessage());
         }
 
-        // 6. MARCAS DESTACADAS (Showcase Premium)
-        $marcasHome = $this->db->query("SELECT * FROM marcas_destacadas WHERE estado_activo = 1 ORDER BY orden ASC LIMIT 8")->fetchAll(\PDO::FETCH_ASSOC);
-        
+       // 6. MARCAS DESTACADAS (Búsqueda inteligente con verificación de stock)
+        $todasLasMarcasDestacadas = $this->db->query("SELECT * FROM marcas_destacadas WHERE estado_activo = 1 ORDER BY orden ASC")->fetchAll(\PDO::FETCH_ASSOC);
+
         $sqlProdMarca = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
                                 COALESCE(ps.precio, 0) as precio, 
-                                ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
+                                {$sqlStock} as stock, 
                                 p.imagen, piw.nombre_web, m.nombre as marca 
                          FROM productos p 
                          INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
@@ -133,17 +136,34 @@ public function index()
                          WHERE p.activo = 1 AND ps.sucursal_id = :sucursal 
                          AND m.nombre = :marcaName 
                          AND COALESCE(ps.precio, 0) > 0 
-                         AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0 
+                         AND {$sqlStock} > 0 
                          ORDER BY $fnRand LIMIT 4";
         $stmtPM = $this->db->prepare($sqlProdMarca);
 
-        foreach ($marcasHome as &$marcaDestacada) {
+        $marcasValidas = [];
+
+        // 7. Filtramos dinámicamente hasta conseguir 5 marcas con productos
+        foreach ($todasLasMarcasDestacadas as $marcaDestacada) {
             $stmtPM->execute([
-                ':sucursal' => $sucursal_id, 
+                ':sucursal' => $sucursal_id,
                 ':marcaName' => $marcaDestacada['nombre']
             ]);
-            $marcaDestacada['productos'] = $stmtPM->fetchAll(\PDO::FETCH_ASSOC);
+            $productosDeMarca = $stmtPM->fetchAll(\PDO::FETCH_ASSOC);
+
+            // SOLO si la marca tiene productos con stock, la agregamos a la lista final
+            if (!empty($productosDeMarca)) {
+                $marcaDestacada['productos'] = $productosDeMarca;
+                $marcasValidas[] = $marcaDestacada;
+            }
+
+            // Si ya conseguimos 5 marcas listas para mostrar, detenemos el ciclo
+            if (count($marcasValidas) === 5) {
+                break;
+            }
         }
+
+        // Rellenamos con null si al final de todo encontramos menos de 5 para que la vista no falle
+        $marcasHome = array_pad($marcasValidas, 5, null);
 
         // Alias para compatibilidad con la vista sidebar
         $listaCategorias = $categorias;
@@ -166,12 +186,14 @@ public function index()
         $minPrecio   = $_GET['min_price'] ?? null;
         $maxPrecio   = $_GET['max_price'] ?? null;
         $orden       = $_GET['orden'] ?? 'relevancia';
-        
-        $coleccion   = $_GET['coleccion'] ?? null; 
+        $coleccion   = $_GET['coleccion'] ?? null;
 
         $categorias = $this->cargarCategorias();
         $marcasList = [];
         $rangoPrecio = ['min' => 0, 'max' => 1000000];
+
+        // 🔥 OBTENEMOS LA REGLA DE STOCK
+        $sqlStock = Producto::getSqlStockDisponible('ps', 'piw');
 
         try {
             $sqlMarcas = "SELECT DISTINCT m.nombre 
@@ -180,7 +202,7 @@ public function index()
                           INNER JOIN productos_sucursales ps ON piw.cod_producto = ps.cod_producto
                           WHERE ps.sucursal_id = $sucursal_id 
                           AND COALESCE(ps.precio, 0) > 0 
-                          AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0";
+                          AND {$sqlStock} > 0";
 
             $paramsMarcas = [];
             if ($catFilter) {
@@ -191,7 +213,9 @@ public function index()
             $marcasList->execute($paramsMarcas);
             $marcasList = $marcasList->fetchAll(\PDO::FETCH_ASSOC);
 
-            $stmtPrecios = $this->db->prepare("SELECT MIN(COALESCE(precio, 0)) as min_p, MAX(COALESCE(precio, 0)) as max_p FROM productos_sucursales WHERE sucursal_id = ? AND COALESCE(precio, 0) > 0 AND ((COALESCE(stock, 0) - COALESCE(stock_reservado, 0)) - 12) > 0");
+            // Para los precios mínimos y máximos, usamos la constante directamente ya que no cruzamos con 'piw'
+            $bufferConst = Producto::BUFFER_SEGURIDAD_DEFAULT;
+            $stmtPrecios = $this->db->prepare("SELECT MIN(COALESCE(precio, 0)) as min_p, MAX(COALESCE(precio, 0)) as max_p FROM productos_sucursales WHERE sucursal_id = ? AND COALESCE(precio, 0) > 0 AND ((COALESCE(stock, 0) - COALESCE(stock_reservado, 0)) - {$bufferConst}) > 0");
             $stmtPrecios->execute([$sucursal_id]);
             $preciosDb = $stmtPrecios->fetch(\PDO::FETCH_ASSOC);
 
@@ -199,7 +223,9 @@ public function index()
                 $rangoPrecio['min'] = floor((float)$preciosDb['min_p']);
                 $rangoPrecio['max'] = ceil((float)$preciosDb['max_p']);
             }
-        } catch (\Exception $e) { error_log($e->getMessage()); }
+        } catch (\Exception $e) {
+            error_log($e->getMessage());
+        }
 
         if ($minPrecio === null) $minPrecio = $rangoPrecio['min'];
         if ($maxPrecio === null) $maxPrecio = $rangoPrecio['max'];
@@ -216,11 +242,11 @@ public function index()
                     LEFT JOIN web_categorias wc ON piw.web_categoria_id = wc.id
                     WHERE p.activo = 1 AND ps.sucursal_id = $sucursal_id 
                     AND COALESCE(ps.precio, 0) > 0 
-                    AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0";
+                    AND {$sqlStock} > 0";
 
         $params = [];
 
-        // 🔥 FILTRO DE COLECCIONES CON VALIDACIÓN DE FECHAS
+        // 🔥 FILTRO DE COLECCIONES
         if ($coleccion) {
             $stmtCol = $this->db->prepare("SELECT productos_ids FROM carrusel_banners WHERE palabra_clave = ? AND estado_activo = 1 AND (sucursal_id = 0 OR sucursal_id = ?) AND (fecha_inicio IS NULL OR fecha_inicio <= NOW()) AND (fecha_fin IS NULL OR fecha_fin >= NOW()) ORDER BY id DESC LIMIT 1");
             $stmtCol->execute([$coleccion, $sucursal_id]);
@@ -235,25 +261,36 @@ public function index()
             if ($idsString) {
                 $codigosArray = array_filter(array_map('trim', explode(',', $idsString)));
                 if (!empty($codigosArray)) {
-                    $codigosLimpios = implode(',', array_map(function($val) { return $this->db->quote($val); }, $codigosArray));
+                    $codigosLimpios = implode(',', array_map(function ($val) {
+                        return $this->db->quote($val);
+                    }, $codigosArray));
                     $sqlBase .= " AND p.cod_producto IN ($codigosLimpios)";
                 } else {
-                    $sqlBase .= " AND 1=0"; 
+                    $sqlBase .= " AND 1=0";
                 }
             } else {
-                $sqlBase .= " AND 1=0"; 
+                $sqlBase .= " AND 1=0";
             }
         }
 
-        if ($catFilter) { $sqlBase .= " AND wc.nombre = ?"; $params[] = $catFilter; }
-        if ($marcaFilter) { $sqlBase .= " AND m.nombre = ?"; $params[] = $marcaFilter; }
+        if ($catFilter) {
+            $sqlBase .= " AND wc.nombre = ?";
+            $params[] = $catFilter;
+        }
+        if ($marcaFilter) {
+            $sqlBase .= " AND m.nombre = ?";
+            $params[] = $marcaFilter;
+        }
         if ($busqueda) {
             $sqlBase .= " AND (piw.nombre_web LIKE ? OR p.nombre LIKE ? OR m.nombre LIKE ?)";
             $termino = "%$busqueda%";
-            $params[] = $termino; $params[] = $termino; $params[] = $termino;
+            $params[] = $termino;
+            $params[] = $termino;
+            $params[] = $termino;
         }
         $sqlBase .= " AND COALESCE(ps.precio, 0) BETWEEN ? AND ?";
-        $params[] = $minPrecio; $params[] = $maxPrecio;
+        $params[] = $minPrecio;
+        $params[] = $maxPrecio;
 
         $stmtCount = $this->db->prepare("SELECT COUNT(*) " . $sqlBase);
         $stmtCount->execute($params);
@@ -268,14 +305,14 @@ public function index()
         };
 
         $sqlFinal = "SELECT p.*, COALESCE(ps.precio, 0) as precio, 
-                     ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
+                     {$sqlStock} as stock, 
                      m.nombre as marca, piw.nombre_web, wc.nombre as cat_web " . $sqlBase . $sqlOrder . " LIMIT $por_pagina OFFSET $offset";
         $stmt = $this->db->prepare($sqlFinal);
         $stmt->execute($params);
         $productos = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         if ($coleccion) {
-            $titulo = "Colección Especial"; 
+            $titulo = "Colección Especial";
         } else {
             $titulo = $busqueda ? 'Resultados para: "' . htmlspecialchars($busqueda) . '"' : ($catFilter ?? "Catálogo Completo");
         }
@@ -335,9 +372,12 @@ public function index()
             exit;
         }
 
-        // Ficha directa: Permite ver el producto, pero restamos los 12 para que muestre "Agotado" si baja el buffer
+        // 🔥 OBTENEMOS LA REGLA DE STOCK
+        $sqlStock = Producto::getSqlStockDisponible('ps', 'piw');
+
+        // Ficha directa
         $sql = "SELECT p.*, COALESCE(ps.precio, 0) as precio, 
-                ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
+                {$sqlStock} as stock, 
                 m.nombre as marca, piw.nombre_web, piw.subcategoria, wc.nombre as categoria_web, wc.id as cat_id
                 FROM productos p 
                 INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
@@ -361,7 +401,7 @@ public function index()
         $relacionados = [];
         if (!empty($producto['cat_id'])) {
             $sqlRel = "SELECT p.id, COALESCE(ps.precio, 0) as precio, 
-                       ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) as stock, 
+                       {$sqlStock} as stock, 
                        p.imagen, piw.nombre_web, m.nombre as marca
                        FROM productos p 
                        INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
@@ -369,7 +409,7 @@ public function index()
                        LEFT JOIN marcas m ON piw.marca_id = m.id
                        WHERE piw.web_categoria_id = ? AND p.id != ? AND ps.sucursal_id = $sucursal_id 
                        AND COALESCE(ps.precio, 0) > 0 
-                       AND ((COALESCE(ps.stock, 0) - COALESCE(ps.stock_reservado, 0)) - 12) > 0 
+                       AND {$sqlStock} > 0 
                        AND p.activo = 1
                        ORDER BY " . $fnRand . " LIMIT 4";
             $stmtRel = $this->db->prepare($sqlRel);
@@ -397,15 +437,32 @@ public function index()
         $content = ob_get_clean();
         require_once __DIR__ . '/../../views/layouts/main.php';
     }
-
     public function cambiarSucursal($codigoErp)
     {
         $codigoErp = (int)$codigoErp;
 
+        // 1. Mapeo de seguridad por si el HTML envía IDs internos (1 y 2) en vez de códigos ERP (29 y 10)
+        if ($codigoErp === 1) $codigoErp = 29;
+        if ($codigoErp === 2) $codigoErp = 10;
+
         if (in_array($codigoErp, [10, 29])) {
+            // 2. Actualizamos la sesión global
             $_SESSION['sucursal_activa'] = $codigoErp;
+            $_SESSION['comuna_nombre'] = ($codigoErp === 10) ? 'Villa Alemana' : 'La Calera';
+
+            // 3. 🔥 MAGIA: Avisarle al carrito que recalculen precios y stock de inmediato
+            if (class_exists('\App\Controllers\CarritoController')) {
+                $carritoCtrl = new \App\Controllers\CarritoController($this->db);
+                $validacion = $carritoCtrl->validarCambioSucursal($codigoErp, true);
+
+                // Si hubo cambios (productos eliminados o cantidad ajustada por stock en la nueva tienda)
+                if (!empty($validacion['cambios'])) {
+                    $_SESSION['checkout_errors'] = $validacion['mensajes'];
+                }
+            }
         }
 
+        // 4. Volver a la página donde estaba el usuario
         $referer = $_SERVER['HTTP_REFERER'] ?? BASE_URL . 'home';
         header("Location: " . $referer);
         exit();

@@ -132,18 +132,6 @@
         return true;
     }
 
-    function formatearRut(input) {
-        let valor = input.value.replace(/[^0-9kK]/g, '').toUpperCase();
-        if (valor.length > 9) valor = valor.slice(0, 9);
-        let cuerpo = valor.slice(0, -1);
-        let dv = valor.slice(-1);
-        if (valor.length > 1) {
-            cuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-            input.value = cuerpo + '-' + dv;
-        } else {
-            input.value = valor;
-        }
-    }
 
     function togglePassword(inputId, iconId) {
         const input = document.getElementById(inputId);
@@ -292,36 +280,90 @@
 <?php if (isset($_GET['msg'])): ?>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            <?php if ($_GET['msg'] === 'registro_ok' || $_GET['msg'] === 'registro_exito'): ?>
-                Swal.fire({
-                    title: '<span style="color: var(--cenco-indigo); font-weight: 900;">¡Revisa tu correo!</span>',
-                    html: 'Hemos creado tu cuenta exitosamente.<br>Te enviamos un enlace de validación para activarla.',
-                    imageUrl: '<?= BASE_URL ?>img/cencocalin/cencocalin_envio_correo.png',
-                    imageWidth: 140, imageAlt: 'Correo Enviado',
-                    confirmButtonColor: '#76C043', confirmButtonText: '¡Iré a revisar!', backdrop: `rgba(42, 27, 94, 0.4)`
-                });
-            <?php elseif ($_GET['msg'] === 'registro_exito_sin_correo'): ?>
-                Swal.fire({
-                    title: '<span style="color: var(--cenco-indigo); font-weight: 900;">Cuenta creada</span>',
-                    html: 'Tu cuenta fue guardada en la base de datos, pero <b>tuvimos un bloqueo al enviar el correo de activación</b>.<br><br><small><i>Tip técnico: Revisa la contraseña de aplicación de Gmail.</i></small>',
-                    icon: 'warning', confirmButtonColor: '#E53935', confirmButtonText: 'Entendido'
-                });
-            <?php elseif ($_GET['msg'] === 'error_email_duplicado'): ?>
-                Swal.fire({
-                    title: '¡Ups!', text: 'Este correo electrónico ya está registrado en nuestra base de datos. Intenta iniciar sesión.',
-                    icon: 'error', confirmButtonColor: '#E53935'
-                });
-            <?php elseif ($_GET['msg'] === 'cuenta_existente'): ?>
-                Swal.fire({
-                    title: '<span style="color: var(--cenco-indigo); font-weight: 900;">¡Ya eres parte de Cencocal!</span>',
-                    html: 'El correo que ingresaste ya tiene una cuenta registrada con nosotros.<br><br>Por seguridad, <b>por favor inicia sesión</b> en el panel izquierdo para continuar con tu compra.',
-                    icon: 'info', confirmButtonColor: '#2A1B5E', confirmButtonText: 'Iniciar Sesión',
-                }).then((result) => {
-                    bootstrap.Modal.getOrCreateInstance(document.getElementById('checkoutAuthModal')).show();
-                });
-            <?php elseif ($_GET['msg'] === 'error_db'): ?>
-                Swal.fire('Error del Sistema', 'No pudimos guardar los datos en la base de datos.', 'error');
-            <?php endif; ?>
+ // 8. Éxito al crear cuenta (Registro exitoso)
+   // ==========================================
+    // ALERTAS DE REGISTRO Y BASE DE DATOS
+    // ==========================================
+
+    // 8. Éxito al crear cuenta (Registro exitoso)
+    if (msg === 'registro_ok' || msg === 'registro_exito') {
+        Swal.fire({
+            title: '<span style="color: var(--cenco-indigo); font-weight: 900;">¡Has creado tu cuenta exitosamente!</span>',
+            html: 'Te enviamos un enlace de validación para activarla.',
+            imageUrl: BASE_URL + 'img/cencocalin/cencocalin_envio_correo.png',
+            imageWidth: 140, 
+            imageAlt: 'Correo Enviado',
+            confirmButtonColor: '#76C043', 
+            confirmButtonText: '¡Iré a revisar!', 
+            backdrop: `rgba(42, 27, 94, 0.4)`,
+            customClass: { popup: 'rounded-4 shadow-lg border-0' }
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // 9. Éxito, pero falló el envío de correo (Error de Gmail)
+    else if (msg === 'registro_exito_sin_correo') {
+        Swal.fire({
+            title: '<span style="color: var(--cenco-indigo); font-weight: 900;">Cuenta creada</span>',
+            html: 'Tu cuenta fue guardada en la base de datos, pero <b>tuvimos un bloqueo al enviar el correo de activación</b>.<br><br><small><i>Tip técnico: Revisa la contraseña de aplicación de Gmail.</i></small>',
+            icon: 'warning', 
+            confirmButtonColor: '#E53935', 
+            confirmButtonText: 'Entendido',
+            customClass: { popup: 'rounded-4 shadow-lg border-0' }
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // 10. Correo duplicado al intentar registrarse
+    else if (msg === 'error_email_duplicado') {
+        Swal.fire({
+            title: '¡Ups!', 
+            text: 'Este correo electrónico ya está registrado en nuestra base de datos. Intenta iniciar sesión.',
+            icon: 'error', 
+            confirmButtonColor: '#E53935',
+            customClass: { popup: 'rounded-4 shadow-lg border-0' }
+        }).then(() => {
+            if(document.getElementById('loginModal')) {
+                new bootstrap.Modal(document.getElementById('loginModal')).show();
+            }
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // 11. Intentar comprar como invitado con un correo que ya existe
+    else if (msg === 'cuenta_existente') {
+        Swal.fire({
+            title: '<span style="color: var(--cenco-indigo); font-weight: 900;">¡Ya eres parte de Cencocal!</span>',
+            html: 'El correo que ingresaste ya tiene una cuenta registrada con nosotros.<br><br>Por seguridad, <b>por favor inicia sesión</b> en el panel izquierdo para continuar con tu compra.',
+            icon: 'info', 
+            confirmButtonColor: '#2A1B5E', 
+            confirmButtonText: 'Iniciar Sesión',
+            customClass: { popup: 'rounded-4 shadow-lg border-0' }
+        }).then(() => {
+            // Buscamos el modal del checkout, si no existe, abrimos el normal
+            const checkoutAuthModal = document.getElementById('checkoutAuthModal');
+            const loginModal = document.getElementById('loginModal');
+            
+            if (checkoutAuthModal) {
+                bootstrap.Modal.getOrCreateInstance(checkoutAuthModal).show();
+            } else if (loginModal) {
+                bootstrap.Modal.getOrCreateInstance(loginModal).show();
+            }
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // 12. Error general de Base de Datos
+    else if (msg === 'error_db') {
+        Swal.fire({
+            title: 'Error del Sistema', 
+            text: 'No pudimos guardar los datos en la base de datos.', 
+            icon: 'error',
+            confirmButtonColor: '#E53935',
+            customClass: { popup: 'rounded-4 shadow-lg border-0' }
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
         });
     </script>
 <?php endif; ?>

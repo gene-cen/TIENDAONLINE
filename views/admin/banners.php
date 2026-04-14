@@ -1,6 +1,6 @@
 <?php
 // 🔥 CONTROL DE ROLES (Idealmente, este bloque debe ir luego al controlador)
-$esSuperAdmin = ((isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin') || (isset($_SESSION['user_rol']) && $_SESSION['user_rol'] === 'admin')) && empty($_SESSION['admin_sucursal']); 
+$esSuperAdmin = ((isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2])) || (isset($_SESSION['user_rol']) && $_SESSION['user_rol'] === 'admin')) && empty($_SESSION['admin_sucursal']); 
 $miSucursal = $_SESSION['admin_sucursal'] ?? 0;
 
 $bannersAmbas_Prin = array_filter($bannersPrincipal, fn($b) => $b['sucursal_id'] == 0);
@@ -347,3 +347,52 @@ try {
 <script>window.MI_SUCURSAL = <?= $miSucursal ?>;</script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <script src="<?= BASE_URL ?>js/admin/banners.js"></script>
+
+<?php if (isset($_GET['msg'])): ?>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const msg = "<?= $_GET['msg'] ?>";
+        
+        // Mapeo de mensajes amigables
+        const alerts = {
+            'creado': {
+                title: '¡Logrado!',
+                text: 'El nuevo banner se ha subido y publicado con éxito.',
+                icon: 'success'
+            },
+            'actualizado': {
+                title: 'Cambios Guardados',
+                text: 'La información del banner se actualizó correctamente.',
+                icon: 'success'
+            },
+            'eliminado': {
+                title: 'Eliminado',
+                text: 'El banner ha sido removido del sistema.',
+                icon: 'info'
+            },
+            'error': {
+                title: '¡Ups!',
+                text: 'Hubo un problema al procesar la imagen. Inténtalo de nuevo.',
+                icon: 'error'
+            }
+        };
+
+        if (alerts[msg]) {
+            Swal.fire({
+                title: alerts[msg].title,
+                text: alerts[msg].text,
+                icon: alerts[msg].icon,
+                confirmButtonColor: '#283593', // Tu color Cenco Indigo
+                timer: 3500,
+                timerProgressBar: true,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end' // Estilo notificación elegante en la esquina
+            });
+        }
+        
+        // Limpiamos la URL para que no se repita la alerta al refrescar
+        window.history.replaceState({}, document.title, window.location.pathname);
+    });
+</script>
+<?php endif; ?>

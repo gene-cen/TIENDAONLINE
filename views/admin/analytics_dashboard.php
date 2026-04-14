@@ -185,51 +185,51 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 2. CONFIGURACIÓN DEL MAPA (Leaflet)
+    // 2. CONFIGURACIÓN DEL MAPA (Leaflet)
     if (typeof L !== 'undefined' && document.getElementById('analyticsMap')) {
-        const map = L.map('analyticsMap').setView([-32.90, -71.4], 9);
+        const map = L.map('analyticsMap').setView([-32.85, -71.25], 10); // Ajusté el zoom para ver mejor la zona V
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors',
+            attribution: '&copy; CartoDB',
             subdomains: 'abcd',
             maxZoom: 19
         }).addTo(map);
 
         const coordsComunas = {
-            "Santiago": [-33.4489, -70.6693], "Providencia": [-33.4314, -70.6093], "Las Condes": [-33.4117, -70.5826],
-            "Viña del Mar": [-33.0245, -71.5518], "Valparaíso": [-33.0458, -71.6197], "Valparaiso": [-33.0458, -71.6197],
-            "Quilpué": [-33.0498, -71.4390], "Quilpue": [-33.0498, -71.4390], "Villa Alemana": [-33.0445, -71.3734],
-            "Limache": [-32.9989, -71.2669], "Olmué": [-32.9967, -71.1844], "Quillota": [-32.8794, -71.2464],
-            "La Calera": [-32.7833, -71.2000], "Nogales": [-32.7333, -71.2000], "Hijuelas": [-32.7975, -71.1469],
-            "La Cruz": [-32.8272, -71.2294], "Concón": [-32.9234, -71.5178], "Concon": [-32.9234, -71.5178],
-            "San Felipe": [-32.7507, -70.7251], "Los Andes": [-32.8338, -70.5977]
+            "santiago": [-33.4489, -70.6693], "providencia": [-33.4314, -70.6093],
+            "viña del mar": [-33.0245, -71.5518], "valparaíso": [-33.0458, -71.6197],
+            "quilpué": [-33.0498, -71.4390], "villa alemana": [-33.0445, -71.3734],
+            "limache": [-32.9989, -71.2669], "quillota": [-32.8794, -71.2464],
+            "la calera": [-32.7833, -71.2000], "nogales": [-32.7333, -71.2000],
+            "hijuelas": [-32.7975, -71.1469], "la cruz": [-32.8272, -71.2294],
+            "concón": [-32.9234, -71.5178], "san felipe": [-32.7507, -70.7251],
+            "los andes": [-32.8338, -70.5977]
         };
 
         const datosMapa = <?= json_encode($visitasMapa ?? []) ?>;
+        console.log("Datos recibidos para el mapa:", datosMapa); // 🕵️ Para que revises en F12
 
         datosMapa.forEach(item => {
-            const nombre = item.comuna;
-            if (!nombre) return;
-
-            // Búsqueda inteligente de coordenadas (case-insensitive)
-            const coordKey = Object.keys(coordsComunas).find(key => key.toLowerCase() === nombre.toLowerCase());
-            const coord = coordsComunas[coordKey];
+            const nombreNormalizado = item.comuna.toLowerCase().trim();
+            const coord = coordsComunas[nombreNormalizado];
 
             if (coord) {
                 const nVisitas = parseInt(item.visitas || 0);
-                const radioCalculado = nVisitas > 0 ? (nVisitas * 300) : 800;
-                const radioFinal = Math.min(Math.max(radioCalculado, 800), 6000);
+                // Si hay pocas visitas, ponemos un radio mínimo visible (1200 metros)
+                // Si hay muchas, crece dinámicamente.
+                const radioFinal = Math.min(Math.max(nVisitas * 400, 1200), 8000);
 
                 L.circle(coord, {
                     color: '#e63946',
                     fillColor: '#e63946',
-                    fillOpacity: 0.4,
+                    fillOpacity: 0.5,
                     radius: radioFinal,
-                    weight: 1
+                    weight: 2
                 }).addTo(map)
                 .bindPopup(`
                     <div class="text-center p-1">
-                        <strong class="text-cenco-indigo d-block mb-1">${nombre}</strong>
-                        <span class="badge bg-cenco-green text-white px-2 py-1">${nVisitas} Visitas Registradas</span>
+                        <strong class="text-cenco-indigo d-block mb-1 text-uppercase">${item.comuna}</strong>
+                        <span class="badge bg-cenco-green text-white px-2 py-1">${nVisitas} Visitas</span>
                     </div>
                 `);
             }

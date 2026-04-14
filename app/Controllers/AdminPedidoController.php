@@ -19,13 +19,14 @@ class AdminPedidoController
         $this->productoModel = new Producto($db);
     }
 
-    private function verificarAdmin()
-    {
-        if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'admin') {
-            header("Location: " . BASE_URL . "home?msg=acceso_denegado");
-            exit();
-        }
+private function verificarAdmin()
+{
+    // Ahora validamos con rol_id (1 = Super, 2 = Sucursal)
+    if (!isset($_SESSION['rol_id']) || !in_array((int)$_SESSION['rol_id'], [1, 2])) {
+        header("Location: " . BASE_URL . "home?msg=acceso_denegado");
+        exit();
     }
+}
 
     // =========================================================
     // 🛒 GESTIÓN DE PEDIDOS (LISTADO)

@@ -1,23 +1,24 @@
 <link rel="stylesheet" href="<?= BASE_URL ?>css/shop/navbar.css">
 
+
 <nav class="navbar navbar-expand-lg navbar-dark bg-cenco-indigo shadow-sm py-2 border-bottom border-3" style="border-color: var(--cenco-green) !important;">
     <div class="container-fluid px-3 px-lg-4">
-        
+
         <a class="navbar-brand fw-bold d-flex align-items-center gap-3 py-0" href="<?= BASE_URL ?>home">
             <div class="bg-white rounded-4 d-flex align-items-center justify-content-center shadow-sm transition-hover overflow-hidden" style="height: 75px; min-width: 180px; padding: 0;">
                 <img src="<?= BASE_URL ?>img/logo.png" alt="Cencocal" class="img-fluid" style="height: 100%; width: 100%; object-fit: contain;">
             </div>
         </a>
 
-        <button class="btn text-white p-1 me-2 hover-scale transition-hover d-flex align-items-center gap-2" 
-                type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasCategorias" aria-controls="offcanvasCategorias">
+        <button class="btn text-white p-1 me-2 hover-scale transition-hover d-flex align-items-center gap-2"
+            type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasCategorias" aria-controls="offcanvasCategorias">
             <i class="bi bi-list" style="font-size: 2rem;"></i>
             <span class="fw-bold d-none d-sm-inline text-uppercase" style="font-size: 0.85rem; letter-spacing: 1px;">Categorías</span>
         </button>
 
         <div class="d-flex align-items-center me-auto ms-2">
-            <button class="btn btn-outline-light border-0 d-flex align-items-center gap-2 px-3 py-2 rounded-pill shadow-sm transition-hover" 
-                    type="button" data-bs-toggle="modal" data-bs-target="#modalComuna" style="background: rgba(255,255,255,0.1);">
+            <button class="btn btn-outline-light border-0 d-flex align-items-center gap-2 px-3 py-2 rounded-pill shadow-sm transition-hover"
+                type="button" data-bs-toggle="modal" data-bs-target="#modalComuna" style="background: rgba(255,255,255,0.1);">
                 <div class="position-relative">
                     <i class="bi bi-geo-alt-fill text-cenco-green fs-4"></i>
                     <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle animate-ping"></span>
@@ -33,22 +34,21 @@
         </div>
 
         <div class="ms-auto d-flex align-items-center gap-3 gap-lg-4">
-            
-            <?php if (isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin'): ?>
-                <button class="btn btn-warning text-dark fw-bold rounded-pill px-3 d-flex align-items-center gap-2 shadow-sm hover-scale" 
-                        type="button" data-bs-toggle="offcanvas" data-bs-target="#adminSidebar">
+
+            <?php if (isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2])): ?>
+                <button class="btn btn-warning text-dark fw-bold rounded-pill px-3 d-flex align-items-center gap-2 shadow-sm hover-scale"
+                    type="button" data-bs-toggle="offcanvas" data-bs-target="#adminSidebar">
                     <i class="bi bi-shield-lock-fill"></i>
                     <span class="d-none d-md-inline">Admin</span>
                 </button>
             <?php endif; ?>
 
-            <?php if (isset($_SESSION['rol']) && $_SESSION['rol'] === 'transportista'): ?>
+            <?php if (isset($_SESSION['rol_id']) && $_SESSION['rol_id'] == 5): ?>
                 <a href="<?= BASE_URL ?>transporte/misEntregas" class="btn btn-info text-white fw-bold rounded-pill px-3 d-flex align-items-center gap-2 shadow-sm hover-scale">
                     <i class="bi bi-truck-flatbed"></i>
                     <span class="d-none d-md-inline">Mis Entregas</span>
                 </a>
             <?php endif; ?>
-
             <?php if (isset($_SESSION['user_id'])): ?>
                 <div class="dropdown">
                     <a class="text-decoration-none text-white d-flex align-items-center gap-2 dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -62,7 +62,9 @@
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2 rounded-3 animate slideIn">
                         <li><a class="dropdown-item py-2" href="<?= BASE_URL ?>perfil"><i class="bi bi-person-gear me-2 text-cenco-green"></i> Mi Perfil</a></li>
-                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
                         <li><a class="dropdown-item py-2 text-cenco-red fw-bold" href="<?= BASE_URL ?>auth/logout"><i class="bi bi-box-arrow-right me-2"></i> Cerrar Sesión</a></li>
                     </ul>
                 </div>
@@ -78,16 +80,18 @@
                 </button>
             <?php endif; ?>
 
-            <button type="button" class="btn position-relative text-white border-0 p-1 d-flex align-items-center gap-2" 
-                    data-bs-toggle="offcanvas" data-bs-target="#offcanvasCarrito" onclick="actualizarCarritoLateral()" aria-label="Ver Carrito">
+            <button type="button" class="btn position-relative text-white border-0 p-1 d-flex align-items-center gap-2"
+                data-bs-toggle="offcanvas" data-bs-target="#offcanvasCarrito" onclick="actualizarCarritoLateral()" aria-label="Ver Carrito">
                 <div class="position-relative">
                     <i class="bi bi-cart-fill fs-3"></i>
-                    <?php 
-                        $cantidadCarrito = isset($_SESSION['carrito']) ? array_sum(array_column($_SESSION['carrito'], 'cantidad')) : 0;
-                        $totalCarrito = isset($_SESSION['carrito']) ? array_sum(array_map(function($it){ return $it['precio'] * $it['cantidad']; }, $_SESSION['carrito'])) : 0;
+                    <?php
+                    $cantidadCarrito = isset($_SESSION['carrito']) ? array_sum(array_column($_SESSION['carrito'], 'cantidad')) : 0;
+                    $totalCarrito = isset($_SESSION['carrito']) ? array_sum(array_map(function ($it) {
+                        return $it['precio'] * $it['cantidad'];
+                    }, $_SESSION['carrito'])) : 0;
                     ?>
-                    <span id="badge-carrito-navbar" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-cenco-green border border-2 border-cenco-indigo fw-bold badge-carrito" 
-                          style="<?= $cantidadCarrito == 0 ? 'display:none;' : '' ?>">
+                    <span id="badge-carrito-navbar" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-cenco-green border border-2 border-cenco-indigo fw-bold badge-carrito"
+                        style="<?= $cantidadCarrito == 0 ? 'display:none;' : '' ?>">
                         <?= $cantidadCarrito ?>
                     </span>
                 </div>
@@ -98,7 +102,7 @@
                     </span>
                 </div>
             </button>
-            
+
         </div>
     </div>
 </nav>

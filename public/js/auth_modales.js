@@ -43,14 +43,7 @@ async function buscarEnMapaRegister() {
     } catch (e) { console.error(e); }
 }
 
-function formatearRut(rutInput) {
-    let valor = rutInput.value.replace(/\./g, '').replace(/-/g, '');
-    if (valor.length > 1) {
-        let cuerpo = valor.slice(0, -1);
-        let dv = valor.slice(-1).toUpperCase();
-        rutInput.value = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-" + dv;
-    }
-}
+
 
 document.addEventListener("DOMContentLoaded", function () {
     // Escuchar apertura del modal de registro para arreglar el tamaño del mapa

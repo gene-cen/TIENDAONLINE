@@ -5,11 +5,6 @@ namespace App\Models;
 use PDO;
 use PDOException;
 
-/**
- * Modelo Usuario
- * Responsabilidad: Gestión integral de perfiles, autenticación, trazabilidad de accesos
- * y datos de contacto (teléfonos/direcciones).
- */
 class Usuario
 {
     private $db;
@@ -21,20 +16,20 @@ class Usuario
     }
 
     // =========================================================
-    // 🔍 SECCIÓN 1: BÚSQUEDA Y LECTURA PRINCIPAL
+    // 🔍 SECCIÓN 1: BÚSQUEDA Y LECTURA (CON JOINS)
     // =========================================================
 
     public function getById($id)
     {
-        // JOIN optimizado para traer nombres geográficos (útil en Checkout y Perfil)
+        // 🔥 AHORA TRAEMOS LA DIRECCIÓN DESDE LA OTRA TABLA
         $sql = "SELECT u.*, 
-                       c.nombre as nombre_comuna, 
-                       p.nombre as nombre_provincia,
-                       r.nombre as nombre_region
+                       r.nombre_rol as nombre_rol,
+                       d.direccion as direccion_principal,
+                       c.nombre as nombre_comuna
                 FROM {$this->table} u
-                LEFT JOIN comunas c ON u.comuna_id = c.id
-                LEFT JOIN provincias p ON c.provincia_id = p.id
-                LEFT JOIN regiones r ON p.region_id = r.id
+                LEFT JOIN roles r ON u.rol_id = r.id
+                LEFT JOIN direcciones_usuarios d ON u.id = d.usuario_id AND d.es_principal = 1
+                LEFT JOIN comunas c ON d.comuna_id = c.id
                 WHERE u.id = :id LIMIT 1";
 
         $stmt = $this->db->prepare($sql);
@@ -44,22 +39,17 @@ class Usuario
 
     public function getByEmail($email)
     {
-        $sql = "SELECT * FROM {$this->table} WHERE email = :email LIMIT 1";
+        $sql = "SELECT u.*, r.nombre_rol 
+                FROM {$this->table} u
+                LEFT JOIN roles r ON u.rol_id = r.id
+                WHERE u.email = :email LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':email' => $email]);
         return $stmt->fetch(PDO::FETCH_OBJ);
     }
 
-    public function getByToken($token)
-    {
-        $sql = "SELECT * FROM {$this->table} WHERE token_confirmacion = :token LIMIT 1";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([':token' => $token]);
-        return $stmt->fetch(PDO::FETCH_OBJ);
-    }
-
     // =========================================================
-    // 🔐 SECCIÓN 2: AUTENTICACIÓN Y SEGURIDAD
+    // 🔐 SECCIÓN 2: AUTENTICACIÓN
     // =========================================================
 
     public function login($email, $password)
@@ -77,42 +67,6 @@ class Usuario
         return false;
     }
 
-    public function activarCuenta($token)
-    {
-        $sql = "UPDATE {$this->table} SET confirmado = 1, token_confirmacion = NULL 
-                WHERE token_confirmacion = :token";
-        return $this->db->prepare($sql)->execute([':token' => $token]);
-    }
-
-    public function generarTokenRecuperacion($email)
-    {
-        $user = $this->getByEmail($email);
-        if (!$user) return false;
-
-        $token = bin2hex(random_bytes(32));
-        $expire = date('Y-m-d H:i:s', strtotime('+1 hour'));
-
-        $sql = "UPDATE {$this->table} SET reset_token = :token, reset_expire = :expire WHERE email = :email";
-        $res = $this->db->prepare($sql)->execute([':token' => $token, ':expire' => $expire, ':email' => $email]);
-
-        return $res ? $token : false;
-    }
-
-    public function getByResetToken($token)
-    {
-        $sql = "SELECT * FROM {$this->table} WHERE reset_token = :token AND reset_expire > :now LIMIT 1";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([':token' => $token, ':now' => date('Y-m-d H:i:s')]);
-        return $stmt->fetch(PDO::FETCH_OBJ);
-    }
-
-    public function actualizarPassword($id, $newPassword)
-    {
-        $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-        $sql = "UPDATE {$this->table} SET password = :pass, reset_token = NULL, reset_expire = NULL WHERE id = :id";
-        return $this->db->prepare($sql)->execute([':pass' => $hash, ':id' => $id]);
-    }
-
     private function registrarAcceso($userId, $exitoso)
     {
         try {
@@ -124,60 +78,106 @@ class Usuario
                 ':ua'    => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
                 ':exito' => $exitoso ? 1 : 0
             ]);
+            
+            // Actualizamos la fecha de última conexión
+            if ($exitoso) {
+                $this->db->prepare("UPDATE usuarios SET ultima_conexion = NOW() WHERE id = ?")->execute([$userId]);
+            }
         } catch (PDOException $e) {
             error_log("Error log_accesos: " . $e->getMessage());
         }
     }
 
     // =========================================================
-    // ✍️ SECCIÓN 3: ESCRITURA Y MANTENIMIENTO
+    // ✍️ SECCIÓN 3: ESCRITURA (LIMPIA DE COLUMNAS BORRADAS)
     // =========================================================
 
     public function crear($data)
     {
         $token = bin2hex(random_bytes(32));
+        
+        // 🔥 QUITAMOS DIRECCIÓN, LAT Y LONG PORQUE VAN EN OTRA TABLA
         $sql = "INSERT INTO {$this->table} 
-                (nombre, rut, email, direccion, giro, latitud, longitud, password, rol, google_id, token_confirmacion, confirmado) 
-                VALUES (:nombre, :rut, :email, :dir, :giro, :lat, :lng, :pass, :rol, :google, :token, 0)";
+                (nombre, rut, razon_social, email, giro, password, rol_id, google_id, token_confirmacion, confirmado) 
+                VALUES (:nombre, :rut, :razon, :email, :giro, :pass, :rol_id, :google, :token, 0)";
 
         $this->db->prepare($sql)->execute([
             ':nombre' => $data['nombre'],
             ':rut'    => $data['rut'] ?? '',
+            ':razon'  => $data['razon_social'] ?? null,
             ':email'  => $data['email'],
-            ':dir'    => $data['direccion'],
             ':giro'   => $data['giro'] ?? '',
-            ':lat'    => $data['latitud'] ?? null,
-            ':lng'    => $data['longitud'] ?? null,
             ':pass'   => $data['password'],
-            ':rol'    => $data['rol'] ?? 'cliente',
+            ':rol_id' => $data['rol_id'] ?? 6, // 6 = Cliente
             ':google' => $data['google_id'] ?? null,
             ':token'  => $token
         ]);
 
-        $usuarioId = $this->db->lastInsertId();
-
-        if (!empty($data['telefono'])) {
-            $this->agregarTelefono($usuarioId, $data['telefono'], 'Principal', 1);
-        }
-
-        return ['id' => $usuarioId, 'token' => $token];
+        return ['id' => $this->db->lastInsertId(), 'token' => $token];
     }
 
     public function actualizar($id, $datos)
     {
-        $sql = "UPDATE usuarios SET nombre = :nombre, rut = :rut, email = :email, 
-                direccion = :direccion, comuna_id = :comuna_id, giro = :giro WHERE id = :id";
+        // 🔥 AHORA ACTUALIZAMOS SOLO DATOS DE IDENTIDAD
+        $sql = "UPDATE usuarios SET 
+                    nombre = :nombre, 
+                    rut = :rut, 
+                    razon_social = :razon,
+                    email = :email, 
+                    giro = :giro,
+                    rol_id = :rol_id 
+                WHERE id = :id";
 
         return $this->db->prepare($sql)->execute([
-            ':nombre'    => $datos['nombre'],
-            ':rut'       => $datos['rut'],
-            ':email'     => $datos['email'],
-            ':direccion' => $datos['direccion'],
-            ':comuna_id' => $datos['comuna_id'],
-            ':giro'      => $datos['giro'] ?? null,
-            ':id'        => $id
+            ':nombre' => $datos['nombre'],
+            ':rut'    => $datos['rut'],
+            ':razon'  => $datos['razon_social'] ?? null,
+            ':email'  => $datos['email'],
+            ':giro'   => $datos['giro'] ?? null,
+            ':rol_id' => $datos['rol_id'],
+            ':id'     => $id
         ]);
     }
+
+    // Añade estos métodos dentro de la clase Usuario en app/Models/Usuario.php
+
+public function getByToken($token)
+{
+    $sql = "SELECT * FROM usuarios WHERE token_confirmacion = ? LIMIT 1";
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute([$token]);
+    return $stmt->fetch(\PDO::FETCH_OBJ);
+}
+
+public function activarCuenta($token)
+{
+    $sql = "UPDATE usuarios SET confirmado = 1, token_confirmacion = NULL WHERE token_confirmacion = ?";
+    return $this->db->prepare($sql)->execute([$token]);
+}
+
+public function generarTokenRecuperacion($email)
+{
+    $token = bin2hex(random_bytes(32));
+    $expire = date('Y-m-d H:i:s', strtotime('+1 hour'));
+    $sql = "UPDATE usuarios SET reset_token = ?, reset_expire = ? WHERE email = ?";
+    $res = $this->db->prepare($sql)->execute([$token, $expire, $email]);
+    return $res ? $token : false;
+}
+
+public function getByResetToken($token)
+{
+    $sql = "SELECT * FROM usuarios WHERE reset_token = ? AND reset_expire > NOW() LIMIT 1";
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute([$token]);
+    return $stmt->fetch(\PDO::FETCH_OBJ);
+}
+
+public function actualizarPassword($id, $newPassword)
+{
+    $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+    $sql = "UPDATE usuarios SET password = ?, reset_token = NULL, reset_expire = NULL WHERE id = ?";
+    return $this->db->prepare($sql)->execute([$hash, $id]);
+}
 
     // =========================================================
     // 📞 SECCIÓN 4: GESTIÓN DE TELÉFONOS (Multi-entorno)
@@ -263,5 +263,48 @@ class Usuario
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':rid' => $regionId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Busca un usuario por su RUT (sin importar puntos o guiones)
+     */
+    public function getByRut($rut)
+    {
+        // Limpiamos el RUT que entra para que sea solo números y K
+        $rutLimpio = preg_replace('/[^0-9kK]/', '', $rut);
+
+        // Usamos REPLACE en la consulta para que compare "limpio vs limpio"
+        $sql = "SELECT * FROM usuarios WHERE REPLACE(REPLACE(rut, '.', ''), '-', '') = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$rutLimpio]);
+
+        return $stmt->fetch(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Guarda la dirección opcional del usuario en la tabla direcciones_usuarios
+     */
+    public function guardarDireccion($data)
+    {
+        try {
+            $sql = "INSERT INTO direcciones_usuarios 
+                    (usuario_id, region, comuna, calle, numero, latitud, longitud, es_principal) 
+                    VALUES (:usuario_id, :region, :comuna, :calle, :numero, :latitud, :longitud, :es_principal)";
+            
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute([
+                ':usuario_id'   => $data['usuario_id'],
+                ':region'       => $data['region'],
+                ':comuna'       => $data['comuna'],
+                ':calle'        => $data['calle'],
+                ':numero'       => $data['numero'],
+                ':latitud'      => $data['latitud'],
+                ':longitud'     => $data['longitud'],
+                ':es_principal' => $data['es_principal']
+            ]);
+        } catch (\PDOException $e) {
+            error_log("Error al guardar dirección: " . $e->getMessage());
+            return false;
+        }
     }
 }

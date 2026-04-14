@@ -61,7 +61,6 @@ class ImportadorService
             $separador = ',';
 
             // --- 1. MAESTRO GLOBAL (Tabla productos) ---
-            // Los productos NUEVOS nacen con activo = 0. Se incluye el campo precio_unidad_medida (PPUM).
             $stmtMaestro = $this->db->prepare("
                 INSERT INTO productos (cod_producto, nombre, categoria, precio_unidad_medida, imagen, activo) 
                 VALUES (?, ?, ?, ?, ?, 0) 
@@ -73,9 +72,10 @@ class ImportadorService
             ");
 
             // --- 2. INFO WEB (Tabla productos_info_web) ---
+            // 🔥 EL GRAN FIX ESTÁ AQUÍ: ELIMINAMOS LA COLUMNA FANTASMA 'stock_seguridad'
             $stmtInfoWeb = $this->db->prepare("
-                INSERT IGNORE INTO productos_info_web (cod_producto, nombre_web, visible_web, stock_seguridad) 
-                VALUES (?, ?, 1, 0)
+                INSERT IGNORE INTO productos_info_web (cod_producto, nombre_web, visible_web) 
+                VALUES (?, ?, 1)
             ");
 
             // --- 3. DETALLE SUCURSAL (Tabla productos_sucursales) ---
@@ -89,7 +89,9 @@ class ImportadorService
                 $filaCount++;
 
                 if ($filaCount === 1) {
-                    if (strpos($linea, ';') !== false) { $separador = ';'; }
+                    if (strpos($linea, ';') !== false) {
+                        $separador = ';';
+                    }
                     continue;
                 }
 
@@ -107,39 +109,51 @@ class ImportadorService
 
                 if ($stockIndex === -1) continue;
 
-                $sku       = trim($data[$stockIndex - 2]);
+                $sku = trim($data[$stockIndex - 2]);
+
+                // 🔥 FIX DEL CERO A LA IZQUIERDA
+                if (strlen($sku) === 6) {
+                    $sku = str_pad($sku, 7, '0', STR_PAD_LEFT);
+                }
+
                 $stock     = (int)trim($data[$stockIndex]);
                 $precio    = (int)trim($data[$stockIndex - 1]);
                 $categoria = trim($data[$stockIndex - 3]);
 
-                // Capturamos la IMAGEN (índice siguiente al stock: +1)
                 $img = isset($data[$stockIndex + 1]) ? trim($data[$stockIndex + 1], " \t\n\r\0\x0B\"'") : '';
-
-                // Capturamos el NUEVO CAMPO DESCRIPCIÓN NULO (índice: +2)
-                // Lo guardamos en una variable por si a futuro decides insertarlo en la BD
                 $descripcion_nula = isset($data[$stockIndex + 2]) ? trim($data[$stockIndex + 2]) : null;
 
-                // 🔥 EL PPUM SE DESPLAZA (índice: +3)
                 $pum = isset($data[$stockIndex + 3]) ? trim($data[$stockIndex + 3]) : null;
-                
-                // Si el dato es un string vacío, lo convertimos a NULL para la base de datos
-                if ($pum === "") { $pum = null; }
+                if ($pum === "") {
+                    $pum = null;
+                }
 
                 $nombreParts = array_slice($data, 0, $stockIndex - 3);
                 $nombre      = trim(implode(',', $nombreParts));
 
+                // 🔥 LA BALA DE PLATA: DETECTOR MULTI-NIVEL DE BUGS DEL ERP
+                // 1. Coincidencia de SKU y Precio
+                // 2. La palabra "PESABLE" en el nombre
+                // 3. Precios absurdos mayores a 500 mil pesos
+                if (
+                    (int)$precio === (int)$sku ||
+                    strpos(strtoupper($nombre), 'PESABLE') !== false ||
+                    $precio > 500000
+                ) {
+                    $precio = 0;
+                }
+
                 if (!empty($sku)) {
-                    // 1. Ejecutamos el Maestro con el campo PPUM (Cuarentena activo = 0)
+                    // ... (Aquí continúa tu código intacto hacia abajo con el $stmtMaestro->execute)
                     $stmtMaestro->execute([$sku, $nombre, $categoria, $pum, $img]);
 
                     if ($stmtMaestro->rowCount() === 1) {
                         $this->metricas['productos_nuevos']++;
                     }
 
-                    // 2. Info Web
+                    // Al quitar la columna fantasma, esta línea ya no colapsará la base de datos
                     $stmtInfoWeb->execute([$sku, $nombre]);
 
-                    // 3. Detalle Sucursal (Precio y Stock específico)
                     $stmtDetalle->execute([$sku, $sucursalId, $precio, $stock]);
                     if ($stmtDetalle->rowCount() > 0) {
                         $this->metricas['actualizaciones']++;

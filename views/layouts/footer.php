@@ -92,4 +92,3 @@
 </footer>
 
 <script>var BASE_URL = '<?= BASE_URL ?>';</script>
-<script src="<?= BASE_URL ?>js/home.js"></script>

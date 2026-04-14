@@ -1,7 +1,7 @@
 <?php
 // 🔥 CONTROL DE ROLES (Misma lógica que banners)
 $esSuperAdmin = (
-    (isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin') || 
+    (isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2])) || 
     (isset($_SESSION['user_rol']) && $_SESSION['user_rol'] === 'admin')
 ) && empty($_SESSION['admin_sucursal']); 
 ?>

@@ -7,8 +7,22 @@
 // =========================================================
 // 1. AÑADIR AL CARRO (Desde Cero)
 // =========================================================
-function agregarAlCarrito(e, form, id) {
+function agregarAlCarrito(e, form, id, stockMax) {
     e.preventDefault();
+
+    // 1. Validación preventiva por si acaso
+    if (stockMax <= 0) {
+        Swal.fire({
+            title: '¡Agotado!',
+            text: 'Lo sentimos, este producto ya no tiene stock disponible.',
+            imageUrl: window.BASE_URL + 'img/cencocalin/cencocalin_algo_fallo.png',
+            imageWidth: 120,
+            confirmButtonColor: '#2A1B5E',
+            customClass: { popup: 'rounded-4 shadow-lg' }
+        });
+        return;
+    }
+
     const formData = new FormData(form);
 
     fetch(window.BASE_URL + 'carrito/agregarAjax', {
@@ -56,7 +70,7 @@ function agregarAlCarrito(e, form, id) {
                             }
                         });
                     });
-                return; // Evita abrir offcanvas
+                return;
             }
 
             // Abrir offcanvas automático
@@ -67,16 +81,42 @@ function agregarAlCarrito(e, form, id) {
             }
 
         } else if (data.status === 'error') {
-            Swal.fire({ icon: 'warning', title: 'Límite de Stock', text: data.mensaje, confirmButtonColor: '#2A1B5E', customClass: { popup: 'rounded-4 shadow-lg' } });
+            Swal.fire({ 
+                icon: 'warning', 
+                title: 'Límite de Stock', 
+                text: data.mensaje, 
+                confirmButtonColor: '#2A1B5E', 
+                customClass: { popup: 'rounded-4 shadow-lg' } 
+            });
         }
     })
     .catch(err => console.error('Error al agregar:', err));
 }
-
 // =========================================================
 // 2. PUENTE: Botones "+" y "-" de las tarjetas
 // =========================================================
-function gestionarClickTarjeta(id, accion) {
+function gestionarClickTarjeta(id, accion, stockMax) {
+    if (accion === 'subir') {
+        const countSpan = document.getElementById(`card-count-${id}`);
+        const cantidadActual = countSpan ? parseInt(countSpan.innerText) : 0;
+
+        // Si el usuario intenta subir y ya llegó al stock real
+        if (cantidadActual >= stockMax) {
+            Swal.fire({
+                title: '¡Límite alcanzado!',
+                text: `Lo sentimos, solo tenemos ${stockMax} unidades disponibles de este producto por ahora.`,
+                imageUrl: window.BASE_URL + 'img/cencocalin/cencocalin_preocupado.png',
+                imageWidth: 120,
+                imageAlt: 'Cencocalín Preocupado',
+                confirmButtonColor: '#2A1B5E',
+                confirmButtonText: 'Entendido',
+                customClass: { popup: 'rounded-4 shadow-lg border-0' }
+            });
+            return; // Bloqueamos la ejecución
+        }
+    }
+
+    // Si es 'bajar' o si 'subir' pasó la validación, procedemos
     cambiarCantidad(id, accion);
 }
 

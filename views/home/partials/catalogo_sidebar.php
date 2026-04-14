@@ -1,62 +1,71 @@
 <aside class="col-lg-3 col-xl-2 d-none d-lg-block">
-    <div class="filter-sidebar sticky-top" style="top: 100px; z-index: 1;">
+    <div class="filter-sidebar sticky-top" style="top: 120px; z-index: 10;">
 
         <?php if (!empty($_GET)): ?>
-            <a href="<?= BASE_URL ?>home/catalogo" class="btn btn-outline-danger btn-sm w-100 mb-4 fw-bold">
+            <a href="<?= BASE_URL ?>home/catalogo" class="btn btn-cenco-red-outline btn-sm w-100 mb-4 fw-bold rounded-pill shadow-sm transition-hover">
                 <i class="bi bi-trash3-fill me-2"></i> Limpiar Filtros
             </a>
         <?php endif; ?>
 
         <div class="mb-4">
-            <h6 class="filter-title">Buscar Producto</h6>
+            <h6 class="filter-title-custom">¿Qué buscas hoy?</h6>
             <form action="" method="GET">
                 <?php foreach ($_GET as $k => $v): if ($k != 'q' && $k != 'p') : ?><input type="hidden" name="<?= $k ?>" value="<?= htmlspecialchars($v) ?>"><?php endif; endforeach; ?>
-                <div class="input-group">
-                    <input type="text" name="q" class="form-control form-control-sm border-end-0" placeholder="Ej: Arroz..." value="<?= htmlspecialchars($_GET['q'] ?? '') ?>">
-                    <button class="btn btn-sm btn-outline-secondary border-start-0" type="submit"><i class="bi bi-search"></i></button>
+                <div class="input-group input-group-sm shadow-sm rounded-pill overflow-hidden border">
+                    <input type="text" name="q" class="form-control border-0 ps-3" placeholder="Ej: Arroz, Aceite..." value="<?= htmlspecialchars($_GET['q'] ?? '') ?>">
+                    <button class="btn btn-white border-0 text-primary" type="submit"><i class="bi bi-search"></i></button>
                 </div>
-            </form>
-        </div>
-
-        <div class="mb-5">
-            <h6 class="filter-title d-flex justify-content-between">Precio <i class="bi bi-chevron-up small"></i></h6>
-            <div id="price-slider" class="mt-4 mb-3 mx-2"></div>
-            <form action="" method="GET" id="formPrecio">
-                <?php foreach ($_GET as $k => $v): if (!in_array($k, ['min_price', 'max_price', 'p'])) : ?><input type="hidden" name="<?= $k ?>" value="<?= htmlspecialchars($v) ?>"><?php endif; endforeach; ?>
-                <input type="hidden" name="min_price" id="input-min">
-                <input type="hidden" name="max_price" id="input-max">
-                <div class="d-flex justify-content-between small fw-bold text-cenco-indigo mb-2">
-                    <span id="label-min">$0</span>
-                    <span id="label-max">$1.000.000</span>
-                </div>
-                <button type="submit" class="btn btn-sm btn-cenco-indigo w-100 rounded-pill">Aplicar Precio</button>
             </form>
         </div>
 
         <div class="mb-4">
-            <h6 class="filter-title">Categorías</h6>
-            <div style="max-height: 300px; overflow-y: auto;" class="custom-scrollbar pe-2">
-                <a href="<?= BASE_URL ?>home/catalogo" class="filter-link <?= !isset($_GET['categoria']) ? 'active' : '' ?>"><i class="bi bi-grid-fill me-2 small"></i> Todas</a>
+            <h6 class="filter-title-custom">Categorías</h6>
+            <div class="category-menu custom-scrollbar pe-2" style="max-height: 350px; overflow-y: auto;">
+                <a href="<?= BASE_URL ?>home/catalogo" class="cat-item <?= !isset($_GET['categoria']) ? 'active' : '' ?>">
+                    <i class="bi bi-grid-fill"></i> Todo el Catálogo
+                </a>
                 <?php foreach ($categorias as $cat):
-                    $isActive = (isset($_GET['categoria']) && $_GET['categoria'] === $cat['nombre']) ? 'active' : '';
-                    $params = $_GET; unset($params['marca'], $params['q']);
-                    $params['categoria'] = $cat['nombre']; $params['p'] = 1;
+                    $catNombre = is_object($cat) ? $cat->nombre : $cat['nombre'];
+                    $isActive = (isset($_GET['categoria']) && $_GET['categoria'] === $catNombre);
+                    $params = $_GET; unset($params['marca'], $params['q'], $params['p']);
+                    $params['categoria'] = $catNombre;
                 ?>
-                    <a href="?<?= http_build_query($params) ?>" class="filter-link <?= $isActive ?>"><?= htmlspecialchars($cat['nombre']) ?></a>
+                    <a href="?<?= http_build_query($params) ?>" class="cat-item <?= $isActive ? 'active' : '' ?>">
+                        <i class="bi bi-chevron-right small"></i> <?= htmlspecialchars($catNombre) ?>
+                    </a>
                 <?php endforeach; ?>
             </div>
         </div>
 
         <div class="mb-4">
-            <h6 class="filter-title">Marcas</h6>
-            <div style="max-height: 250px; overflow-y: auto;" class="custom-scrollbar pe-2">
+            <h6 class="filter-title-custom">Precio</h6>
+            <div id="price-slider" class="mt-4 mb-3 mx-2"></div>
+            <form action="" method="GET" id="formPrecio">
+                <?php foreach ($_GET as $k => $v): if (!in_array($k, ['min_price', 'max_price', 'p'])) : ?><input type="hidden" name="<?= $k ?>" value="<?= htmlspecialchars($v) ?>"><?php endif; endforeach; ?>
+                <input type="hidden" name="min_price" id="input-min">
+                <input type="hidden" name="max_price" id="input-max">
+                <div class="d-flex justify-content-between mb-3 x-small fw-bold">
+                    <span id="label-min" class="badge bg-light text-dark border p-2">$0</span>
+                    <span id="label-max" class="badge bg-light text-dark border p-2">$1M</span>
+                </div>
+                <button type="submit" class="btn btn-sm btn-cenco-indigo w-100 rounded-pill fw-bold">Filtrar por Precio</button>
+            </form>
+        </div>
+
+        <div class="mb-4">
+            <h6 class="filter-title-custom">Marcas destacadas</h6>
+            <div class="d-flex flex-wrap gap-2 custom-scrollbar pe-2" style="max-height: 250px; overflow-y: auto;">
                 <?php if (empty($marcasList)): ?>
-                    <small class="text-muted fst-italic">Selecciona categoría para ver marcas.</small>
+                    <small class="text-muted fst-italic">Selecciona una categoría primero.</small>
                 <?php else: foreach ($marcasList as $m):
-                        $isActive = (isset($_GET['marca']) && $_GET['marca'] === $m['nombre']) ? 'active' : '';
-                        $params = $_GET; $params['marca'] = $m['nombre']; $params['p'] = 1;
+                    $mNombre = is_object($m) ? $m->nombre : $m['nombre'];
+                    $isActive = (isset($_GET['marca']) && $_GET['marca'] === $mNombre);
+                    $params = $_GET; $params['marca'] = $mNombre; $params['p'] = 1;
                 ?>
-                    <a href="?<?= http_build_query($params) ?>" class="filter-link <?= $isActive ?>"><?= htmlspecialchars($m['nombre']) ?></a>
+                    <a href="?<?= http_build_query($params) ?>" class="brand-pill <?= $isActive ? 'active' : '' ?>">
+                        <?php if($isActive): ?><i class="bi bi-check-circle-fill me-1"></i><?php endif; ?>
+                        <?= htmlspecialchars($mNombre) ?>
+                    </a>
                 <?php endforeach; endif; ?>
             </div>
         </div>

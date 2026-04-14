@@ -4,8 +4,8 @@
             <div class="modal-header border-0 pb-0 pt-4 px-4 position-relative">
                 <div class="w-100 text-center">
                     <img src="<?= BASE_URL ?>img/cencocalin/cencocalin_positivo.png" alt="Seguridad" style="width: 100px; margin-bottom: 10px;">
-                    <h4 class="modal-title fw-black text-cenco-indigo ls-1" id="loginModalLabel">¡Hola de nuevo!</h4>
-                    <p class="text-muted small mb-0">Ingresa seguro para gestionar tus pedidos.</p>
+                    <h4 class="modal-title fw-black text-cenco-indigo ls-1" id="loginModalLabel">¡Bienvenido!</h4>
+                    <p class="text-muted small mb-0">Ingresa o crea tu cuenta para ingresar.</p>
                 </div>
                 <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -32,6 +32,51 @@
                     <button type="submit" class="btn btn-cenco-indigo w-100 rounded-pill py-3 fw-bold shadow-sm transition-hover">Iniciar Sesión</button>
                 </form>
             </div>
+
+
+
+            <div id="wrapper-direccion" class="d-none animate__animated animate__fadeIn">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Región</label>
+                        <input type="text" class="form-control bg-light" value="V Región de Valparaíso" readonly name="region">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Comuna</label>
+                        <select class="form-select" name="comuna" id="select-comuna">
+                            <option value="" selected disabled>Selecciona tu comuna</option>
+                            <option value="Nogales">Nogales</option>
+                            <option value="Hijuelas">Hijuelas</option>
+                            <option value="La Calera">La Calera</option>
+                            <option value="La Cruz">La Cruz</option>
+                            <option value="Quillota">Quillota</option>
+                            <option value="Peñablanca">Peñablanca</option>
+                            <option value="Villa Alemana">Villa Alemana</option>
+                            <option value="Quilpue">Quilpué</option>
+                            <option value="Limache">Limache</option>
+                            <option value="Con Con">Concón</option>
+                            <option value="Viña del Mar">Viña del Mar</option>
+                            <option value="Valparaiso">Valparaíso</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold">Calle</label>
+                        <input type="text" class="form-control" name="calle" placeholder="Ej: Av. Libertad">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Número</label>
+                        <input type="text" class="form-control" name="numero" placeholder="Ej: 123">
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-bold text-indigo">Ajusta el pin en tu ubicación exacta:</label>
+                        <div id="map-registro" style="height: 300px;" class="rounded-4 border shadow-sm"></div>
+                        <input type="hidden" name="latitud" id="lat-reg">
+                        <input type="hidden" name="longitud" id="lng-reg">
+                    </div>
+                </div>
+            </div>
+
             <div class="modal-footer border-0 justify-content-center bg-light py-3">
                 <span class="text-muted">¿Eres nuevo?</span>
                 <a href="#" class="text-cenco-red fw-black text-decoration-none ms-1" onclick="cambiarModal('loginModal', 'registerModal')">Crear cuenta</a>
@@ -62,7 +107,7 @@
 
                 <form action="<?= BASE_URL ?>auth/register" method="POST" id="formRegistro">
                     <input type="hidden" name="nombre" id="inputNombreCompleto">
-                    
+
                     <div class="bg-white p-4 rounded-4 shadow-sm mb-4">
                         <h6 class="text-uppercase text-muted fw-bold mb-4 border-bottom pb-2" style="font-size: 0.75rem; letter-spacing: 1px;">Información Personal</h6>
                         <div class="row g-3">
@@ -77,7 +122,7 @@
                             <div class="col-md-12">
                                 <label class="form-label small fw-bold">RUT</label>
                                 <div class="input-group">
-                                    <input type="text" name="rut" class="form-control border-2 shadow-none" oninput="formatearRut(this)" placeholder="12.345.678-9" required>
+                                    <input type="text" name="rut" class="form-control border-2 shadow-none" placeholder="12.345.678-9" maxlength="12" required>
                                     <span class="input-group-text bg-light border-2 border-start-0"><i class="bi bi-person-badge"></i></span>
                                 </div>
                             </div>
@@ -85,7 +130,7 @@
                                 <label class="form-label small fw-bold">Celular</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light border-2 border-end-0 fw-bold text-muted">+569</span>
-                                    <input type="tel" name="telefono" class="form-control border-2 shadow-none border-start-0" maxlength="8" required placeholder="87654321" oninput="validarSoloNumeros(this)">
+                                    <input type="tel" name="telefono" class="form-control border-2 shadow-none border-start-0" maxlength="8" required placeholder="87654321" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -101,14 +146,14 @@
                             <div class="col-md-6">
                                 <label class="form-label small fw-bold">Contraseña</label>
                                 <div class="input-group">
-                                    <input type="password" name="password" id="reg_password" class="form-control border-2 shadow-none border-end-0" required placeholder="Mín. 6 caracteres">
+                                    <input type="password" name="password" id="reg_password" class="form-control border-2 shadow-none border-end-0" required minlength="6" placeholder="Mín. 6 caracteres" autocomplete="new-password">
                                     <button class="btn btn-light border-2 border-start-0" type="button" onclick="togglePassword('reg_password', this)"><i class="bi bi-eye"></i></button>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small fw-bold">Confirmar Contraseña</label>
                                 <div class="input-group">
-                                    <input type="password" id="reg_password_confirm" class="form-control border-2 shadow-none border-end-0" required placeholder="Repite tu clave">
+                                    <input type="password" id="reg_password_confirm" class="form-control border-2 shadow-none border-end-0" required minlength="6" placeholder="Repite tu clave" autocomplete="new-password">
                                     <button class="btn btn-light border-2 border-start-0" type="button" onclick="togglePassword('reg_password_confirm', this)"><i class="bi bi-eye"></i></button>
                                 </div>
                                 <div id="msg_password_error" class="text-danger small fw-bold mt-1 d-none">
@@ -121,6 +166,75 @@
                     <div class="bg-white p-4 rounded-4 shadow-sm mb-4">
                         <label class="form-label small fw-bold text-muted">Giro Comercial (Opcional)</label>
                         <input type="text" name="giro" class="form-control border-2 shadow-none" placeholder="Ej: Minimarket, Almacén...">
+                    </div>
+
+                    <div class="col-12 mb-4">
+                        <div class="form-check form-switch p-3 border rounded-4 bg-white shadow-sm d-flex align-items-center">
+                            <input class="form-check-input ms-0 me-3 fs-5" type="checkbox" id="reg-check-direccion" name="quiere_direccion">
+                            <label class="form-check-label fw-bold text-dark mb-0" for="reg-check-direccion">
+                                ¿Deseas añadir tu dirección de despacho ahora? <small class="text-muted fw-normal">(Opcional)</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="reg-wrapper-direccion" class="d-none animate__animated animate__fadeIn">
+                        <div class="bg-white p-4 rounded-4 shadow-sm mb-4 border border-indigo-subtle">
+                            <h6 class="text-uppercase text-muted fw-bold mb-4 border-bottom pb-2" style="font-size: 0.75rem; letter-spacing: 1px;">
+                                <i class="bi bi-geo-alt-fill text-cenco-red me-1"></i> Dirección de Despacho
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold text-muted">Región</label>
+                                    <input type="text" class="form-control bg-light" value="V Región de Valparaíso" readonly name="region">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold text-muted">Comuna</label>
+                                    <select class="form-select" name="comuna" id="reg-select-comuna">
+                                        <option value="" selected disabled>Selecciona tu comuna</option>
+                                        <option value="Nogales">Nogales</option>
+                                        <option value="Hijuelas">Hijuelas</option>
+                                        <option value="La Calera">La Calera</option>
+                                        <option value="La Cruz">La Cruz</option>
+                                        <option value="Quillota">Quillota</option>
+                                        <option value="Peñablanca">Peñablanca</option>
+                                        <option value="Villa Alemana">Villa Alemana</option>
+                                        <option value="Quilpue">Quilpué</option>
+                                        <option value="Limache">Limache</option>
+                                        <option value="Con Con">Concón</option>
+                                        <option value="Viña del Mar">Viña del Mar</option>
+                                        <option value="Valparaiso">Valparaíso</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="col-md-9">
+                                    <label class="form-label small fw-bold text-muted">Calle</label>
+                                    <input type="text" class="form-control" name="calle" id="reg-calle" placeholder="Nombre de la calle" disabled>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-bold text-muted">N°</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control border-end-0" name="numero" id="reg-numero" placeholder="123" disabled>
+                                        <button class="btn btn-outline-secondary border-start-0 text-cenco-indigo" type="button" id="btn-buscar-direccion" title="Ubicar en el mapa">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12 mt-4">
+                                    <p class="small text-muted mb-2"><i class="bi bi-pin-map-fill text-danger"></i> (Opcional) Puedes ajustar el pin para mayor precisión en el mapa:</p>
+                                    <div id="reg-map" style="height: 250px; z-index: 1;" class="rounded-4 border shadow-sm mb-3"></div>
+
+                                    <input type="hidden" name="latitud" id="reg-lat">
+                                    <input type="hidden" name="longitud" id="reg-lng">
+
+                                    <div class="d-grid mt-3">
+                                        <button type="button" id="btn-guardar-direccion-ui" class="btn btn-outline-success rounded-pill fw-bold">
+                                            <i class="bi bi-check-circle-fill me-2"></i> Confirmar Dirección
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-check p-3 bg-white rounded-3 shadow-sm border mb-4 text-center">
@@ -201,7 +315,7 @@
                                 <input type="text" name="guest_nombre" class="form-control bg-white border-0 shadow-sm rounded-3 py-2" placeholder="Nombre y Apellido" oninput="capitalizarPrimeraLetra(this)" required>
                             </div>
                             <div class="mb-3">
-                                <input type="text" name="guest_rut" class="form-control bg-white border-0 shadow-sm rounded-3 py-2" placeholder="RUT (12.345.678-9)" oninput="formatearRut(this)" required>
+                                <input type="text" name="rut" class="form-control border-2 shadow-none" placeholder="12.345.678-9" maxlength="12" required>
                             </div>
                             <div class="mb-3">
                                 <input type="email" name="guest_email" class="form-control bg-white border-0 shadow-sm rounded-3 py-2" placeholder="Correo electrónico (Opcional)">
@@ -297,50 +411,92 @@
         </div>
     </div>
 </div>
-
-<div class="modal fade" id="nosotrosModal" tabindex="-1" aria-labelledby="nosotrosModalLabel">
+<div class="modal fade" id="nosotrosModal" tabindex="-1" aria-labelledby="nosotrosModalLabel" aria-hidden="true" style="z-index: 1070;">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+            
             <div class="position-relative">
                 <img src="<?= BASE_URL ?>img/banner/banner Cencocal.png" class="w-100 object-fit-cover" style="height: 200px; filter: brightness(0.7);" alt="Equipo Cencocal">
                 <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+
             <div class="modal-body p-4 bg-light">
                 <ul class="nav nav-pills nav-fill mb-4 p-1 bg-white rounded-pill shadow-sm" id="pills-tab" role="tablist">
-                    <li class="nav-item" role="presentation"><button class="nav-link active rounded-pill fw-bold" id="pills-objetivo-tab" data-bs-toggle="pill" data-bs-target="#pills-objetivo" type="button" role="tab">Objetivo</button></li>
-                    <li class="nav-item" role="presentation"><button class="nav-link rounded-pill fw-bold" id="pills-mision-tab" data-bs-toggle="pill" data-bs-target="#pills-mision" type="button" role="tab">Misión</button></li>
-                    <li class="nav-item" role="presentation"><button class="nav-link rounded-pill fw-bold" id="pills-vision-tab" data-bs-toggle="pill" data-bs-target="#pills-vision" type="button" role="tab">Visión</button></li>
-                    <li class="nav-item" role="presentation"><button class="nav-link rounded-pill fw-bold" id="pills-valores-tab" data-bs-toggle="pill" data-bs-target="#pills-valores" type="button" role="tab">Valores</button></li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active rounded-pill fw-bold" id="pills-objetivo-tab" data-bs-toggle="pill" data-bs-target="#pills-objetivo" type="button" role="tab">Objetivo</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill fw-bold" id="pills-mision-tab" data-bs-toggle="pill" data-bs-target="#pills-mision" type="button" role="tab">Misión</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill fw-bold" id="pills-vision-tab" data-bs-toggle="pill" data-bs-target="#pills-vision" type="button" role="tab">Visión</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill fw-bold" id="pills-valores-tab" data-bs-toggle="pill" data-bs-target="#pills-valores" type="button" role="tab">Valores</button>
+                    </li>
                 </ul>
+
                 <div class="tab-content" id="pills-tabContent">
-                    <div class="tab-pane fade show active" id="pills-objetivo" role="tabpanel" aria-labelledby="pills-objetivo-tab">
+                    <div class="tab-pane fade show active" id="pills-objetivo" role="tabpanel">
                         <div class="bg-white p-4 rounded-4 shadow-sm border-start border-5 border-cenco-green h-100">
-                            <h5 class="fw-bold text-cenco-indigo mb-3" id="nosotrosModalLabel"><i class="bi bi-bullseye me-2 text-cenco-green"></i>Nuestro Objetivo</h5>
-                            <p class="text-muted text-justify mb-0">Mantenernos como la mejor distribuidora de abarrotes de la zona norte y centro de nuestro país...</p>
+                            <h5 class="fw-bold text-cenco-indigo mb-3"><i class="bi bi-bullseye me-2 text-cenco-green"></i>Nuestro Objetivo</h5>
+                            <p class="text-muted text-justify mb-0">
+                                Mantenernos como la mejor distribuidora de abarrotes de la zona norte y centro de nuestro país, con altas expectativas de crecimiento geográfico en base a la <strong>conveniencia y confianza</strong> consolidada con nuestros clientes.<br><br>
+                                Nos basamos en el <strong>compromiso y agilidad</strong> en la entrega de nuestro amplio portafolio, asegurando una total satisfacción y experiencia de servicio.
+                            </p>
                         </div>
                     </div>
-                    <div class="tab-pane fade" id="pills-mision" role="tabpanel" aria-labelledby="pills-mision-tab">
+
+                    <div class="tab-pane fade" id="pills-mision" role="tabpanel">
                         <div class="bg-white p-4 rounded-4 shadow-sm border-start border-5 border-primary h-100">
                             <h5 class="fw-bold text-cenco-indigo mb-3"><i class="bi bi-flag-fill me-2 text-primary"></i>Nuestra Misión</h5>
-                            <p class="text-muted text-justify mb-0">Convertirse en la compañía de distribución más conveniente y confiable...</p>
+                            <p class="text-muted text-justify mb-0">
+                                Convertirse en la compañía de distribución más conveniente y confiable a lo largo de nuestro país.<br><br>
+                                Lograremos esto a través del <strong>compromiso, ética y desarrollo</strong> de nuestros colaboradores, satisfaciendo las necesidades de nuestros clientes y creando valor real en cada producto entregado.
+                            </p>
                         </div>
                     </div>
-                    <div class="tab-pane fade" id="pills-vision" role="tabpanel" aria-labelledby="pills-vision-tab">
+
+                    <div class="tab-pane fade" id="pills-vision" role="tabpanel">
                         <div class="bg-white p-4 rounded-4 shadow-sm border-start border-5 border-warning h-100">
                             <h5 class="fw-bold text-cenco-indigo mb-3"><i class="bi bi-eye-fill me-2 text-warning"></i>Nuestra Visión</h5>
-                            <p class="text-muted text-justify mb-0">Ser la distribuidora líder en el mercado nacional...</p>
+                            <p class="text-muted text-justify mb-0">
+                                Ser la <strong>distribuidora líder en el mercado nacional</strong>, alcanzando una expansión geográfica exponencial junto con un crecimiento financiero sólido.<br><br>
+                                Buscamos estar siempre a la <strong>vanguardia</strong> de los cambios que exigen nuestros clientes y fortalecer nuestras alianzas estratégicas.
+                            </p>
                         </div>
                     </div>
-                    <div class="tab-pane fade" id="pills-valores" role="tabpanel" aria-labelledby="pills-valores-tab">
+
+                    <div class="tab-pane fade" id="pills-valores" role="tabpanel">
                         <div class="bg-white p-4 rounded-4 shadow-sm h-100">
                             <h5 class="fw-bold text-cenco-indigo mb-3 text-center"><i class="bi bi-gem me-2 text-cenco-red"></i>Nuestros Valores</h5>
                             <div class="row g-3">
-                                <div class="col-md-6"><div class="p-3 bg-light rounded-3 h-100"><h6 class="fw-bold text-dark mb-2">Ética y Compromiso</h6><p class="small text-muted mb-0">Actuamos con integridad profesional.</p></div></div>
-                                <div class="col-md-6"><div class="p-3 bg-light rounded-3 h-100"><h6 class="fw-bold text-dark mb-2">Iniciativa e Innovación</h6><p class="small text-muted mb-0">Buscamos siempre nuevas formas de mejorar.</p></div></div>
+                                <div class="col-md-6">
+                                    <div class="p-3 bg-light rounded-3 h-100 border-start border-3 border-success">
+                                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i>Ética y Compromiso</h6>
+                                        <p class="small text-muted mb-0">Actuamos con integridad profesional, generando confianza en cada relación comercial.</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 bg-light rounded-3 h-100 border-start border-3 border-warning">
+                                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Iniciativa e Innovación</h6>
+                                        <p class="small text-muted mb-0">Buscamos siempre nuevas formas de mejorar y crecer junto a nuestros clientes.</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-12">
+                                    <div class="p-3 bg-light rounded-3 border-start border-3 border-primary">
+                                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-people-fill text-primary me-2"></i>Orientación al Cliente y Equipo</h6>
+                                        <p class="small text-muted mb-0">Nuestro pilar son nuestros colaboradores. Fomentamos un liderazgo participativo y un ambiente de crecimiento personal y laboral.</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="modal-footer border-0 bg-light p-0 position-relative overflow-hidden d-flex align-items-center justify-content-center" style="height: 70px;">
+                <img src="<?= BASE_URL ?>img/logo.png" alt="Cencocal" class="img-fluid w-100 opacity-25" style="height: 100%; object-fit: contain; filter: grayscale(100%); mix-blend-mode: multiply; transform: scale(0.8);">
             </div>
         </div>
     </div>
@@ -357,7 +513,7 @@
                     <div>
                         <h5 class="modal-title fw-black text-cenco-indigo mb-0" id="modalComunaLabel">¿Dónde entregamos?</h5>
                         <p class="mb-0 mt-1" style="font-size: 0.85rem; color: #555;">
-                            Estás viendo el stock en la 
+                            Estás viendo el stock en la
                             <span class="fw-bold text-cenco-green">
                                 <?= (($_SESSION['sucursal_activa'] ?? 29) == 29) ? 'Sucursal Prat de La Calera' : 'Sucursal Villa Alemana'; ?>
                             </span>
@@ -368,13 +524,17 @@
             </div>
             <div class="modal-body p-4">
                 <div class="row g-2">
-                    <div class="col-12"><p class="fw-bold text-cenco-indigo small mb-2 border-bottom pb-1">Sucursal Prat - La Calera</p></div>
+                    <div class="col-12">
+                        <p class="fw-bold text-cenco-indigo small mb-2 border-bottom pb-1">Sucursal Prat - La Calera</p>
+                    </div>
                     <div class="col-12 mb-2">
                         <button onclick="cambiarComunaRapida('La Calera', 29)" class="btn btn-outline-secondary w-100 text-center py-3 px-3 small fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm transition-hover">
                             <i class="bi bi-shop fs-5 text-cenco-indigo"></i> La Calera (Solo Retiro en Tienda)
                         </button>
                     </div>
-                    <div class="col-12 mt-4"><p class="fw-bold text-cenco-green small mb-2 border-bottom pb-1">Sucursal Villa Alemana</p></div>
+                    <div class="col-12 mt-4">
+                        <p class="fw-bold text-cenco-green small mb-2 border-bottom pb-1">Sucursal Villa Alemana</p>
+                    </div>
                     <?php foreach (['Villa Alemana', 'Quilpué', 'Peñablanca', 'Viña del Mar', 'Valparaíso', 'Concón'] as $nombre): ?>
                         <div class="col-6 col-md-4">
                             <button onclick="cambiarComunaRapida('<?= $nombre ?>', 10)" class="btn btn-outline-success w-100 text-start py-2 px-3 small transition-hover"><?= $nombre ?></button>

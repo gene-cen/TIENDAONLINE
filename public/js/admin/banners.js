@@ -3,10 +3,10 @@
 // ==========================================
 function sincronizarPestana(valor) {
     let btn = null;
-    if(valor == '0') btn = document.getElementById('btn-tab-ambas');
-    else if(valor == '29') btn = document.getElementById('btn-tab-calera');
-    else if(valor == '10') btn = document.getElementById('btn-tab-villa');
-    if(btn) btn.click();
+    if (valor == '0') btn = document.getElementById('btn-tab-ambas');
+    else if (valor == '29') btn = document.getElementById('btn-tab-calera');
+    else if (valor == '10') btn = document.getElementById('btn-tab-villa');
+    if (btn) btn.click();
 }
 
 function setModo(prefix, modo) {
@@ -20,16 +20,16 @@ function setModo(prefix, modo) {
         panelB.classList.add('panel-disabled');
         inputsA.forEach(el => el.disabled = false);
         inputsB.forEach(el => el.disabled = true);
-        if(document.getElementById('enlace_' + prefix)) document.getElementById('enlace_' + prefix).value = '';
+        if (document.getElementById('enlace_' + prefix)) document.getElementById('enlace_' + prefix).value = '';
     } else {
         panelB.classList.remove('panel-disabled');
         panelA.classList.add('panel-disabled');
         inputsB.forEach(el => el.disabled = false);
         inputsA.forEach(el => el.disabled = true);
-        if(document.getElementById('palabra_clave_' + prefix)) document.getElementById('palabra_clave_' + prefix).value = '';
-        if(document.getElementById('ids_' + prefix)) {
+        if (document.getElementById('palabra_clave_' + prefix)) document.getElementById('palabra_clave_' + prefix).value = '';
+        if (document.getElementById('ids_' + prefix)) {
             document.getElementById('ids_' + prefix).value = '';
-            if(prefix === 'nuevo') productosNuevo = []; else productosEdit = [];
+            if (prefix === 'nuevo') productosNuevo = []; else productosEdit = [];
             renderTabla([], prefix === 'nuevo' ? 'tablaSeleccionadosNuevo' : 'tablaSeleccionadosEdit', document.getElementById('ids_' + prefix));
         }
         let catChecked = document.getElementById('btn_cat_' + prefix).checked;
@@ -56,13 +56,13 @@ function setTipoB(prefix, tipo) {
 // ==========================================
 // INICIALIZAR DRAG AND DROP
 // ==========================================
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll('.sortable-tbody').forEach(tbody => {
         new Sortable(tbody, {
-            handle: '.handle', 
+            handle: '.handle',
             animation: 150,
             ghostClass: 'bg-light',
-            onEnd: function(evt) {
+            onEnd: function (evt) {
                 let ordenes = [];
                 let rows = evt.to.querySelectorAll('tr');
                 rows.forEach((row, index) => {
@@ -90,81 +90,157 @@ function getSucursalForSearch(isEdit) {
     const sel = document.getElementById(isEdit ? 'edit_sucursal' : 'select_sucursal_nuevo');
     return sel ? sel.value : window.MI_SUCURSAL;
 }
-
 function setupBuscadorAvanzado(inputBuscadorId, listaResultadosId, inputIdsOcultoId, tbodyTablaId, arrayLocalObj, isEdit) {
     const buscador = document.getElementById(inputBuscadorId);
     if (!buscador) return;
+
     const lista = document.getElementById(listaResultadosId);
     const inputHidden = document.getElementById(inputIdsOcultoId);
 
-    buscador.addEventListener('input', function() {
+    buscador.addEventListener('input', function () {
         let q = this.value.trim();
-        if (q.length < 3) { lista.classList.add('d-none'); return; }
-        let excludeStr = arrayLocalObj.get().map(p => p.cod_producto).join(',');
+
+        if (q.length < 3) {
+            lista.classList.add('d-none');
+            lista.innerHTML = '';
+            return;
+        }
+
+        // Obtenemos los códigos ya seleccionados para que el servidor los excluya (si tu backend lo soporta)
+        let excludeStr = arrayLocalObj.get().filter(p => p !== null).map(p => p.cod_producto).join(',');
 
         fetch(window.BASE_URL + 'admin/banners/buscarParaBannerAjax?q=' + encodeURIComponent(q) + '&excluir=' + encodeURIComponent(excludeStr) + '&sucursal=' + getSucursalForSearch(isEdit))
-            .then(async res => res.ok ? res.json() : Promise.reject())
+            .then(res => res.ok ? res.json() : Promise.reject())
             .then(data => {
                 lista.innerHTML = '';
-                if (data.length > 0) {
+
+                if (data && data.length > 0) {
                     data.forEach(prod => {
+                        // 🛡️ ESCUDO: Si el producto es nulo o inválido, lo saltamos
+                        if (!prod || !prod.cod_producto) return;
+
                         let li = document.createElement('li');
-                        li.className = 'list-group-item list-group-item-action py-2 px-3 cursor-pointer';
+                        li.className = 'list-group-item list-group-item-action py-3 px-4 cursor-pointer border-0 border-bottom';
+
+                        // Lógica de imagen inteligente
+                        const urlImg = (prod.imagen && prod.imagen.startsWith('http'))
+                            ? prod.imagen
+                            : window.BASE_URL + 'img/productos/' + (prod.imagen || 'no-image.png');
+
                         li.innerHTML = `
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                <img src="${prod.imagen.startsWith('http') ? prod.imagen : window.BASE_URL + 'img/productos/' + prod.imagen}" style="width:40px; height:40px; object-fit:contain;" class="me-3 bg-white border rounded p-1">
-                                <div class="lh-sm">
-                                    <span class="d-block fw-bold text-dark text-capitalize text-md">${prod.nombre.toLowerCase()}</span>
-                                    <span class="text-secondary" style="font-size:0.85rem;">Cod: ${prod.cod_producto} | Stock: <span class="fw-bold ${prod.stock_real > 0 ? 'text-cenco-indigo' : 'text-danger'}">${prod.stock_real}</span></span>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center overflow-hidden">
+                                    <img src="${urlImg}" style="width:45px; height:45px; object-fit:contain;" class="me-3 bg-white border rounded p-1 shadow-sm">
+                                    <div class="lh-sm text-truncate">
+                                        <span class="d-block fw-bold text-dark text-capitalize text-md mb-1">${prod.nombre.toLowerCase()}</span>
+                                        <span class="text-muted small fw-bold">
+                                            Cod: ${prod.cod_producto} | 
+                                            Stock: <span class="${prod.stock_real > 0 ? 'text-cenco-green' : 'text-danger'}">${prod.stock_real ?? 0}</span>
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                            <i class="bi bi-plus-circle-fill text-success fs-4"></i>
-                        </div>`;
+                                <div class="ms-3">
+                                    <i class="bi bi-plus-circle-fill text-success fs-4 hover-scale"></i>
+                                </div>
+                            </div>`;
+
                         li.onclick = () => {
-                            let curr = arrayLocalObj.get(); curr.push(prod); arrayLocalObj.set(curr);
-                            renderTabla(curr, tbodyTablaId, inputHidden);
-                            buscador.value = ''; lista.classList.add('d-none'); buscador.focus();
+                            // 🛡️ Solo procedemos si 'prod' es un objeto válido y tiene código
+                            if (prod && typeof prod === 'object' && prod.cod_producto) {
+
+                                let curr = arrayLocalObj.get();
+
+                                // Limpiamos el array actual de nulos antes de comparar
+                                curr = curr.filter(p => p !== null);
+
+                                // Evitamos duplicados
+                                if (!curr.some(p => p.cod_producto === prod.cod_producto)) {
+                                    curr.push(prod);
+                                    arrayLocalObj.set(curr);
+                                    renderTabla(curr, tbodyTablaId, inputHidden);
+                                }
+
+                                buscador.value = '';
+                                lista.classList.add('d-none');
+                                buscador.focus();
+
+                            } else {
+                                console.error("Se intentó añadir un producto que llegó como NULL desde el buscador.");
+                            }
                         };
                         lista.appendChild(li);
                     });
                     lista.classList.remove('d-none');
                 } else {
-                    lista.innerHTML = '<li class="list-group-item text-secondary text-md py-3">No hay resultados nuevos con stock.</li>';
+                    lista.innerHTML = '<li class="list-group-item text-secondary py-4 text-center small"><i class="bi bi-info-circle me-2"></i>No se hallaron productos con stock.</li>';
                     lista.classList.remove('d-none');
                 }
-            }).catch(() => {
-                lista.innerHTML = '<li class="list-group-item text-danger text-md py-3">Error de conexión.</li>';
+            })
+            .catch(err => {
+                console.error("Error búsqueda avanzada:", err);
+                lista.innerHTML = '<li class="list-group-item text-danger py-3 text-center small">Error de conexión al servidor.</li>';
                 lista.classList.remove('d-none');
             });
     });
-    document.addEventListener('click', e => { if (!buscador.contains(e.target) && !lista.contains(e.target)) lista.classList.add('d-none'); });
-}
 
-function renderTabla(arrayLocal, tbodyId, inputHidden) {
+    // Cerrar lista al hacer clic afuera
+    document.addEventListener('click', e => {
+        if (!buscador.contains(e.target) && !lista.contains(e.target)) {
+            lista.classList.add('d-none');
+        }
+    });
+} function renderTabla(arrayLocal, tbodyId, inputHidden) {
     const tbody = document.getElementById(tbodyId);
-    tbody.innerHTML = '';
-    if (arrayLocal.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4 text-md">No hay productos seleccionados.</td></tr>';
-        inputHidden.value = '';
+    if (!tbody) return;
+
+    // 🔥 FIX ATÓMICO: Si arrayLocal no es un array o viene corrupto, lo reseteamos.
+    if (!Array.isArray(arrayLocal)) {
+        console.error("renderTabla: arrayLocal no es un array válido");
         return;
     }
+
+    // Limpiamos CUALQUIER rastro de null, undefined o valores que no sean objetos
+    const listaLimpia = arrayLocal.filter(p => p !== null && typeof p === 'object' && (p.id || p.cod_producto));
+
+    tbody.innerHTML = '';
+
+    if (listaLimpia.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted small">No hay productos seleccionados.</td></tr>';
+        if (inputHidden) inputHidden.value = '';
+        return;
+    }
+
     let codigos = [];
-    arrayLocal.forEach(prod => {
+
+    // Ahora iteramos sobre la lista que GARANTIZAMOS que está limpia
+    listaLimpia.forEach((prod) => {
+        // Doble escudo: Si por un milagro llega algo null aquí, el 'continue' de JS (en forEach es return) lo ignora
+        if (!prod) return; 
+
         codigos.push(prod.cod_producto);
+
+        const urlImg = (prod.imagen && prod.imagen.startsWith('http')) 
+            ? prod.imagen 
+            : window.BASE_URL + 'img/productos/' + (prod.imagen || 'no-image.png');
+
+        // 🔥 LÍNEA 229 (Blindada): Usamos opcional chaining (?.) para que si algo falta, no explote
         tbody.innerHTML += `
-            <tr class="bg-white">
-                <td class="ps-3 py-2"><img src="${prod.imagen.startsWith('http') ? prod.imagen : window.BASE_URL + 'img/productos/' + prod.imagen}" style="width:40px; height:40px; object-fit:contain;" class="border rounded bg-white p-1"></td>
-                <td class="fw-bold text-secondary text-md align-middle">${prod.cod_producto}</td>
-                <td class="text-truncate text-capitalize text-md align-middle fw-bold text-dark" style="max-width: 250px;" title="${prod.nombre}">${prod.nombre.toLowerCase()}</td>
-                <td class="fw-bold text-cenco-indigo text-md align-middle">${prod.stock_real}</td>
-                <td class="text-center align-middle">
-                    <button type="button" class="btn btn-light text-danger border p-2" title="Quitar" onclick="quitarProducto('${prod.cod_producto}', '${tbodyId}', '${inputHidden.id}')"><i class="bi bi-trash-fill fs-5"></i></button>
+            <tr class="bg-white align-middle shadow-sm">
+                <td class="ps-3"><img src="${urlImg}" style="width:40px; height:45px; object-fit:contain;" class="border rounded bg-light p-1"></td>
+                <td class="fw-bold text-secondary small">${prod.cod_producto || 'N/A'}</td>
+                <td class="text-dark fw-semibold text-capitalize">${(prod.nombre || 'Sin nombre').toLowerCase()}</td>
+                <td class="text-center fw-bold text-cenco-indigo">${prod.stock_real ?? 0}</td>
+                <td class="text-end pe-3">
+                    <button type="button" class="btn btn-sm btn-light border text-danger" 
+                        onclick="quitarProducto('${prod.cod_producto}', '${tbodyId}', '${inputHidden.id}')">
+                        <i class="bi bi-trash-fill"></i>
+                    </button>
                 </td>
             </tr>
         `;
     });
-    inputHidden.value = codigos.join(',');
+
+    if (inputHidden) inputHidden.value = codigos.join(',');
 }
 
 function quitarProducto(cod_producto, tbodyId, inputHiddenId) {
@@ -177,9 +253,10 @@ function quitarProducto(cod_producto, tbodyId, inputHiddenId) {
     }
 }
 
-document.addEventListener("DOMContentLoaded", function() {
-    setupBuscadorAvanzado('buscadorNuevo', 'listaNuevo', 'idsNuevo', 'tablaSeleccionadosNuevo', { get: () => productosNuevo, set: (v) => productosNuevo = v }, false);
-    setupBuscadorAvanzado('buscadorEdit', 'listaEdit', 'edit_ids', 'tablaSeleccionadosEdit', { get: () => productosEdit, set: (v) => productosEdit = v }, true);
+document.addEventListener("DOMContentLoaded", function () {
+    // 🔥 CAMBIO: 'idsNuevo' -> 'ids_nuevo'  y  'edit_ids' -> 'ids_edit'
+    setupBuscadorAvanzado('buscadorNuevo', 'listaNuevo', 'ids_nuevo', 'tablaSeleccionadosNuevo', { get: () => productosNuevo, set: (v) => productosNuevo = v }, false);
+    setupBuscadorAvanzado('buscadorEdit', 'listaEdit', 'ids_edit', 'tablaSeleccionadosEdit', { get: () => productosEdit, set: (v) => productosEdit = v }, true);
 });
 
 // ==========================================
@@ -187,7 +264,7 @@ document.addEventListener("DOMContentLoaded", function() {
 // ==========================================
 function formatoFechaLocal(fechaSql) {
     if (!fechaSql) return '';
-    return fechaSql.replace(' ', 'T').slice(0, 16); 
+    return fechaSql.replace(' ', 'T').slice(0, 16);
 }
 
 function abrirModalEditar(id, titulo, tipo, enlace, palabra_clave, productos_ids, sucursal_id, fecha_inicio, fecha_fin) {
@@ -195,7 +272,7 @@ function abrirModalEditar(id, titulo, tipo, enlace, palabra_clave, productos_ids
     document.getElementById('edit_titulo').value = titulo;
     document.getElementById('edit_tipo').value = tipo;
     if (document.getElementById('edit_sucursal')) document.getElementById('edit_sucursal').value = sucursal_id;
-    
+
     document.getElementById('edit_fecha_inicio').value = formatoFechaLocal(fecha_inicio);
     document.getElementById('edit_fecha_fin').value = formatoFechaLocal(fecha_fin);
 
@@ -209,7 +286,7 @@ function abrirModalEditar(id, titulo, tipo, enlace, palabra_clave, productos_ids
         setModo('edit', 'B');
         document.getElementById('enlace_edit').value = enlace;
 
-        if(enlace.includes('categoria=')) {
+        if (enlace.includes('categoria=')) {
             document.getElementById('btn_cat_edit').checked = true; setTipoB('edit', 'categoria'); document.getElementById('select_cat_edit').value = enlace;
         } else if (enlace.includes('marca=')) {
             document.getElementById('btn_marca_edit').checked = true; setTipoB('edit', 'marca'); document.getElementById('select_marca_edit').value = enlace;
@@ -239,7 +316,7 @@ function guardarFechasAjax(btn) {
     let inicio = document.getElementById('edit_fecha_inicio').value;
     let fin = document.getElementById('edit_fecha_fin').value;
 
-    if(!id) { Swal.fire('Error', 'No hay banner seleccionado.', 'error'); return; }
+    if (!id) { Swal.fire('Error', 'No hay banner seleccionado.', 'error'); return; }
 
     let originalHtml = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
@@ -250,16 +327,16 @@ function guardarFechasAjax(btn) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: id, tipo: tipo, inicio: inicio, fin: fin })
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.status === 'success') {
-            Swal.fire({ icon: 'success', title: 'Fechas Guardadas', text: 'Programación actualizada.', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-        } else {
-            Swal.fire('Error', 'No se pudo guardar', 'error');
-        }
-    })
-    .catch(err => { Swal.fire('Error', 'Problema de red.', 'error'); })
-    .finally(() => { btn.innerHTML = originalHtml; btn.disabled = false; });
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                Swal.fire({ icon: 'success', title: 'Fechas Guardadas', text: 'Programación actualizada.', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+            } else {
+                Swal.fire('Error', 'No se pudo guardar', 'error');
+            }
+        })
+        .catch(err => { Swal.fire('Error', 'Problema de red.', 'error'); })
+        .finally(() => { btn.innerHTML = originalHtml; btn.disabled = false; });
 }
 
 function toggleBanner(id, tipo, btn) {
@@ -267,11 +344,11 @@ function toggleBanner(id, tipo, btn) {
     icon.className = 'spinner-border spinner-border-sm text-secondary';
 
     fetch(window.BASE_URL + 'admin/banners/toggleAjax', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, tipo: tipo })
-        }).then(res => res.json())
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, tipo: tipo })
+    }).then(res => res.json())
         .then(data => {
             if (data.status === 'success') {
-                const tdEstado = btn.closest('tr').cells[4]; 
+                const tdEstado = btn.closest('tr').cells[4];
                 if (data.nuevo_estado == 1) {
                     icon.className = 'fs-5 bi bi-eye-fill text-success';
                     tdEstado.innerHTML = '<span class="badge rounded-pill fs-6 px-3 py-2 bg-success">Activo</span>';
@@ -295,14 +372,14 @@ function eliminarBannerAjax(id, tipo, btn) {
             fetch(window.BASE_URL + 'admin/banners/borrarAjax', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, tipo: tipo })
             }).then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    const fila = btn.closest('tr');
-                    fila.style.transition = "all 0.4s ease"; fila.style.opacity = "0"; fila.style.transform = "translateX(30px)";
-                    setTimeout(() => fila.remove(), 400);
-                    Swal.fire({ icon: 'success', title: 'Eliminado', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
-                } else { Swal.fire('Error', 'No se pudo eliminar', 'error'); btn.innerHTML = originalHtml; btn.disabled = false; }
-            }).catch(err => { Swal.fire('Error', 'Problema de conexión.', 'error'); btn.innerHTML = originalHtml; btn.disabled = false; });
+                .then(data => {
+                    if (data.status === 'success') {
+                        const fila = btn.closest('tr');
+                        fila.style.transition = "all 0.4s ease"; fila.style.opacity = "0"; fila.style.transform = "translateX(30px)";
+                        setTimeout(() => fila.remove(), 400);
+                        Swal.fire({ icon: 'success', title: 'Eliminado', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+                    } else { Swal.fire('Error', 'No se pudo eliminar', 'error'); btn.innerHTML = originalHtml; btn.disabled = false; }
+                }).catch(err => { Swal.fire('Error', 'Problema de conexión.', 'error'); btn.innerHTML = originalHtml; btn.disabled = false; });
         }
     });
 }

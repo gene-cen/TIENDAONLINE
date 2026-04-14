@@ -1,31 +1,72 @@
-<div class="offcanvas offcanvas-start rounded-end-4" tabindex="-1" id="offcanvasCategorias">
-    <div class="offcanvas-body p-0 bg-light overflow-hidden">
+<div class="offcanvas offcanvas-start rounded-end-4 shadow" tabindex="-1" id="offcanvasCategorias" aria-labelledby="offcanvasCategoriasLabel">
+    
+    <div class="offcanvas-header bg-cenco-indigo text-white border-bottom border-3" style="border-color: var(--cenco-green) !important;">
+        <h5 class="offcanvas-title fw-black ls-1" id="offcanvasCategoriasLabel">
+            <i class="bi bi-grid-3x3-gap-fill text-cenco-green me-2"></i> CATEGORÍAS
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <div class="offcanvas-body p-0 bg-light custom-scrollbar">
         <div class="list-group list-group-flush border-0 mt-2">
-            <a href="<?= BASE_URL ?>home/catalogo" class="list-group-item list-group-item-action py-3 px-4 fw-bold text-cenco-indigo bg-transparent border-0 d-flex align-items-center transition-hover hover-bg-white">
+            
+            <a href="<?= BASE_URL ?>home/catalogo" 
+               class="list-group-item list-group-item-action py-3 px-4 fw-bold text-cenco-indigo bg-transparent border-0 d-flex align-items-center transition-hover hover-bg-white <?= !isset($_GET['categoria']) ? 'bg-white shadow-sm border-start border-4 border-cenco-indigo' : '' ?>">
                 <div class="bg-white p-2 rounded-circle shadow-sm me-3 d-flex align-items-center justify-content-center text-cenco-green" style="width:40px;height:40px;">
                     <i class="bi bi-grid-fill fs-5"></i>
                 </div>
                 Ver Todo el Catálogo
             </a>
-            <hr class="my-2 mx-4 opacity-25">
-            <?php if (!empty($categoriasMenu)): foreach ($categoriasMenu as $cat):
+
+            <div class="px-4 py-3 text-uppercase text-muted fw-black" style="font-size: 0.65rem; letter-spacing: 2px; opacity: 0.7;">
+                Nuestros Departamentos
+            </div>
+
+            <?php 
+            // Si en este punto la variable se llama $categoriasMenu, cámbiala por $categorias 
+            // para que usen la misma fuente de datos.
+            $listaAMostrar = !empty($categorias) ? $categorias : (!empty($categoriasMenu) ? $categoriasMenu : []);
+            
+            if (!empty($listaAMostrar)): 
+                foreach ($listaAMostrar as $cat):
                     $catNombre = is_object($cat) ? $cat->nombre : $cat['nombre'];
-                    $icono = function_exists('obtenerIconoCategoria') ? obtenerIconoCategoria($catNombre) : 'fa-solid fa-tag';
+                    
+                    // Detectar si esta categoría es la que el cliente está viendo
+                    $isActive = (isset($_GET['categoria']) && $_GET['categoria'] === $catNombre);
+                    
+                    // Ícono dinámico
+                    $icono = function_exists('obtenerIconoCategoria') ? obtenerIconoCategoria($catNombre) : 'bi bi-tag';
             ?>
-                    <a href="<?= BASE_URL ?>home/catalogo?categoria=<?= urlencode($catNombre) ?>" class="list-group-item list-group-item-action py-3 px-4 border-0 bg-transparent d-flex align-items-center justify-content-between transition-hover hover-bg-white group-link">
-                        <span class="d-flex align-items-center fw-semibold text-dark">
-                            <span class="d-flex align-items-center justify-content-center me-3 text-secondary opacity-75" style="width: 25px;"><i class="<?= $icono ?> fs-4"></i></span>
+                <a href="<?= BASE_URL ?>home/catalogo?categoria=<?= urlencode($catNombre) ?>" 
+                   class="list-group-item list-group-item-action py-3 px-4 border-0 bg-transparent d-flex align-items-center justify-content-between transition-hover hover-bg-white group-link <?= $isActive ? 'bg-white fw-bold text-cenco-indigo shadow-sm border-start border-4 border-cenco-green' : '' ?>">
+                    
+                    <span class="d-flex align-items-center">
+                        <span class="d-flex align-items-center justify-content-center me-3 <?= $isActive ? 'text-cenco-green' : 'text-secondary opacity-50' ?>" style="width: 25px;">
+                            <i class="<?= $icono ?> fs-4"></i>
+                        </span>
+                        <span class="text-truncate" style="max-width: 200px;">
                             <?= htmlspecialchars($catNombre) ?>
                         </span>
+                    </span>
+
+                    <?php if($isActive): ?>
+                        <i class="bi bi-check-circle-fill text-cenco-green"></i>
+                    <?php else: ?>
                         <i class="bi bi-chevron-right text-muted opacity-25 small"></i>
-                    </a>
-            <?php endforeach;
-            endif; ?>
+                    <?php endif; ?>
+                </a>
+            <?php 
+                endforeach; 
+            endif; 
+            ?>
         </div>
     </div>
+
     <div class="offcanvas-footer p-4 bg-white border-top shadow-sm">
         <div class="d-grid">
-            <a href="#" class="btn btn-outline-cenco-indigo rounded-pill fw-bold py-2"><i class="bi bi-headset me-2"></i> Centro de Ayuda</a>
+            <a href="<?= BASE_URL ?>ayuda" class="btn btn-outline-cenco-indigo rounded-pill fw-bold py-2 transition-hover">
+                <i class="bi bi-headset me-2"></i> Centro de Ayuda
+            </a>
         </div>
     </div>
 </div>

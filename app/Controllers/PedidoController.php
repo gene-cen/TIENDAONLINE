@@ -18,7 +18,7 @@ class PedidoController
     public function exito()
     {
         // 1. Detectar si el usuario actual es Administrador (VIP)
-        $esAdmin = (isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin');
+        $esAdmin = (isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2]));
 
         // 2. Seguridad híbrida: Permitir acceso a Admin, Usuarios o Invitados
         if (!$esAdmin && empty($_SESSION['user_id']) && empty($_SESSION['invitado'])) {

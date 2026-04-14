@@ -21,7 +21,7 @@ class AdminProductoController
 
     private function verificarAdmin()
     {
-        if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'admin') {
+        if (!isset($_SESSION['rol_id']) || !in_array((int)$_SESSION['rol_id'], [1, 2])) {
             header("Location: " . BASE_URL . "home?msg=acceso_denegado");
             exit();
         }
@@ -40,7 +40,11 @@ class AdminProductoController
             'orden'        => $_GET['orden'] ?? '',
             'filtro_stock' => $_GET['filtro_stock'] ?? '',
             'marca_id'     => $_GET['marca'] ?? '',
-            'sucursal'     => $_SESSION['admin_sucursal'] ?? null
+            'sucursal'     => $_SESSION['admin_sucursal'] ?? $_SESSION['sucursal_activa'] ?? 29,
+            
+            // 🔥 NUEVAS VARIABLES DEL SLIDER
+            'min_val'      => isset($_GET['min_val']) ? (int)$_GET['min_val'] : 0,
+            'max_val'      => isset($_GET['max_val']) ? (int)$_GET['max_val'] : 10000000 // 10 Millones por defecto
         ];
 
         $por_pagina = 25;
@@ -52,6 +56,7 @@ class AdminProductoController
 
         $productos = $this->productoAdminModel->obtenerPaginadosAdmin($por_pagina, $offset, $filtros);
         
+        $totalValorizado = $this->productoAdminModel->obtenerTotalValorizadoSucursal($filtros['sucursal']);
         // Cargar datos para los combos de la vista
         $categorias = $this->productoAdminModel->obtenerCategoriasUnicas();
         $listaMarcas = $this->db->query("SELECT id, nombre FROM marcas WHERE activo=1 ORDER BY nombre ASC")->fetchAll(\PDO::FETCH_ASSOC);
@@ -63,13 +68,13 @@ class AdminProductoController
         require_once __DIR__ . '/../../views/layouts/main.php';
     }
 
-    public function toggleEstadoAjax()
+public function toggleAjax()
     {
         header('Content-Type: application/json');
         $this->verificarAdmin();
 
-        $data = json_decode(file_get_contents('php://input'), true);
-        $id = $data['id'] ?? null;
+        // 🔥 EL FIX: Leer directamente $_POST porque el JS envía un FormData, no un JSON puro.
+        $id = $_POST['id'] ?? null;
 
         if ($id) {
             $prod = $this->productoModel->obtenerPorId($id);
@@ -78,7 +83,48 @@ class AdminProductoController
             echo json_encode(['status' => 'success', 'nuevo_estado' => $nuevo_estado]);
             exit;
         }
-        echo json_encode(['status' => 'error']);
+        
+        echo json_encode(['status' => 'error', 'message' => 'ID no válido']);
+        exit;
+    }
+    // =========================================================
+    // ✏️ EDITAR Y ELIMINAR PRODUCTOS
+    // =========================================================
+
+    public function eliminar($id = null)
+    {
+        $this->verificarAdmin();
+        if ($id) {
+            // Tu modelo ya tiene esta función preparada
+            $this->productoAdminModel->eliminar($id);
+        }
+        
+        // Redirigimos de vuelta al catálogo con un mensaje
+        header("Location: " . BASE_URL . "admin/productos?msg=eliminado");
+        exit();
+    }
+
+    public function editar($id = null)
+    {
+        $this->verificarAdmin();
+        if (!$id) {
+            header("Location: " . BASE_URL . "admin/productos");
+            exit();
+        }
+
+        // 1. Obtenemos los datos del producto
+        $producto = $this->productoModel->obtenerPorId($id);
+        
+        // 2. Cargamos combos para la vista (Categorías, Marcas, etc)
+        $categorias = $this->productoAdminModel->obtenerCategoriasUnicas();
+        $listaMarcas = $this->db->query("SELECT id, nombre FROM marcas WHERE activo=1 ORDER BY nombre ASC")->fetchAll(\PDO::FETCH_ASSOC);
+
+        $esAdmin = true;
+        ob_start();
+        // Asegúrate de que este archivo exista en tu carpeta de vistas:
+        require_once __DIR__ . '/../../views/admin/producto_editar.php'; 
+        $content = ob_get_clean();
+        require_once __DIR__ . '/../../views/layouts/main.php';
     }
 
     // =========================================================
@@ -160,7 +206,11 @@ class AdminProductoController
             'categoria'    => $_GET['categoria'] ?? '',
             'filtro_stock' => $_GET['filtro_stock'] ?? '',
             'marca_id'     => $_GET['marca'] ?? '',
-            'sucursal'     => $_SESSION['admin_sucursal'] ?? null
+            'sucursal'     => $_SESSION['admin_sucursal'] ?? $_SESSION['sucursal_activa'] ?? 29,
+            
+            // 🔥 NUEVAS VARIABLES DEL SLIDER
+            'min_val'      => isset($_GET['min_val']) ? (int)$_GET['min_val'] : 0,
+            'max_val'      => isset($_GET['max_val']) ? (int)$_GET['max_val'] : 10000000 // 10 Millones por defecto
         ];
 
         $productos = $this->productoAdminModel->obtenerPaginadosAdmin(9999, 0, $filtros);

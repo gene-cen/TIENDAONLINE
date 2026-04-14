@@ -25,16 +25,6 @@ function capitalizarLetras(input) {
     input.value = palabras.join(' ');
 }
 
-function formatearRut(input) {
-    let valor = input.value.replace(/[^0-9kK]/g, "");
-    if (valor.length > 1) {
-        let cuerpo = valor.slice(0, -1);
-        let dv = valor.slice(-1).toUpperCase();
-        input.value = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-" + dv;
-    } else {
-        input.value = valor;
-    }
-}
 
 // ==========================================================================
 // 2. INICIALIZACIÓN (Al cargar la página)

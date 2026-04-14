@@ -23,6 +23,7 @@ class CarritoController
 
     // =========================================================
     // 1. MÉTODOS AJAX (Para el catálogo y offcanvas)
+    // =========================================================
     public function agregarAjax()
     {
         if (ob_get_length()) ob_clean();
@@ -38,35 +39,37 @@ class CarritoController
                     exit;
                 }
 
+                // 🔥 USAMOS LA REGLA UNIFICADA (-24 o seguridad dinámica)
+                $sqlStock = Producto::getSqlStockDisponible('ps', 'piw');
+
                 $sql = "SELECT p.id, ps.precio, p.imagen, COALESCE(piw.nombre_web, p.nombre) as nombre_mostrar,
-                       (ps.stock - ps.stock_reservado) as stock_disponible
-                FROM productos p
-                INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
-                LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
-                WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
+                               {$sqlStock} as stock_disponible
+                        FROM productos p
+                        INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
+                        WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
 
                 $stmt = $this->db->prepare($sql);
                 $stmt->execute([$id, $sucursal_id]);
                 $producto = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-                if (!$producto || $producto['precio'] <= 0 || $producto['stock_disponible'] <= 0) {
-                    echo json_encode(['status' => 'error', 'mensaje' => 'Agotado temporalmente']);
-                    exit;
-                }
-
-                // =================================================================
-                // EL CANDADO: Si NO está en el carro, exigimos que haya al menos 5
-                // =================================================================
-                if (!isset($_SESSION['carrito'][$id]) && $producto['stock_disponible'] < 5) {
-                    echo json_encode(['status' => 'error', 'mensaje' => 'Stock crítico. Exclusivo para venta presencial.']);
+                // Validación base de precio y existencia
+                if (!$producto || $producto['precio'] <= 0) {
+                    echo json_encode(['status' => 'error', 'mensaje' => 'Producto no disponible']);
                     exit;
                 }
 
                 $cantidadActual = $_SESSION['carrito'][$id]['cantidad'] ?? 0;
+                $nuevaCantidad = $cantidadActual + 1;
 
-                // EVITAR QUE LLEVEN MÁS DE LO DISPONIBLE REAL
-                if ($cantidadActual + 1 > $producto['stock_disponible']) {
-                    echo json_encode(['status' => 'error', 'mensaje' => 'Has alcanzado el límite de stock disponible']);
+                // 🔥 VALIDACIÓN DE STOCK REAL WEB
+                if ($nuevaCantidad > $producto['stock_disponible']) {
+                    echo json_encode([
+                        'status' => 'error', 
+                        'mensaje' => $producto['stock_disponible'] <= 0 
+                                     ? 'Agotado temporalmente (Buffer de seguridad aplicado)' 
+                                     : 'Solo puedes agregar ' . $producto['stock_disponible'] . ' unidades.'
+                    ]);
                     exit;
                 }
 
@@ -105,21 +108,20 @@ class CarritoController
             $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
 
             if ($id) {
-                // LÓGICA DE STOCK VIRTUAL AQUÍ TAMBIÉN
+                $sqlStock = Producto::getSqlStockDisponible('ps', 'piw');
                 $sql = "SELECT p.id, ps.precio, p.imagen, COALESCE(piw.nombre_web, p.nombre) as nombre_mostrar,
-               -- CALCULAMOS EL DISPONIBLE REAL SIN EL DESCUENTO FORZADO DE 5
-               (ps.stock - ps.stock_reservado) as stock_disponible
-        FROM productos p
-        INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
-        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
-        WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
+                               {$sqlStock} as stock_disponible
+                        FROM productos p
+                        INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
+                        WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
+                
                 $stmt = $this->db->prepare($sql);
                 $stmt->execute([$id, $sucursal_id]);
                 $producto = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-                if ($producto && $producto['precio'] > 0 && $producto['stock_disponible'] > 0) {
+                if ($producto && $producto['precio'] > 0) {
                     $cantidadActual = $_SESSION['carrito'][$id]['cantidad'] ?? 0;
-
                     if ($cantidadActual + 1 <= $producto['stock_disponible']) {
                         if (isset($_SESSION['carrito'][$id])) {
                             $_SESSION['carrito'][$id]['cantidad']++;
@@ -152,22 +154,21 @@ class CarritoController
 
         if ($id && isset($_SESSION['carrito'][$id])) {
             if ($accion === 'subir') {
-                // VERIFICAR STOCK ANTES DE PERMITIR SUBIR EN EL CARRITO
-                // Seleccionamos SOLO el stock disponible para que fetchColumn() funcione perfecto
-                $sql = "SELECT (ps.stock - ps.stock_reservado) as stock_disponible
+                $sqlStock = Producto::getSqlStockDisponible('ps', 'piw');
+                $sql = "SELECT {$sqlStock} as stock_disponible
                         FROM productos p
                         INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                        LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
                         WHERE p.id = ? AND ps.sucursal_id = ? AND p.activo = 1";
 
                 $stmt = $this->db->prepare($sql);
                 $stmt->execute([$id, $sucursal_id]);
                 $disponible = (int)$stmt->fetchColumn();
 
-                // Validación Estricta
                 if ($_SESSION['carrito'][$id]['cantidad'] + 1 > $disponible) {
                     echo json_encode([
                         'status' => 'error',
-                        'mensaje' => "Máximo permitido. Solo quedan $disponible unidades en tienda."
+                        'mensaje' => "Límite alcanzado. Solo quedan $disponible unidades disponibles para web."
                     ]);
                     exit;
                 }
@@ -195,15 +196,18 @@ class CarritoController
         ]);
         exit;
     }
+
     public function subir()
     {
         $id = $_GET['id'] ?? null;
         $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
 
         if ($id && isset($_SESSION['carrito'][$id])) {
-            // Validar stock también en redirección clásica
-            $sql = "SELECT GREATEST(0, (ps.stock - ps.stock_reservado - COALESCE(piw.stock_seguridad, 5)))
-                    FROM productos_sucursales ps INNER JOIN productos p ON ps.cod_producto = p.cod_producto LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto WHERE p.id = ? AND ps.sucursal_id = ?";
+            $sqlStock = Producto::getSqlStockDisponible('ps', 'piw');
+            $sql = "SELECT {$sqlStock} FROM productos_sucursales ps 
+                    INNER JOIN productos p ON ps.cod_producto = p.cod_producto 
+                    LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
+                    WHERE p.id = ? AND ps.sucursal_id = ?";
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$id, $sucursal_id]);
             $disponible = $stmt->fetchColumn();
@@ -212,12 +216,12 @@ class CarritoController
                 $_SESSION['carrito'][$id]['cantidad']++;
             }
         }
-        header("Location: " . $_SERVER['HTTP_REFERER']);
+        header("Location: " . ($_SERVER['HTTP_REFERER'] ?? BASE_URL . "carrito/ver"));
         exit();
     }
 
-    public function bajar()
-    {
+    // [MÉTODOS bajar, eliminar, vaciar, ver y calcularTotales se mantienen idénticos]
+    public function bajar() {
         $id = $_GET['id'] ?? null;
         if ($id && isset($_SESSION['carrito'][$id])) {
             if ($_SESSION['carrito'][$id]['cantidad'] > 1) {
@@ -230,25 +234,20 @@ class CarritoController
         exit();
     }
 
-    public function eliminar()
-    {
+    public function eliminar() {
         $id = $_GET['id'] ?? null;
-        if ($id) {
-            unset($_SESSION['carrito'][$id]);
-        }
+        if ($id) unset($_SESSION['carrito'][$id]);
         header("Location: " . $_SERVER['HTTP_REFERER']);
         exit();
     }
 
-    public function vaciar()
-    {
+    public function vaciar() {
         $_SESSION['carrito'] = [];
         header("Location: " . BASE_URL . "home");
         exit();
     }
 
-    public function ver()
-    {
+    public function ver() {
         $totales = $this->calcularTotales();
         $total = $totales['monto'];
         ob_start();
@@ -257,8 +256,8 @@ class CarritoController
         include __DIR__ . '/../../views/layouts/main.php';
     }
 
-    public function obtenerHtml()
-    {
+    public function obtenerHtml() {
+        // [Este método se mantiene idéntico al que me pasaste, maneja el offcanvas]
         header('Content-Type: application/json');
         $html = '';
         $totales = $this->calcularTotales();
@@ -288,7 +287,7 @@ class CarritoController
                                 <button type="button" class="btn btn-outline-secondary px-2" onclick="cambiarCantidad(' . $item['id'] . ', \'subir\')"><i class="bi bi-plus-lg"></i></button>
                             </div>
                         </div>
-<div class="ms-1 align-self-start">
+                        <div class="ms-1 align-self-start">
                             <button type="button" class="btn btn-link text-danger p-0" onclick="confirmarEliminarCarrito(' . $item['id'] . ')">
                                 <i class="bi bi-x-circle-fill fs-5"></i>
                             </button>
@@ -305,10 +304,8 @@ class CarritoController
         exit;
     }
 
-    private function calcularTotales()
-    {
-        $cantidad = 0;
-        $monto = 0;
+    private function calcularTotales() {
+        $cantidad = 0; $monto = 0;
         if (isset($_SESSION['carrito'])) {
             foreach ($_SESSION['carrito'] as $item) {
                 $cantidad += $item['cantidad'];
@@ -318,6 +315,9 @@ class CarritoController
         return ['cantidad' => $cantidad, 'monto' => $monto];
     }
 
+    // =========================================================
+    // 2. CAMBIO DE SUCURSAL (REFACTORIZADO)
+    // =========================================================
     public function validarCambioSucursal($nueva_sucursal_id, $ejecutar = true)
     {
         if (empty($_SESSION['carrito'])) return ['cambios' => false, 'mensajes' => []];
@@ -326,10 +326,10 @@ class CarritoController
         $carrito_limpio = [];
         $cambios = false;
 
+        $sqlStock = Producto::getSqlStockDisponible('ps', 'piw');
+
         foreach ($_SESSION['carrito'] as $id => $item) {
-            // INCORPORAMOS LA LÓGICA VIRTUAL AL CAMBIO DE SUCURSAL
-            $sql = "SELECT ps.precio, 
-                           GREATEST(0, (ps.stock - ps.stock_reservado - COALESCE(piw.stock_seguridad, 5))) as stock_disponible 
+            $sql = "SELECT ps.precio, {$sqlStock} as stock_disponible 
                     FROM productos_sucursales ps 
                     INNER JOIN productos p ON ps.cod_producto = p.cod_producto 
                     LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
@@ -344,11 +344,11 @@ class CarritoController
                 $cambios = true;
             } else {
                 if ($item['precio'] != $prod['precio']) {
-                    $mensajes[] = "<li class='text-warning'><b>" . $item['nombre'] . "</b> (Cambia a $" . number_format($prod['precio'], 0, ',', '.') . ")</li>";
+                    $mensajes[] = "<li class='text-warning'><b>" . $item['nombre'] . "</b> (Cambio de precio: $" . number_format($prod['precio'], 0, ',', '.') . ")</li>";
                     $cambios = true;
                 }
                 if ($item['cantidad'] > $prod['stock_disponible']) {
-                    $mensajes[] = "<li class='text-warning'><b>" . $item['nombre'] . "</b> (Quedan solo " . $prod['stock_disponible'] . " un)</li>";
+                    $mensajes[] = "<li class='text-warning'><b>" . $item['nombre'] . "</b> (Stock limitado a " . $prod['stock_disponible'] . " un)</li>";
                     $cambios = true;
                 }
 

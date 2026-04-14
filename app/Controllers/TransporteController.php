@@ -10,24 +10,29 @@ class TransporteController
     private $db;
     private $pedidoModel;
 
-    public function __construct($db)
-    {
-        $this->db = $db;
-        $this->pedidoModel = new \App\Models\Pedido($this->db);
+   public function __construct($db)
+{
+    $this->db = $db;
+    $this->pedidoModel = new \App\Models\Pedido($this->db);
 
-        // 1. Si no hay sesión iniciada, al login
-        if (!isset($_SESSION['user_id'])) {
-            header('Location: ' . BASE_URL . 'auth/login');
-            exit;
-        }
-
-        // 2. Si está logueado pero NO es transportista ni admin, al home (NO al login)
-        // Esto es lo que rompe el bucle de redirección
-        if (!isset($_SESSION['rol']) || !in_array($_SESSION['rol'], ['transportista', 'admin'])) {
-            header('Location: ' . BASE_URL . 'home');
-            exit;
-        }
+    // 1. Si no hay sesión iniciada, al login
+    if (!isset($_SESSION['user_id'])) {
+        header('Location: ' . BASE_URL . 'auth/login');
+        exit;
     }
+
+    // 2. Validación por rol_id (Numérico)
+    // 1 = SuperAdmin
+    // 2 = Admin Sucursal
+    // 5 = Transportista
+    $rolesAutorizados = [1, 2, 5];
+
+    if (!isset($_SESSION['rol_id']) || !in_array((int)$_SESSION['rol_id'], $rolesAutorizados)) {
+        // Si está logueado pero es un Cliente (ID 6) u otro, al home
+        header('Location: ' . BASE_URL . 'home?msg=acceso_denegado');
+        exit;
+    }
+}
 
     // Muestra la lista de entregas para el chofer
     public function misEntregas()

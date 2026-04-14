@@ -134,30 +134,58 @@ body.modal-open {
     transition: all 0.2s ease;
     cursor: pointer;
 }
+/* === CONFIGURACIONES DE ACCESIBILIDAD === */
 
-/* === MODO ACCESIBILIDAD === */
-/* Usamos el wrapper para no afectar a los modales de configuración */
+/* 1. Modo Oscuro (Usando inversión inteligente) */
 body.access-dark #wrapper {
     filter: invert(1) hue-rotate(180deg);
-    background-color: #1a1a1a;
+    background-color: #fff; /* Al invertir se vuelve negro */
 }
-
+/* Re-invertimos imágenes y videos para que no se vean como negativos */
 body.access-dark #wrapper img, 
-body.access-dark .map-container {
+body.access-dark #wrapper video, 
+body.access-dark #wrapper .map-container,
+body.access-dark #wrapper .no-invert {
     filter: invert(1) hue-rotate(180deg);
 }
 
+/* 2. Invertir Colores (Simple) */
+body.access-invert #wrapper {
+    filter: invert(1);
+}
+
+/* 3. Alto Contraste */
+body.access-high-contrast {
+    background-color: #000 !important;
+}
 body.access-high-contrast #wrapper,
 body.access-high-contrast #wrapper * {
     background-color: #000 !important;
-    color: #ff0 !important;
-    border-color: #ff0 !important;
+    color: #00ff00 !important; /* Verde neón para máxima lectura */
+    border-color: #00ff00 !important;
 }
 
-/* Fuente Dislexia */
+/* 4. Fuente Dislexia */
 body.access-dyslexic * {
     font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
 }
+
+/* 5. Tamaños de Texto (Escalables) */
+body.access-lvl-1 { font-size: 1.15rem !important; }
+body.access-lvl-2 { font-size: 1.30rem !important; }
+body.access-lvl-3 { font-size: 1.50rem !important; }
+
+/* 6. Sin Animaciones */
+body.access-no-anim * {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* 7. Filtros de Color (Daltonismo) */
+.filter-grayscale { filter: grayscale(100%) !important; }
+.filter-protanopia { filter: url('#protanopia') grayscale(0%) !important; }
+.filter-deuteranopia { filter: url('#deuteranopia') grayscale(0%) !important; }
+.filter-tritanopia { filter: url('#tritanopia') grayscale(0%) !important; }
 
 /* === ANIMACIONES === */
 @keyframes ping {
@@ -185,9 +213,11 @@ body.access-dyslexic * {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #f1f1f1; }
 ::-webkit-scrollbar-thumb { background: var(--cenco-indigo); border-radius: 10px; }
-
 /* =========================================
    RESCATE DE COLORES: CHECKOUT PREMIUM
+   ========================================= */
+/* =========================================
+   RESCATE DE COLORES: CHECKOUT PREMIUM (VERSIÓN BLINDADA)
    ========================================= */
 
 /* 1. Tarjetas de Selección (Envío / Retiro) */
@@ -205,19 +235,31 @@ body.access-dyslexic * {
     box-shadow: 0 10px 20px rgba(0,0,0,0.05);
 }
 
-/* Estado SELECCIONADO (La magia del color) */
-.btn-check:checked + .checkout-method-card {
-    background-color: #f0f9eb !important; /* Un toque verde muy sutil de fondo */
+/* ESTADO SELECCIONADO: Cubrimos todas las estructuras de HTML posibles */
+.btn-check:checked + .checkout-method-card,
+.btn-check:checked + label.checkout-method-card,
+.btn-check:checked + label .checkout-method-card,
+.checkout-method-card:has(input:checked) {
+    background-color: #f0f9eb !important; 
     border-color: var(--cenco-green) !important;
     box-shadow: 0 8px 20px rgba(118, 192, 67, 0.2) !important;
 }
 
+/* Cambio de color de Iconos y Textos al seleccionar */
 .btn-check:checked + .checkout-method-card i,
 .btn-check:checked + .checkout-method-card h5,
-.btn-check:checked + .checkout-method-card .fw-bold {
-    color: var(--cenco-green) !important; /* Iconos y textos se vuelven verdes al marcar */
+.btn-check:checked + .checkout-method-card .fw-bold,
+.btn-check:checked + label.checkout-method-card i,
+.btn-check:checked + label.checkout-method-card h5,
+.btn-check:checked + label.checkout-method-card .fw-bold,
+.btn-check:checked + label .checkout-method-card i,
+.btn-check:checked + label .checkout-method-card h5,
+.btn-check:checked + label .checkout-method-card .fw-bold,
+.checkout-method-card:has(input:checked) i,
+.checkout-method-card:has(input:checked) h5,
+.checkout-method-card:has(input:checked) .fw-bold {
+    color: var(--cenco-green) !important; 
 }
-
 /* 2. Resumen del Pedido (Colores de acento) */
 #resumen-fijo .card {
     border-top: 5px solid var(--cenco-indigo) !important;

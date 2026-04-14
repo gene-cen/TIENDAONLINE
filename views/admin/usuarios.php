@@ -9,7 +9,7 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4">
         <div>
             <h2 class="fw-black text-cenco-indigo mb-1"><i class="bi bi-people-fill me-2 text-primary"></i>Gestión de Usuarios</h2>
-            <p class="text-secondary mb-0">Administra los roles y los accesos a créditos de confianza.</p>
+            <p class="text-secondary mb-0">Administra los roles, identidades legales y accesos a créditos.</p>
         </div>
         <div class="mt-3 mt-md-0">
             <span class="badge bg-primary text-white fs-6 px-3 py-2 shadow-sm"><i class="bi bi-person-lines-fill me-1"></i> <?= count($usuarios_lista) ?> Usuarios Registrados</span>
@@ -22,8 +22,8 @@
                 <thead class="bg-light text-cenco-indigo">
                     <tr style="font-size:0.9rem;">
                         <th class="ps-4 py-3">Usuario / Email</th>
-                        <th class="py-3">RUT</th>
-                        <th class="py-3">Rol</th>
+                        <th class="py-3">RUT / Razón Social</th>
+                        <th class="py-3 text-center">Rol</th>
                         <th class="py-3 text-center">Crédito VIP</th>
                         <th class="py-3 text-end pe-4">Acción</th>
                     </tr>
@@ -38,18 +38,21 @@
                             <div class="text-muted small"><i class="bi bi-envelope me-1"></i><?= htmlspecialchars($u['email']) ?></div>
                         </td>
                         
-                        <td class="py-3 font-monospace small">
-                            <?= !empty($u['rut']) ? htmlspecialchars($u['rut']) : '<span class="text-muted fst-italic">No ingresado</span>' ?>
+                        <td class="py-3">
+                            <div class="font-monospace small fw-bold"><?= !empty($u['rut']) ? htmlspecialchars($u['rut']) : '---' ?></div>
+                            <div class="text-muted small fst-italic"><?= htmlspecialchars($u['razon_social'] ?? '') ?></div>
                         </td>
 
-                        <td class="py-3">
-                            <?php if($u['rol'] === 'admin'): ?>
-                                <span class="badge bg-danger shadow-sm"><i class="bi bi-shield-lock-fill me-1"></i> Admin</span>
-                            <?php elseif($u['rol'] === 'transportista'): ?>
-                                <span class="badge bg-info text-white shadow-sm"><i class="bi bi-truck me-1"></i> Transporte</span>
-                            <?php else: ?>
-                                <span class="badge bg-secondary shadow-sm"><i class="bi bi-person-fill me-1"></i> Cliente</span>
-                            <?php endif; ?>
+                        <td class="py-3 text-center">
+                            <?php 
+                                $colorRol = 'bg-secondary';
+                                if (str_contains(strtolower($u['nombre_rol']), 'admin')) $colorRol = 'bg-danger';
+                                if (str_contains(strtolower($u['nombre_rol']), 'transporte')) $colorRol = 'bg-info';
+                                if (str_contains(strtolower($u['nombre_rol']), 'rrhh')) $colorRol = 'bg-warning text-dark';
+                            ?>
+                            <span class="badge <?= $colorRol ?> shadow-sm">
+                                <?= htmlspecialchars($u['nombre_rol'] ?? 'Sin Rol') ?>
+                            </span>
                         </td>
 
                         <td class="text-center py-3">
@@ -91,12 +94,17 @@
                     
                     <div class="mb-3">
                         <label class="form-label-custom mb-1 text-muted">Correo Electrónico <i class="bi bi-lock-fill ms-1"></i></label>
-                        <input type="email" id="edit_email" class="form-control bg-light text-muted" disabled title="El correo no se puede modificar por seguridad.">
+                        <input type="email" id="edit_email" class="form-control bg-light text-muted" disabled title="El correo no se puede modificar.">
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label-custom mb-1">Nombre Completo *</label>
                         <input type="text" id="edit_nombre" class="form-control border-primary shadow-sm text-capitalize" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label-custom mb-1">Razón Social / Giro</label>
+                        <input type="text" id="edit_razon" class="form-control border-secondary shadow-sm" placeholder="Nombre de empresa si corresponde">
                     </div>
 
                     <div class="row g-3 mb-4">
@@ -106,10 +114,10 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label-custom mb-1">Rol de Sistema</label>
-                            <select id="edit_rol" class="form-select border-secondary shadow-sm fw-bold text-cenco-indigo">
-                                <option value="cliente">Cliente Web</option>
-                                <option value="transportista">Transportista</option>
-                                <option value="admin">Administrador</option>
+                            <select id="edit_rol_id" class="form-select border-secondary shadow-sm fw-bold text-cenco-indigo">
+                                <?php foreach ($roles_disponibles as $rol): ?>
+                                    <option value="<?= $rol['id'] ?>"><?= $rol['nombre_rol'] ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
@@ -118,7 +126,7 @@
                         <div class="form-check form-switch d-flex align-items-center justify-content-between p-0">
                             <label class="form-check-label fw-bold text-success" for="edit_confianza">
                                 <i class="bi bi-star-fill text-warning me-1"></i> Cliente de Confianza
-                                <span class="d-block small fw-normal text-dark opacity-75 mt-1" style="font-size: 0.75rem;">Le permite realizar pedidos con pago contra entrega o crédito.</span>
+                                <span class="d-block small fw-normal text-dark opacity-75 mt-1" style="font-size: 0.75rem;">Permite pedidos con pago contra entrega o crédito.</span>
                             </label>
                             <input class="form-check-input fs-3 ms-3" type="checkbox" id="edit_confianza" style="cursor:pointer;">
                         </div>
@@ -138,7 +146,6 @@
 <script>
     // 1. Traer datos y abrir Modal
     function abrirModalUsuario(id) {
-        // Mostramos un loader rápido
         Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
         fetch('<?= BASE_URL ?>admin/usuarios/get', {
@@ -155,26 +162,30 @@
                 document.getElementById('edit_email').value = u.email;
                 document.getElementById('edit_nombre').value = u.nombre;
                 document.getElementById('edit_rut').value = u.rut;
-                document.getElementById('edit_rol').value = u.rol;
+                document.getElementById('edit_razon').value = u.razon_social || '';
+                document.getElementById('edit_rol_id').value = u.rol_id; // Seteamos por ID numérico
                 document.getElementById('edit_confianza').checked = (u.es_cliente_confianza == 1);
 
                 new bootstrap.Modal(document.getElementById('modalUsuario')).show();
             } else {
-                Swal.fire('Error', data.msg, 'error');
+                Swal.fire('Error', 'No se pudieron cargar los datos.', 'error');
             }
         })
-        .catch(() => Swal.fire('Error', 'Fallo de conexión al servidor.', 'error'));
+        .catch(() => Swal.fire('Error', 'Fallo de conexión.', 'error'));
     }
 
     // 2. Guardar Datos por AJAX
     function guardarUsuario() {
-        const id = document.getElementById('edit_id').value;
-        const nombre = document.getElementById('edit_nombre').value;
-        const rut = document.getElementById('edit_rut').value;
-        const rol = document.getElementById('edit_rol').value;
-        const confianza = document.getElementById('edit_confianza').checked ? 1 : 0;
+        const data = {
+            id: document.getElementById('edit_id').value,
+            nombre: document.getElementById('edit_nombre').value,
+            rut: document.getElementById('edit_rut').value,
+            razon_social: document.getElementById('edit_razon').value,
+            rol_id: document.getElementById('edit_rol_id').value, // Enviamos el ID del rol
+            es_cliente_confianza: document.getElementById('edit_confianza').checked ? 1 : 0
+        };
 
-        if (nombre.trim() === '') {
+        if (data.nombre.trim() === '') {
             Swal.fire('Atención', 'El nombre no puede estar vacío.', 'warning');
             return;
         }
@@ -187,24 +198,18 @@
         fetch('<?= BASE_URL ?>admin/usuarios/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id: id,
-                nombre: nombre,
-                rut: rut,
-                rol: rol,
-                es_cliente_confianza: confianza
-            })
+            body: JSON.stringify(data)
         })
         .then(res => res.json())
         .then(data => {
             if(data.status === 'success') {
-                Swal.fire({icon: 'success', title: '¡Guardado!', text: 'El usuario se actualizó correctamente.', timer: 1500, showConfirmButton: false});
+                Swal.fire({icon: 'success', title: '¡Actualizado!', timer: 1500, showConfirmButton: false});
                 setTimeout(() => location.reload(), 1500); 
             } else {
                 Swal.fire('Error', data.msg, 'error');
             }
         })
-        .catch(() => Swal.fire('Error', 'Fallo al guardar los datos.', 'error'))
+        .catch(() => Swal.fire('Error', 'Fallo al guardar.', 'error'))
         .finally(() => { btn.innerHTML = originalText; btn.disabled = false; });
     }
 </script>

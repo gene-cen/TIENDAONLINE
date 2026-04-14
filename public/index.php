@@ -2,7 +2,7 @@
 
 /**
  * CENCOCAL S.A. - Front Controller (Router)
- * Refactorizado para Controladores Especialistas
+ * Versión Limpia y Consolidada
  */
 
 session_start();
@@ -34,53 +34,77 @@ use App\Config\Database;
 $database = new Database();
 $db = $database->getConnection();
 
-// 5. ANALYTICS TRACKING (Global)
+// =========================================================
+// 5. ANALYTICS TRACKING (OPCIÓN PRO)
+// =========================================================
 $url = $_GET['url'] ?? 'home';
 $url = rtrim($url, '/');
 
+// Evitamos trackear el panel de admin y las APIs para no ensuciar el mapa de calor de clientes
 if (strpos($url, 'admin') === false && strpos($url, 'api') === false) {
     require_once __DIR__ . '/../app/Models/Analytics.php';
     $analytics = new \App\Models\Analytics($db);
-    $analytics->registrarVisita($url, $_SESSION['user_id'] ?? null);
+
+    // Capturamos los datos para el mapa Pro
+    $usuarioId = $_SESSION['user_id'] ?? null;
+    $comunaId  = $_SESSION['comuna_id'] ?? 29; // 29 = La Calera (Default)
+    $ip        = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $agente    = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+
+    // Registramos la visita con todos los parámetros
+    $analytics->registrarVisita($usuarioId, $comunaId, $url, $ip, $agente);
+}
+// =========================================================
+// 6. RUTAS DINÁMICAS Y SLUGS (SEO Friendly)
+// =========================================================
+$url_parts = explode('/', $url);
+
+// --- 1. BUSCADOR CON SLUG (Ej: buscar/hamburguesa-congelada) ---
+if (strpos($url, 'buscar/') === 0) {
+    $slug = end($url_parts);
+    // Convertimos los guiones de vuelta a espacios para buscar en la BD
+    $_GET['q'] = urldecode(str_replace('-', ' ', $slug));
+    (new \App\Controllers\HomeController($db))->catalogo();
+    exit();
 }
 
-// =========================================================
-// 6. RUTAS DINÁMICAS (CAPTURA DE IDs)
-// =========================================================
+// --- 2. CATEGORÍAS CON SLUG (Ej: categoria/vinos-y-licores) ---
+if (strpos($url, 'categoria/') === 0) {
+    $slug = end($url_parts);
+    $_GET['categoria'] = urldecode(str_replace('-', ' ', $slug));
+    (new \App\Controllers\HomeController($db))->catalogo();
+    exit();
+}
 
-// --- SECCIÓN PEDIDOS ---
+
+
+// --- 3. COLECCIONES/BANNERS CON SLUG (Ej: coleccion/ofertas-del-mes) ---
+if (strpos($url, 'coleccion/') === 0) {
+    $slug = end($url_parts);
+    $_GET['coleccion'] = urldecode(str_replace('-', ' ', $slug));
+    (new \App\Controllers\HomeController($db))->catalogo();
+    exit();
+}
+
+// --- PEDIDOS Y PRODUCTOS ADMIN ---
 if (strpos($url, 'admin/pedido/ver/') === 0) {
-    $id = end(explode('/', $url));
+    $id = end($url_parts);
     require_once '../app/Controllers/AdminPedidoController.php';
     (new \App\Controllers\AdminPedidoController($db))->verDetalle($id);
     exit();
 }
 
-// --- SECCIÓN PRODUCTOS ---
 if (strpos($url, 'admin/producto/editar/') === 0) {
-    $id = end(explode('/', $url));
-    require_once '../app/Controllers/AdminProductoController.php'; // Cambiado al nuevo especialista
-    (new \App\Controllers\AdminProductoController($db))->index(); // O la función de edición si la separas
+    $id = end($url_parts);
+    require_once '../app/Controllers/AdminProductoController.php';
+    (new \App\Controllers\AdminProductoController($db))->editar($id);
     exit();
 }
 
 if (strpos($url, 'admin/producto/eliminar/') === 0) {
-    $id = end(explode('/', $url));
+    $id = end($url_parts);
     require_once '../app/Controllers/AdminProductoController.php';
-    (new \App\Controllers\AdminProductoController($db))->toggleEstadoAjax(); // Reutiliza la lógica de borrado/oculto
-    exit();
-}
-
-// --- SECCIÓN BANNERS Y MARCAS (Se quedan en AdminController por ahora) ---
-if (strpos($url, 'admin/banners/borrar/') === 0) {
-    $id = end(explode('/', $url));
-    (new \App\Controllers\AdminController($db))->borrarBanner($id);
-    exit();
-}
-
-if (strpos($url, 'admin/marcas/borrar/') === 0) {
-    $id = end(explode('/', $url));
-    (new \App\Controllers\AdminController($db))->borrarMarca($id);
+    (new \App\Controllers\AdminProductoController($db))->eliminar($id);
     exit();
 }
 
@@ -100,7 +124,6 @@ switch ($url) {
         $error = (new \App\Controllers\AuthController($db))->login();
         include __DIR__ . '/../views/auth/login.php';
         break;
-
     case 'auth/guestLogin':
         (new \App\Controllers\AuthController($db))->guestLogin();
         break;
@@ -127,9 +150,13 @@ switch ($url) {
         }
         include __DIR__ . '/../views/auth/register.php';
         break;
-
     case 'auth/forgot':
         (new \App\Controllers\AuthController($db))->forgot();
+        break;
+
+    case 'auth/send-recovery':
+        // Asegúrate de tener la función sendRecovery() creada en tu AuthController
+        (new \App\Controllers\AuthController($db))->sendRecovery();
         break;
     case 'auth/reset':
         (new \App\Controllers\AuthController($db))->reset();
@@ -157,6 +184,10 @@ switch ($url) {
         (new \App\Controllers\HomeController($db))->autocomplete();
         break;
 
+    case 'auth/check-duplicate':
+        (new \App\Controllers\AuthController($db))->checkDuplicate();
+        break;
+
     // ----------------------------------------------------
     // 🛒 CARRITO & CHECKOUT
     // ----------------------------------------------------
@@ -175,12 +206,25 @@ switch ($url) {
     case 'carrito/obtenerHtml':
         (new \App\Controllers\CarritoController($db))->obtenerHtml();
         break;
-
     case 'checkout':
         (new \App\Controllers\CheckoutController($db))->index();
         break;
     case 'checkout/procesar':
         (new \App\Controllers\CheckoutController($db))->procesar();
+        break;
+
+    // ----------------------------------------------------
+    // 💳 PAGOS WEBPAY
+    // ----------------------------------------------------
+    case 'webpay/iniciar':
+        (new \App\Controllers\WebpayController($db))->iniciar($_GET['id'] ?? null);
+        break;
+    case 'webpay/confirmar':
+        (new \App\Controllers\WebpayController($db))->confirmar();
+        break;
+    case 'pedido/exito':
+        require_once __DIR__ . '/../app/Controllers/PedidoController.php';
+        (new \App\Controllers\PedidoController($db))->exito();
         break;
 
     // ----------------------------------------------------
@@ -201,8 +245,6 @@ switch ($url) {
     case 'perfil/hacerPrincipalAjax':
         (new \App\Controllers\PerfilController($db))->hacerPrincipalAjax();
         break;
-
-    // 🔥 RUTAS CRÍTICAS PARA EL DETALLE Y TELÉFONOS
     case 'perfil/obtenerDetallePedido':
         (new \App\Controllers\PerfilController($db))->obtenerDetallePedido();
         break;
@@ -215,22 +257,15 @@ switch ($url) {
     case 'perfil/agregarTelefonoPerfil':
         (new \App\Controllers\PerfilController($db))->agregarTelefonoPerfil();
         break;
+
     // ----------------------------------------------------
-    // 📊 ZONA ADMIN: DASHBOARD & ANALYTICS
+    // 📊 ZONA ADMIN: DASHBOARD & USUARIOS
     // ----------------------------------------------------
     case 'admin/dashboard':
         (new \App\Controllers\AdminController($db))->dashboard();
         break;
     case 'admin/analytics':
         (new \App\Controllers\AdminController($db))->analytics();
-        break;
-    // public/index.php
-    case 'pedido/exito':
-        require_once __DIR__ . '/../app/Controllers/PedidoController.php';
-        (new \App\Controllers\PedidoController($db))->exito();
-        break;
-    case 'admin/buscar_cliente_venta_asistida':
-        (new \App\Controllers\AdminController($db))->buscarClienteVentaAsistidaAjax();
         break;
     case 'admin/importar_erp':
         (new \App\Controllers\AdminController($db))->importarERP();
@@ -244,109 +279,68 @@ switch ($url) {
     case 'admin/usuarios/update':
         (new \App\Controllers\AdminController($db))->actualizarUsuarioAjax();
         break;
-
-
-    // public/index.php
-
-    // ... busca donde dice case 'empleos' y actualiza el bloque así:
+    case 'admin/buscar_cliente_venta_asistida':
+        (new \App\Controllers\AdminController($db))->buscarClienteVentaAsistidaAjax();
+        break;
 
     // ----------------------------------------------------
-    // 💼 RRHH & EMPLEOS
-    // ----------------------------------------------------
-    case 'empleos':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
-        (new \App\Controllers\EmpleosController($db))->index();
-        break;
-
-    // 🔥 ESTA ES LA QUE FALTABA PARA POSTULAR
-    case 'empleos/postulante':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
-        (new \App\Controllers\EmpleosController($db))->postulante();
-        break;
-
-    case 'empleos/dashboardRRHH':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
-        (new \App\Controllers\EmpleosController($db))->dashboardRRHH();
-        break;
-
-    // 🔥 ESTA ES LA QUE FALTABA PARA EL EXCEL
-    case 'empleos/exportarExcelRRHH':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
-        (new \App\Controllers\EmpleosController($db))->exportarExcelRRHH();
-        break;
-    // ----------------------------------------------------
-    // 📦 ZONA ADMIN: PRODUCTOS (Nuevo Especialista)
+    // 📦 ADMIN: PRODUCTOS (Especialista)
     // ----------------------------------------------------
     case 'admin/productos':
         require_once '../app/Controllers/AdminProductoController.php';
         (new \App\Controllers\AdminProductoController($db))->index();
         break;
-
-    case 'admin/productos/ajax':
-        require_once '../app/Controllers/AdminProductoController.php';
-        (new \App\Controllers\AdminProductoController($db))->index(); // Filtros AJAX
-        break;
-
     case 'admin/productos_nuevos':
         require_once '../app/Controllers/AdminProductoController.php';
         (new \App\Controllers\AdminProductoController($db))->productosNuevos();
         break;
-
     case 'admin/stock_fantasma':
         require_once '../app/Controllers/AdminProductoController.php';
         (new \App\Controllers\AdminProductoController($db))->stockFantasma();
         break;
-
     case 'admin/exportarProductosExcel':
         require_once '../app/Controllers/AdminProductoController.php';
         (new \App\Controllers\AdminProductoController($db))->exportarExcel();
         break;
-
     case 'admin/producto/toggleAjax':
         require_once '../app/Controllers/AdminProductoController.php';
-        (new \App\Controllers\AdminProductoController($db))->toggleEstadoAjax();
+        (new \App\Controllers\AdminProductoController($db))->toggleAjax();
         break;
 
     // ----------------------------------------------------
-    // 🧾 ZONA ADMIN: PEDIDOS (Nuevo Especialista)
+    // 🧾 ADMIN: PEDIDOS (Especialista)
     // ----------------------------------------------------
     case 'admin/pedidos':
         require_once '../app/Controllers/AdminPedidoController.php';
         (new \App\Controllers\AdminPedidoController($db))->index();
         break;
-
     case 'admin/pedido/cambiarEstado':
         require_once '../app/Controllers/AdminPedidoController.php';
         (new \App\Controllers\AdminPedidoController($db))->actualizarEstadoManual();
         break;
-
     case 'admin/pedido/guardar_edicion':
         require_once '../app/Controllers/AdminPedidoController.php';
         (new \App\Controllers\AdminPedidoController($db))->guardarEdicion();
         break;
-
     case 'admin/exportar_pedidos':
         require_once '../app/Controllers/AdminPedidoController.php';
         (new \App\Controllers\AdminPedidoController($db))->exportar();
         break;
-
     case 'admin/subirComprobantePago':
         require_once '../app/Controllers/AdminPedidoController.php';
         (new \App\Controllers\AdminPedidoController($db))->subirComprobante();
         break;
-
     case 'admin/pedido/capturar_pago':
         require_once '../app/Controllers/AdminPedidoController.php';
         (new \App\Controllers\AdminPedidoController($db))->capturarPago();
         break;
-
     case 'admin/pedido/anular_reembolsar':
         require_once '../app/Controllers/AdminPedidoController.php';
         (new \App\Controllers\AdminPedidoController($db))->anularYReembolsar();
         break;
 
     // ----------------------------------------------------
-    // 🖼️ ZONA ADMIN: BANNERS & MARCAS
+    // 🖼️ ADMIN: BANNERS & MARCAS (AJAX FIX INCLUIDO)
     // ----------------------------------------------------
     case 'admin/banners':
         (new \App\Controllers\AdminController($db))->banners();
@@ -357,13 +351,23 @@ switch ($url) {
     case 'admin/banners/actualizar':
         (new \App\Controllers\AdminController($db))->actualizarBanner();
         break;
+    case 'admin/banners/borrarAjax':
+        (new \App\Controllers\AdminController($db))->borrarBannerAjax();
+        break;
     case 'admin/banners/reordenarAjax':
         (new \App\Controllers\AdminController($db))->reordenarBannersAjax();
         break;
     case 'admin/banners/toggleAjax':
         (new \App\Controllers\AdminController($db))->toggleBannerAjax();
         break;
+    case 'admin/banners/buscarParaBannerAjax':
+        (new \App\Controllers\AdminController($db))->buscarParaBannerAjax();
+        break;
+    case 'admin/banners/cargarProductosPorCodigosAjax':
+        (new \App\Controllers\AdminController($db))->cargarProductosPorCodigosAjax();
+        break;
 
+    // En la sección de MARCAS (alrededor de la línea 170)
     case 'admin/marcas':
         (new \App\Controllers\AdminController($db))->marcas();
         break;
@@ -373,6 +377,13 @@ switch ($url) {
     case 'admin/marcas/actualizar':
         (new \App\Controllers\AdminController($db))->actualizarMarca();
         break;
+    case 'admin/marcas/borrarAjax':
+        (new \App\Controllers\AdminController($db))->borrarMarcaAjax();
+        break;
+    // 🔥 AÑADE ESTA LÍNEA:
+    case 'admin/marcas/reordenarAjax':
+        (new \App\Controllers\AdminController($db))->reordenarMarcasAjax();
+        break;
 
     // ----------------------------------------------------
     // 💼 RRHH & EMPLEOS
@@ -381,9 +392,21 @@ switch ($url) {
         require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
         (new \App\Controllers\EmpleosController($db))->index();
         break;
+    case 'empleos/postulante':
+        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
+        (new \App\Controllers\EmpleosController($db))->postulante();
+        break;
     case 'empleos/dashboardRRHH':
         require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
         (new \App\Controllers\EmpleosController($db))->dashboardRRHH();
+        break;
+    case 'empleos/exportarExcelRRHH':
+        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
+        (new \App\Controllers\EmpleosController($db))->exportarExcelRRHH();
+        break;
+    case 'empleos/cambiarEstado':
+        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
+        (new \App\Controllers\EmpleosController($db))->cambiarEstado();
         break;
 
     // ----------------------------------------------------
@@ -399,78 +422,23 @@ switch ($url) {
         break;
 
     // ----------------------------------------------------
-    // 🗺️ GEOLOCALIZACIÓN
+    // 🗺️ LOCALIZACIÓN
     // ----------------------------------------------------
     case 'location/actualizar':
         (new \App\Controllers\LocationController($db))->actualizar();
         break;
-
     case 'location/detectar':
         (new \App\Controllers\LocationController($db))->detectar();
         break;
-
-    // 🔥 ESTA ES LA QUE FALTABA:
     case 'location/actualizar_por_nombre':
         (new \App\Controllers\LocationController($db))->actualizar_por_nombre();
         break;
 
-    // ----------------------------------------------------
-    // 💳 WEBPAY (TRANSBANK)
-    // ----------------------------------------------------
-    case 'webpay/iniciar':
-        (new \App\Controllers\WebpayController($db))->iniciar($_GET['id'] ?? null);
+    // 🔥 NUEVA RUTA: Buscador para reemplazo de productos en pedidos
+    case 'admin/buscar_reemplazo':
+        require_once __DIR__ . '/../app/Controllers/AdminController.php';
+        (new \App\Controllers\AdminController($db))->buscarReemplazoAjax();
         break;
-    case 'webpay/confirmar':
-        (new \App\Controllers\WebpayController($db))->confirmar();
-        break;
-
-    // ----------------------------------------------------
-    // 🗺️ GEOLOCALIZACIÓN
-    // ----------------------------------------------------
-    case 'location/actualizar':
-        (new \App\Controllers\LocationController($db))->actualizar();
-        break;
-    case 'location/detectar':
-        (new \App\Controllers\LocationController($db))->detectar();
-        break;
-
-        // public/index.php
-
-// ... dentro del switch, en la sección de banners ...
-
-    case 'admin/banners':
-        (new \App\Controllers\AdminController($db))->banners();
-        break;
-
-    // 🔥 ESTA ES LA QUE FALTA PARA EL BUSCADOR DE PRODUCTOS EN BANNERS
-    case 'banners/buscarParaBannerAjax':
-        (new \App\Controllers\AdminController($db))->buscarParaBannerAjax();
-        break;
-
-    case 'admin/banners/guardar':
-        (new \App\Controllers\AdminController($db))->guardarBanner();
-        break;
-
-// 🔥 RUTA FALTANTE PARA BORRAR BANNERS CON AJAX
-    case 'admin/banners/borrarAjax':
-        (new \App\Controllers\AdminController($db))->borrarBannerAjax();
-        break;
-    // ----------------------------------------------------
-    // 🖼️ ZONA ADMIN: BANNERS & MARCAS
-    // ----------------------------------------------------
-    case 'admin/banners':
-        (new \App\Controllers\AdminController($db))->banners();
-        break;
-
-    // 🔥 ACTUALIZADO: Agregamos el prefijo 'admin/' para que coincida con banners.js
-    case 'admin/banners/buscarParaBannerAjax':
-        (new \App\Controllers\AdminController($db))->buscarParaBannerAjax();
-        break;
-
-    case 'admin/banners/guardar':
-        (new \App\Controllers\AdminController($db))->guardarBanner();
-        break;
-
     // ----------------------------------------------------
     // 🚨 404 NOT FOUND
     // ----------------------------------------------------
@@ -483,4 +451,3 @@ switch ($url) {
         echo "</div>";
         break;
 }
-

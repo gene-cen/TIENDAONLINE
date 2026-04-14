@@ -46,8 +46,10 @@ if (!defined('SUCURSALES_PILOTO_ASISTIDO')) {
  * Verifica si el usuario actual es un admin de una sucursal piloto
  */
 function puedeRealizarVentaAsistida() {
-    if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== 'admin') return false;
-    
+    if (!isset($_SESSION['rol_id']) || !in_array((int)$_SESSION['rol_id'], [1, 2])) {
+        return false;
+    }
+
     // Asumimos que guardas la sucursal del admin en la sesión al loguear
     $sucursalAdmin = $_SESSION['admin_sucursal'] ?? null;
     return in_array((int)$sucursalAdmin, SUCURSALES_PILOTO_ASISTIDO);

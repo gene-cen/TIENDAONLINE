@@ -64,7 +64,7 @@
                             <div class="mb-3">
                                 <label class="form-label small fw-bold">RUT (Empresa o Persona)</label>
                                 <div class="input-group">
-                                    <input type="text" name="rut" id="rut" class="form-control" placeholder="12.345.678-9" required oninput="formatearRut(this)">
+                                    <input type="text" name="rut" id="rut" class="form-control" placeholder="12.345.678-9" maxlength="12" required>
                                     <button class="btn btn-outline-primary" type="button" id="btnBuscarRut">
                                         <i class="bi bi-search"></i> Buscar Datos
                                     </button>
@@ -132,8 +132,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-
-    <script>
+<script>
         const BASE_URL = "<?= BASE_URL ?>"; 
 
         // --- LÓGICA MAPA OPENSTREETMAP ---
@@ -141,32 +140,25 @@
         let marker;
 
         function initMap() {
-            // Coordenadas iniciales (Santiago)
             const lat = -33.4489;
             const lng = -70.6693;
 
-            // Si el mapa ya existe, no lo recreamos
             if(map) return;
 
-            // Crear el mapa
             map = L.map('mapa-container').setView([lat, lng], 13);
 
-            // Cargar las capas visuales (OpenStreetMap)
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '© OpenStreetMap'
             }).addTo(map);
 
-            // Crear el Pin Arrastrable
             marker = L.marker([lat, lng], {draggable: true}).addTo(map);
 
-            // EVENTO: Al terminar de arrastrar el pin
             marker.on('dragend', function(event) {
                 const position = marker.getLatLng();
                 actualizarCoords(position.lat, position.lng);
             });
 
-            // EVENTO: Al hacer clic en el mapa
             map.on('click', function(e) {
                 marker.setLatLng(e.latlng);
                 actualizarCoords(e.latlng.lat, e.latlng.lng);
@@ -184,35 +176,25 @@
                 return;
             }
 
-            // UI: Cargando
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
 
             try {
-                // CAMBIO CLAVE: Llamamos a TU backend, no a osm.org directamente
                 const url = BASE_URL + 'auth/geolocalizar?direccion=' + encodeURIComponent(direccion);
-                
                 const response = await fetch(url);
                 const data = await response.json();
 
                 if(data && data.length > 0) {
-                    // ¡ÉXITO! Encontramos la calle
                     const lat = data[0].lat;
                     const lon = data[0].lon;
-                    
-                    // Convertir a números para Leaflet
                     const nuevaPos = new L.LatLng(lat, lon);
                     
-                    // Mover mapa y pin
                     map.setView(nuevaPos, 16);
                     marker.setLatLng(nuevaPos);
-                    
-                    // Guardar en inputs ocultos
                     actualizarCoords(lat, lon);
                 } else {
                     alert("No encontramos esa dirección exacta. Prueba agregando la comuna (ej: 'Calle 123, La Calera') o mueve el pin manualmente.");
                 }
-
             } catch (e) {
                 console.error(e);
                 alert("Hubo un error al buscar. Por favor usa el pin manual.");
@@ -221,32 +203,22 @@
                 btn.innerHTML = '<i class="bi bi-geo-alt"></i> Ubicar';
             }
         }
+
         function actualizarCoords(lat, lng) {
             document.getElementById('latitud').value = lat;
             document.getElementById('longitud').value = lng;
-            // Visual para el usuario
             document.getElementById('lbl-lat').innerText = parseFloat(lat).toFixed(5);
             document.getElementById('lbl-lon').innerText = parseFloat(lng).toFixed(5);
         }
 
-        // --- LÓGICA RUT ---
-        // (Tu código de RUT existente sigue aquí igual que antes)
-        function formatearRut(rutInput) {
-            var valor = rutInput.value.replace(/\./g, '').replace(/-/g, '');
-            if (valor.length > 1) {
-                var cuerpo = valor.slice(0, -1);
-                var dv = valor.slice(-1).toUpperCase();
-                rutInput.value = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-" + dv;
-            }
-        }
+        // --- LÓGICA BOTÓN SII ---
         document.getElementById('btnBuscarRut').addEventListener('click', async function() {
-            // (Mismo código de siempre para el RUT...)
             const rutInput = document.getElementById('rut');
             const rut = rutInput.value.trim();
             const btn = this;
             const feedback = document.getElementById('rut-feedback');
 
-            if(rut.length < 8) return; // Validación simple
+            if(rut.length < 8) return;
 
             btn.disabled = true;
             btn.innerHTML = '...';
@@ -263,7 +235,6 @@
                     feedback.innerText = "⚠️ No encontrado";
                 }
             } catch (e) {
-                // Fallback
                 feedback.innerText = "⚠️ Error red";
             } finally {
                 btn.disabled = false;
@@ -278,14 +249,8 @@
             
             if(check.checked) {
                 box.style.display = 'block';
-                // Inicializar mapa si no existe
-                if(!map) {
-                    initMap();
-                }
-                // HACK CRUCIAL: Forzar renderizado después de que el div es visible
-                setTimeout(function(){ 
-                    map.invalidateSize(); 
-                }, 200);
+                if(!map) initMap();
+                setTimeout(function(){ map.invalidateSize(); }, 200);
             } else {
                 box.style.display = 'none';
             }

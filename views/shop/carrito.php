@@ -163,7 +163,7 @@ if (!empty($_SESSION['carrito'])) {
                         <div class="d-grid gap-2">
                             <?php
                             $checkoutUrl = BASE_URL . "checkout";
-                            if (isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin') {
+                            if (isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2])) {
                                 $checkoutUrl .= "?modo=asistido";
                             }
                             ?>
