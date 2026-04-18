@@ -19,8 +19,12 @@
         <?php endif; ?>
 
         <?php
-        // Condición para permitir la edición
-        $puedeEditar = in_array($estadoIdActual, [1, 2, 3]) && ($estadoWebpay ?? '') !== 'capturado' && ($estadoWebpay ?? '') !== 'captured';
+        // 🔥 REGLA DE VISTA: Solo permite editar si el estado es 1 (Pendiente) 
+        // Y no hay voucher subido ni pago capturado en Webpay.
+        $tieneVoucher = !empty($pedido['comprobante_pago']);
+        $pagoWebpayCapturado = in_array(strtolower($estadoWebpay ?? ''), ['capturado', 'captured']);
+
+        $puedeEditar = ($estadoIdActual < 3) && !$tieneVoucher && !$pagoWebpayCapturado;
 
         if ($puedeEditar): ?>
             <button class="btn btn-cenco-indigo text-white fw-bold shadow-sm px-3"
@@ -31,7 +35,7 @@
         <?php else: ?>
             <button class="btn btn-light border text-muted fw-bold px-3"
                 disabled
-                title="No se puede editar: El pago ya fue capturado o el pedido está en ruta/entregado.">
+                title="Orden Bloqueada: El pago ya fue procesado o el pedido está en preparación/ruta.">
                 <i class="bi bi-lock-fill me-2"></i> Editar Pedido
             </button>
         <?php endif; ?>

@@ -1,7 +1,11 @@
 <?php
-// 🔥 CONTROL DE ROLES (Idealmente, este bloque debe ir luego al controlador)
-$esSuperAdmin = ((isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2])) || (isset($_SESSION['user_rol']) && $_SESSION['user_rol'] === 'admin')) && empty($_SESSION['admin_sucursal']); 
+// 🔥 CONTROL DE ROLES AJUSTADO
+$esSuperAdmin = (isset($_SESSION['rol_id']) && $_SESSION['rol_id'] == 1); 
 $miSucursal = $_SESSION['admin_sucursal'] ?? 0;
+$esAdminSucursal = (isset($_SESSION['rol_id']) && $_SESSION['rol_id'] == 2 && $miSucursal > 0);
+
+// Ambos pueden gestionar, pero con límites diferentes
+$puedeGestionarBanners = $esSuperAdmin || $esAdminSucursal;
 
 $bannersAmbas_Prin = array_filter($bannersPrincipal, fn($b) => $b['sucursal_id'] == 0);
 $bannersCalera_Prin = array_filter($bannersPrincipal, fn($b) => $b['sucursal_id'] == 29);
@@ -47,7 +51,7 @@ try {
         <div>
             <h2 class="fw-black text-cenco-indigo mb-1"><i class="bi bi-images me-2"></i>Gestión de Banners</h2>
             <p class="text-secondary text-md mb-0">
-                <?= $esSuperAdmin ? 'Administra las vitrinas de todas las sucursales. Programa fechas y arrastra filas para ordenar.' : 'Administra la vitrina de tu sucursal. Programa fechas y arrastra filas.' ?>
+                <?= $esSuperAdmin ? 'Administra las vitrinas de todas las sucursales. Programa fechas y arrastra filas para ordenar.' : 'Administra la vitrina de tu sucursal. Programa fechas y arrastra filas para ordenar.' ?>
             </p>
         </div>
     </div>
@@ -64,7 +68,7 @@ try {
         <script>window.history.replaceState({}, document.title, window.location.pathname);</script>
     <?php endif; ?>
 
-    <?php if ($esSuperAdmin): ?>
+    <?php if ($puedeGestionarBanners): ?>
         <div class="card border-0 shadow-sm rounded-4 mb-4 border-top border-4 border-cenco-green">
             <div class="card-header bg-white py-3 px-4 border-bottom border-light">
                 <h4 class="mb-0 fw-bold text-cenco-indigo"><i class="bi bi-cloud-arrow-up-fill me-2"></i>Añadir Nuevo Banner</h4>
@@ -76,11 +80,16 @@ try {
                     <div class="row g-4 mb-4">
                         <div class="col-md-3">
                             <label class="form-label-custom">Sucursal Visible</label>
-                            <select name="sucursal_id" id="select_sucursal_nuevo" class="form-select form-select-lg border-cenco-green shadow-sm fw-bold bg-white" required onchange="productosNuevo=[]; renderTabla(productosNuevo, 'tablaSeleccionadosNuevo', document.getElementById('idsNuevo')); sincronizarPestana(this.value);">
-                                <option value="0">Ambas Sucursales</option>
-                                <option value="29">Solo La Calera</option>
-                                <option value="10">Solo Villa Alemana</option>
-                            </select>
+                            <?php if ($esSuperAdmin): ?>
+                                <select name="sucursal_id" id="select_sucursal_nuevo" class="form-select form-select-lg border-cenco-green shadow-sm fw-bold bg-white" required onchange="productosNuevo=[]; renderTabla(productosNuevo, 'tablaSeleccionadosNuevo', document.getElementById('idsNuevo')); sincronizarPestana(this.value);">
+                                    <option value="0">Ambas Sucursales</option>
+                                    <option value="29">Solo La Calera</option>
+                                    <option value="10">Solo Villa Alemana</option>
+                                </select>
+                            <?php else: ?>
+                                <input type="hidden" name="sucursal_id" id="select_sucursal_nuevo" value="<?= $miSucursal ?>">
+                                <input type="text" class="form-control form-control-lg border-cenco-green shadow-sm fw-bold bg-light" value="<?= $miSucursal == 29 ? 'Solo La Calera (29)' : 'Solo Villa Alemana (10)' ?>" readonly>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label-custom">Ubicación</label>
@@ -210,7 +219,7 @@ try {
             <i class="bi bi-shield-lock-fill fs-1 text-warning me-4"></i>
             <div>
                 <h4 class="fw-bold mb-1">Modo Solo Lectura</h4>
-                <span class="text-md">Solo el Administrador Mayor puede subir o modificar banners y colecciones. Puedes ver el orden actual.</span>
+                <span class="text-md">No tienes permisos para editar banners. Contacta a un administrador.</span>
             </div>
         </div>
     <?php endif; ?>
@@ -238,7 +247,8 @@ try {
     <div class="tab-content" id="sucursalTabsContent">
         
         <?php 
-        function renderTablaBanners($banners, $titulo, $tabla_db, $esSuperAdmin)
+        // 🔥 AGREGAMOS EL PARÁMETRO $puedeEditar
+        function renderTablaBanners($banners, $titulo, $tabla_db, $puedeEditar)
         {
             echo '<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">';
             echo '<div class="card-header bg-white py-3 border-bottom"><h5 class="mb-0 fw-bold text-cenco-indigo"><i class="bi bi-collection me-2"></i>' . $titulo . '</h5></div>';
@@ -290,7 +300,8 @@ try {
                     echo '</td>';
 
                     echo '<td class="text-center py-2">';
-                    if ($esSuperAdmin) {
+                    // 🔥 Solo el que tiene permisos ve la manito de arrastrar
+                    if ($puedeEditar) {
                         echo '<div class="d-inline-flex align-items-center justify-content-center gap-2 px-3 py-2 bg-light border rounded-pill drag-handle-pill handle text-muted shadow-sm" title="Arrastra para definir el orden">';
                         echo '<i class="bi bi-hand-index-thumb-fill fs-4 text-cenco-indigo"></i>'; 
                         echo '<span class="badge bg-white text-dark border orden-badge fs-5 shadow-sm px-3">' . $banner['orden'] . '</span>';
@@ -303,7 +314,8 @@ try {
                     echo '<td class="text-center py-2"><span class="badge rounded-pill fs-6 px-3 py-2 bg-' . ($banner['estado_activo'] ? 'success' : 'secondary') . '">' . ($banner['estado_activo'] ? 'Activo' : 'Inactivo') . '</span></td>';
 
                     echo '<td class="text-end pe-4 py-2">';
-                    if ($esSuperAdmin) {
+                    // 🔥 Solo el que tiene permisos ve los botones de acción
+                    if ($puedeEditar) {
                         echo '<div class="btn-group shadow-sm">';
                         echo '<button onclick="toggleBanner(' . $banner['id'] . ', \'' . ($tabla_db == 'carrusel_banners' ? 'principal' : 'secundario') . '\', this)" class="btn btn-light border py-2 px-3"><i class="fs-5 bi ' . ($banner['estado_activo'] ? 'bi-eye-fill text-success' : 'bi-eye-slash-fill text-secondary') . '"></i></button>';
                         echo '<button onclick="abrirModalEditar(' . $banner['id'] . ', \'' . htmlspecialchars(ucfirst($banner['titulo'] ?? ''), ENT_QUOTES) . '\', \'' . ($tabla_db == 'carrusel_banners' ? 'principal' : 'secundario') . '\', \'' . htmlspecialchars($banner['enlace'] ?? '', ENT_QUOTES) . '\', \'' . htmlspecialchars(ucfirst($banner['palabra_clave'] ?? ''), ENT_QUOTES) . '\', \'' . htmlspecialchars($banner['productos_ids'] ?? '', ENT_QUOTES) . '\', ' . ($banner['sucursal_id'] ?? 0) . ', \'' . ($banner['fecha_inicio'] ?? '') . '\', \'' . ($banner['fecha_fin'] ?? '') . '\')" class="btn btn-light border text-primary py-2 px-3"><i class="fs-5 bi bi-pencil-fill"></i></button>';
@@ -321,22 +333,22 @@ try {
 
         <?php if ($esSuperAdmin): ?>
             <div class="tab-pane fade show active" id="tab-ambas" role="tabpanel">
-                <?php renderTablaBanners($bannersAmbas_Prin, 'Carrusel Principal', 'carrusel_banners', $esSuperAdmin); ?>
-                <?php renderTablaBanners($bannersAmbas_Sec, 'Carrusel Promocional', 'carrusel_secundario', $esSuperAdmin); ?>
+                <?php renderTablaBanners($bannersAmbas_Prin, 'Carrusel Principal', 'carrusel_banners', true); ?>
+                <?php renderTablaBanners($bannersAmbas_Sec, 'Carrusel Promocional', 'carrusel_secundario', true); ?>
             </div>
         <?php endif; ?>
 
         <?php if ($esSuperAdmin || $miSucursal == 29): ?>
             <div class="tab-pane fade <?= (!$esSuperAdmin && $miSucursal == 29) ? 'show active' : '' ?>" id="tab-calera" role="tabpanel">
-                <?php renderTablaBanners($bannersCalera_Prin, 'Carrusel Principal', 'carrusel_banners', $esSuperAdmin); ?>
-                <?php renderTablaBanners($bannersCalera_Sec, 'Carrusel Promocional', 'carrusel_secundario', $esSuperAdmin); ?>
+                <?php renderTablaBanners($bannersCalera_Prin, 'Carrusel Principal', 'carrusel_banners', ($esSuperAdmin || $miSucursal == 29)); ?>
+                <?php renderTablaBanners($bannersCalera_Sec, 'Carrusel Promocional', 'carrusel_secundario', ($esSuperAdmin || $miSucursal == 29)); ?>
             </div>
         <?php endif; ?>
 
         <?php if ($esSuperAdmin || $miSucursal == 10): ?>
             <div class="tab-pane fade <?= (!$esSuperAdmin && $miSucursal == 10) ? 'show active' : '' ?>" id="tab-villa" role="tabpanel">
-                <?php renderTablaBanners($bannersVilla_Prin, 'Carrusel Principal', 'carrusel_banners', $esSuperAdmin); ?>
-                <?php renderTablaBanners($bannersVilla_Sec, 'Carrusel Promocional', 'carrusel_secundario', $esSuperAdmin); ?>
+                <?php renderTablaBanners($bannersVilla_Prin, 'Carrusel Principal', 'carrusel_banners', ($esSuperAdmin || $miSucursal == 10)); ?>
+                <?php renderTablaBanners($bannersVilla_Sec, 'Carrusel Promocional', 'carrusel_secundario', ($esSuperAdmin || $miSucursal == 10)); ?>
             </div>
         <?php endif; ?>
     </div>
@@ -382,16 +394,15 @@ try {
                 title: alerts[msg].title,
                 text: alerts[msg].text,
                 icon: alerts[msg].icon,
-                confirmButtonColor: '#283593', // Tu color Cenco Indigo
+                confirmButtonColor: '#283593', 
                 timer: 3500,
                 timerProgressBar: true,
                 showConfirmButton: false,
                 toast: true,
-                position: 'top-end' // Estilo notificación elegante en la esquina
+                position: 'top-end'
             });
         }
         
-        // Limpiamos la URL para que no se repita la alerta al refrescar
         window.history.replaceState({}, document.title, window.location.pathname);
     });
 </script>

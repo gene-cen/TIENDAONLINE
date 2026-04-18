@@ -38,6 +38,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
             setTimeout(() => { map.invalidateSize(); }, 10);
+            // 🔥 AÑADE ESTO: Cargar las comunas de la región seleccionada por defecto
+            const regionSelect = document.getElementById('selectRegionNueva');
+            if (regionSelect && regionSelect.value) {
+                cargarComunas(regionSelect.value);
+            }
         });
     }
 });

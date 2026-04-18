@@ -247,3 +247,109 @@ function togglePassword(inputId, btn) {
         icon.classList.replace('bi-eye-slash', 'bi-eye');
     }
 }
+
+// Función para cambiar la accesibilidad y GUARDARLA
+// ❌ BORRA TODO ESTE BLOQUE DESDE AQUÍ ❌
+// Función para cambiar la accesibilidad y GUARDARLA
+function aplicarAccesibilidad(clase) {
+    // 1. Lista de clases de accesibilidad (modificar según tus opciones)
+    const opciones = ['access-dark', 'access-invert', 'access-high-contrast', 'access-dyslexic'];
+    const filtros = ['filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia'];
+
+    if (opciones.includes(clase)) {
+        // Es un modo de visualización
+        opciones.forEach(opt => document.body.classList.remove(opt));
+        if (clase) {
+            document.body.classList.add(clase);
+            localStorage.setItem('cenco_access_mode', clase);
+        } else {
+            localStorage.removeItem('cenco_access_mode');
+        }
+    } else if (filtros.includes(clase)) {
+        // Es un filtro de daltonismo
+        filtros.forEach(f => document.documentElement.classList.remove(f));
+        document.documentElement.classList.add(clase);
+        localStorage.setItem('cenco_access_filter', clase);
+    }
+}
+
+
+// =========================================================
+// 📍 GEOLOCALIZACIÓN EXACTA (ANALYTICS)
+// =========================================================
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificamos en sessionStorage para no molestar pidiendo el GPS en cada página
+    if (!sessionStorage.getItem('gps_gestionado')) {
+        
+       if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                // 📍 Extraemos las coordenadas exactas
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+
+                const urlDestino = (typeof BASE_URL !== 'undefined' ? BASE_URL : '/') + 'location/guardarGPSAjax';
+                console.log("Enviando GPS en segundo plano a:", urlDestino);
+
+                // 🚀 Hacemos el envío
+                fetch(urlDestino, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ lat: lat, lng: lng })
+                })
+                .then(res => res.json()) // Leemos directo como JSON
+                .then(data => {
+                    if(data.status === 'success') {
+                        console.log("Ubicación actualizada con éxito:", data.texto_navbar);
+                        sessionStorage.setItem('gps_gestionado', 'autorizado');
+                        
+                        // ==========================================
+                        // ✨ MAGIA VISUAL: ACTUALIZAR EL NAVBAR ✨
+                        // ==========================================
+                        const navElement = document.getElementById('nombreComunaNav');
+                        if (navElement && data.texto_navbar) {
+                            navElement.innerHTML = data.texto_navbar;
+                            // Efecto visual: Brilla en verde por un segundo para que el usuario lo note
+                            navElement.classList.add('text-cenco-green');
+                            setTimeout(() => navElement.classList.remove('text-cenco-green'), 2000);
+                        }
+
+                        // ==========================================
+                        // 🛑 ALERTA DE SIN COBERTURA (SweetAlert) 🛑
+                        // ==========================================
+                        if (data.alerta) {
+                            if (typeof Swal !== 'undefined') {
+                                Swal.fire({
+                                    title: '¡Bienvenido a Cencocal!',
+                                    html: data.alerta,
+                                    icon: 'info',
+                                    confirmButtonColor: '#2A1B5E',
+                                    confirmButtonText: 'Explorar Catálogo',
+                                    customClass: { popup: 'rounded-4 shadow-lg border-0' }
+                                });
+                            } else {
+                                // Plan B por si SweetAlert no ha cargado en esa vista
+                                alert("Bienvenido. " + data.alerta.replace(/<[^>]*>?/gm, '')); 
+                            }
+                        }
+
+                    } else {
+                        console.error("El servidor no pudo procesar el GPS:", data.msg);
+                    }
+                })
+                .catch(err => {
+                    console.log('Silencio: Error de red al enviar GPS, se mantiene por IP.', err);
+                });
+            },
+            function(error) {
+                // ¡EL USUARIO DENEGÓ O FALLÓ! 
+                console.log("GPS no autorizado. Manteniendo ubicación por IP.");
+                sessionStorage.setItem('gps_gestionado', 'denegado');
+            },
+            { timeout: 7000 } // Esperamos máximo 7 segundos
+        );
+    }
+    }
+
+});

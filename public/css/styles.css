@@ -133,24 +133,29 @@ body.modal-open {
     transform: scale(1.2);
     transition: all 0.2s ease;
     cursor: pointer;
-}
-/* === CONFIGURACIONES DE ACCESIBILIDAD === */
+}/* === CONFIGURACIONES DE ACCESIBILIDAD === */
 
 /* 1. Modo Oscuro (Usando inversión inteligente) */
-body.access-dark #wrapper {
+body.access-dark #wrapper,
+body.access-dark .modal-content,
+body.access-dark .offcanvas {
     filter: invert(1) hue-rotate(180deg);
     background-color: #fff; /* Al invertir se vuelve negro */
 }
-/* Re-invertimos imágenes y videos para que no se vean como negativos */
+/* Re-invertimos imágenes para que no se vean como negativos */
 body.access-dark #wrapper img, 
 body.access-dark #wrapper video, 
 body.access-dark #wrapper .map-container,
-body.access-dark #wrapper .no-invert {
+body.access-dark #wrapper .no-invert,
+body.access-dark .modal-content img,
+body.access-dark .offcanvas img {
     filter: invert(1) hue-rotate(180deg);
 }
 
 /* 2. Invertir Colores (Simple) */
-body.access-invert #wrapper {
+body.access-invert #wrapper,
+body.access-invert .modal-content,
+body.access-invert .offcanvas {
     filter: invert(1);
 }
 
@@ -159,7 +164,11 @@ body.access-high-contrast {
     background-color: #000 !important;
 }
 body.access-high-contrast #wrapper,
-body.access-high-contrast #wrapper * {
+body.access-high-contrast .modal-content,
+body.access-high-contrast .offcanvas,
+body.access-high-contrast #wrapper *,
+body.access-high-contrast .modal-content *,
+body.access-high-contrast .offcanvas * {
     background-color: #000 !important;
     color: #00ff00 !important; /* Verde neón para máxima lectura */
     border-color: #00ff00 !important;
@@ -170,10 +179,15 @@ body.access-dyslexic * {
     font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
 }
 
-/* 5. Tamaños de Texto (Escalables) */
-body.access-lvl-1 { font-size: 1.15rem !important; }
-body.access-lvl-2 { font-size: 1.30rem !important; }
-body.access-lvl-3 { font-size: 1.50rem !important; }
+/* 5. Tamaños de Texto (Escalables desde la raíz) */
+html.access-lvl-1 { font-size: 110% !important; } 
+html.access-lvl-2 { font-size: 120% !important; } 
+html.access-lvl-3 { font-size: 130% !important; }
+
+/* Para que el botón de accesibilidad se vea siempre igual sin importar el zoom */
+.btn-accessibility {
+    font-size: 1rem !important; 
+}
 
 /* 6. Sin Animaciones */
 body.access-no-anim * {
@@ -182,11 +196,10 @@ body.access-no-anim * {
 }
 
 /* 7. Filtros de Color (Daltonismo) */
-.filter-grayscale { filter: grayscale(100%) !important; }
-.filter-protanopia { filter: url('#protanopia') grayscale(0%) !important; }
-.filter-deuteranopia { filter: url('#deuteranopia') grayscale(0%) !important; }
-.filter-tritanopia { filter: url('#tritanopia') grayscale(0%) !important; }
-
+.filter-grayscale #wrapper, .filter-grayscale .modal-content, .filter-grayscale .offcanvas { filter: grayscale(100%) !important; }
+.filter-protanopia #wrapper, .filter-protanopia .modal-content, .filter-protanopia .offcanvas { filter: url('#protanopia') grayscale(0%) !important; }
+.filter-deuteranopia #wrapper, .filter-deuteranopia .modal-content, .filter-deuteranopia .offcanvas { filter: url('#deuteranopia') grayscale(0%) !important; }
+.filter-tritanopia #wrapper, .filter-tritanopia .modal-content, .filter-tritanopia .offcanvas { filter: url('#tritanopia') grayscale(0%) !important; }
 /* === ANIMACIONES === */
 @keyframes ping {
     0% { transform: scale(1); opacity: 1; }
@@ -303,4 +316,9 @@ body.access-no-anim * {
     font-weight: 800;
     font-size: 0.75rem;
     letter-spacing: 1px;
+}
+
+/* Esto asegura que SweetAlert gane la guerra de capas */
+.swal2-container {
+    z-index: 10000 !important;
 }

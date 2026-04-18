@@ -1,4 +1,3 @@
-
 // =========================================================
 // 1. UTILIDADES Y FUNCIONES AUXILIARES
 // =========================================================
@@ -95,7 +94,7 @@ function buscarPredictivo(texto) {
 }
 
 // =========================================================
-// 2. INICIALIZACIÓN PRINCIPAL
+// 2. INICIALIZACIÓN PRINCIPAL (DOMContentLoaded)
 // =========================================================
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -105,27 +104,24 @@ document.addEventListener('DOMContentLoaded', function () {
     if (msg) {
         let config = {};
         switch (msg) {
-            // 🔥 ALERTAS DE REGISTRO EXITOSO (CON CENCOCALÍN)
-            case 'registro_exito': 
-                config = { 
-                    title: '¡Cuenta creada!', 
-                    text: 'Revisa tu bandeja de entrada o spam para verificar tu cuenta.', 
+            case 'registro_exito':
+                config = {
+                    title: '¡Cuenta creada!',
+                    text: 'Revisa tu bandeja de entrada o spam para verificar tu cuenta.',
                     imageUrl: `${BASE_URL}img/cencocalin/cencocalin_celebrando_compra.png`,
                     imageWidth: 120,
-                    imageAlt: 'Cencocalín celebrando',
-                    confirmButtonColor: '#85C226', 
-                    modal: 'loginModal' 
-                }; 
+                    confirmButtonColor: '#85C226',
+                    modal: 'loginModal'
+                };
                 break;
-            case 'registro_exito_sin_correo': 
-                config = { 
-                    title: '¡Cuenta creada!', 
-                    text: 'Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión.', 
+            case 'registro_exito_sin_correo':
+                config = {
+                    title: '¡Cuenta creada!',
+                    text: 'Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión.',
                     imageUrl: `${BASE_URL}img/cencocalin/cencocalin_celebrando_compra.png`,
                     imageWidth: 120,
-                    imageAlt: 'Cencocalín celebrando',
-                    confirmButtonColor: '#85C226', 
-                    modal: 'loginModal' 
+                    confirmButtonColor: '#85C226',
+                    modal: 'loginModal'
                 };
                 break;
             case 'error_password_corta': config = { icon: 'warning', title: 'Contraseña muy corta', text: 'Mínimo 6 caracteres.', confirmButtonColor: '#E53935', modal: 'registerModal' }; break;
@@ -152,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (this.dataset.submitting === '1') return;
             this.dataset.submitting = '1';
             const btn = this.querySelector('button[type="submit"]');
-            
+
             const originalText = btn.innerHTML;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Ingresando...';
             btn.disabled = true;
@@ -169,27 +165,52 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // --- C. VALIDACIONES (RUT, Pass, Duplicados) ---
-
-    // 1. Validación de RUT
     document.querySelectorAll('input[name="rut"]').forEach(input => {
         let errorSpan = document.createElement('div');
         errorSpan.className = 'text-danger fw-bold mt-1 d-none';
         errorSpan.style.fontSize = '0.85rem';
         (input.closest('.input-group') || input).after(errorSpan);
+
         input.addEventListener('input', function () {
             this.value = formatearRut(this.value);
             this.classList.remove('is-invalid', 'border-danger');
             errorSpan.classList.add('d-none');
         });
+
         input.addEventListener('blur', async function () {
-            if (this.value.length < 8) return;
-            if (!validarRut(this.value)) {
+            const valorOriginal = this.value.trim();
+            if (valorOriginal.length < 8) return;
+
+            if (!validarRut(valorOriginal)) {
                 this.classList.add('is-invalid', 'border-danger');
                 errorSpan.innerHTML = '<i class="bi bi-exclamation-circle-fill"></i> RUT inválido.';
                 errorSpan.classList.remove('d-none');
-            } else {
-                const existe = await verificarDuplicadoBD('rut', this.value);
-                if (existe) {
+                return;
+            }
+
+            const existe = await verificarDuplicadoBD('rut', valorOriginal);
+
+            if (existe) {
+                if (this.closest('#seccion-invitado')) {
+                    this.value = '';
+                    this.classList.remove('is-invalid');
+
+                    Swal.fire({
+                        title: '¡Ya eres parte de Cencocal!',
+                        text: 'Detectamos que este RUT ya tiene una cuenta registrada. Por favor, inicia sesión para continuar.',
+                        imageUrl: `${BASE_URL}img/cencocalin/cencocalin_feliz.png`,
+                        imageWidth: 120,
+                        confirmButtonColor: '#2A1B5E',
+                        confirmButtonText: 'Ir a Iniciar Sesión',
+                        customClass: { popup: 'rounded-4 shadow-lg border-0' },
+                        didOpen: () => { Swal.getContainer().style.zIndex = '10000'; }
+                    }).then(() => {
+                        const loginModal = document.getElementById('loginModal');
+                        if (loginModal) {
+                            new bootstrap.Modal(loginModal).show();
+                        }
+                    });
+                } else {
                     this.classList.add('is-invalid', 'border-danger');
                     errorSpan.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> Este RUT ya está registrado.';
                     errorSpan.classList.remove('d-none');
@@ -198,7 +219,49 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // 2. Validación de Contraseñas (Longitud y Coincidencia)
+    const btnContinuarInv = document.querySelector('#seccion-invitado button');
+    const inputRutInv = document.querySelector('#seccion-invitado input[name="rut"]');
+
+    if (btnContinuarInv && inputRutInv) {
+        const verificarSiEsRegistrado = async () => {
+            let rutValor = inputRutInv.value.trim();
+            let rutLimpio = rutValor.replace(/[^0-9kK]/g, '').replace(/^0+/, "");
+
+            if (rutLimpio.length >= 8 && validarRut(rutValor)) {
+                const existe = await verificarDuplicadoBD('rut', rutValor);
+
+                if (existe) {
+                    inputRutInv.value = '';
+                    Swal.fire({
+                        title: '¡Ya eres parte de Cencocal!',
+                        text: 'Detectamos que este RUT ya tiene una cuenta. Inicia sesión para continuar.',
+                        imageUrl: `${BASE_URL}img/cencocalin/cencocalin_feliz.png`,
+                        imageWidth: 120,
+                        confirmButtonColor: '#2A1B5E',
+                        confirmButtonText: 'Ir a Iniciar Sesión',
+                        customClass: { popup: 'rounded-4 shadow-lg border-0' },
+                        didOpen: () => Swal.getContainer().style.zIndex = '10000'
+                    }).then(() => {
+                        const loginModal = document.getElementById('loginModal');
+                        if (loginModal) new bootstrap.Modal(loginModal).show();
+                    });
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        inputRutInv.addEventListener('blur', verificarSiEsRegistrado);
+
+        btnContinuarInv.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const esRegistrado = await verificarSiEsRegistrado();
+            if (!esRegistrado) {
+                console.log("Invitado válido, enviando al pago...");
+            }
+        });
+    }
+
     const regPass = document.getElementById('reg_password');
     const regPassConf = document.getElementById('reg_password_confirm');
     const msgMismatch = document.getElementById('msg_password_error');
@@ -210,7 +273,6 @@ document.addEventListener('DOMContentLoaded', function () {
         regPass.closest('.input-group').after(errorLen);
 
         const checkPasswords = () => {
-            // A. Validar Longitud (Mínimo 6)
             if (regPass.value.length > 0 && regPass.value.length < 6) {
                 regPass.classList.add('is-invalid', 'border-danger');
                 errorLen.classList.replace('d-none', 'd-block');
@@ -218,8 +280,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 regPass.classList.remove('is-invalid', 'border-danger');
                 errorLen.classList.replace('d-block', 'd-none');
             }
-
-            // B. Validar Coincidencia
             if (regPassConf.value.length > 0) {
                 if (regPass.value !== regPassConf.value) {
                     regPassConf.classList.add('is-invalid', 'border-danger');
@@ -233,24 +293,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (msgMismatch) msgMismatch.classList.replace('d-block', 'd-none');
             }
         };
-
         regPass.addEventListener('input', checkPasswords);
         regPassConf.addEventListener('input', checkPasswords);
     }
 
-    // 3. Validación Duplicados Email/Teléfono
     const setupDuplicado = (selector, campo, msg) => {
         document.querySelectorAll(selector).forEach(input => {
             if (input.closest('form').action.includes('auth/login')) return;
             if (input.dataset.dupConfigurado === '1') return;
             input.dataset.dupConfigurado = '1';
             let errorSpan = document.createElement('div');
-            
             errorSpan.className = 'text-danger fw-bold mt-1 d-none';
             errorSpan.style.fontSize = '0.85rem';
             errorSpan.innerHTML = `<i class="bi bi-exclamation-circle-fill"></i> ${msg}`;
             (input.closest('.input-group') || input).after(errorSpan);
-            
+
             input.addEventListener('blur', async function () {
                 const valor = this.value.trim();
                 if (valor === '' || valor.length < 5) return;
@@ -272,19 +329,15 @@ document.addEventListener('DOMContentLoaded', function () {
     setupDuplicado('input[name="email"]', 'email', 'Este correo ya está registrado.');
     setupDuplicado('input[name="telefono"], input[name="celular"]', 'telefono', 'Este celular ya está registrado.');
 
-    // 4. Capitalización automática de Nombre y Apellido
     const regNombre = document.getElementById('reg_nombre');
     const regApellido = document.getElementById('reg_apellido');
-    const formatearNombres = function() {
+    const formatearNombres = function () {
         this.value = this.value.replace(/\b\w/g, letra => letra.toUpperCase());
     };
-
     if (regNombre) regNombre.addEventListener('input', formatearNombres);
     if (regApellido) regApellido.addEventListener('input', formatearNombres);
 
-    // =========================================================
-    // 🛡️ D. DIRECCIÓN OPCIONAL Y MAPA (FLUJO SECUENCIAL E INCLUSIVO)
-    // =========================================================
+    // --- D. DIRECCIÓN OPCIONAL Y MAPA ---
     const checkDir = document.getElementById('reg-check-direccion');
     const wrapperDir = document.getElementById('reg-wrapper-direccion');
     const inputCalle = document.getElementById('reg-calle');
@@ -340,71 +393,43 @@ document.addEventListener('DOMContentLoaded', function () {
             const comuna = selectComuna ? selectComuna.value : '';
             const calle = inputCalle ? inputCalle.value.trim() : '';
             const numero = inputNumero ? inputNumero.value.trim() : '';
-
             if (!comuna) {
-                Swal.fire({ icon: 'error', title: 'Selecciona una comuna', text: 'Es obligatorio elegir una comuna para usar la búsqueda.', confirmButtonColor: '#2A1B5E', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
+                Swal.fire({ icon: 'error', title: 'Selecciona una comuna', text: 'Es obligatorio elegir una comuna.', confirmButtonColor: '#2A1B5E', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
                 return;
             }
             if (!calle || !numero) {
-                Swal.fire({ icon: 'warning', title: 'Datos incompletos', text: 'Ingresa calle y número para buscar.', confirmButtonColor: '#2A1B5E', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
+                Swal.fire({ icon: 'warning', title: 'Datos incompletos', text: 'Ingresa calle y número.', confirmButtonColor: '#2A1B5E', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
                 return;
             }
-
             const icon = btnBuscar.querySelector('i');
             const originalClass = icon.className;
             icon.className = 'spinner-border spinner-border-sm';
-
             try {
                 const query = `${calle} ${numero}, ${comuna}, Region de Valparaiso, Chile`;
                 const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
                 const response = await fetch(url);
                 const data = await response.json();
                 if (data && data.length > 0) {
-                    const lat = data[0].lat;
-                    const lon = data[0].lon;
+                    const lat = data[0].lat, lon = data[0].lon;
                     mapReg.setView([lat, lon], 17);
                     markerReg.setLatLng([lat, lon]);
                     document.getElementById('reg-lat').value = lat;
                     document.getElementById('reg-lng').value = lon;
                 } else {
-                    Swal.fire({
-                        icon: 'info',
-                        title: 'Dirección no ubicada en el mapa',
-                        text: 'No ubicamos el punto exacto. No te preocupes, esto es opcional. Si gustas, puedes mover el pin manualmente o confirmar tu dirección escrita.',
-                        confirmButtonColor: '#2A1B5E',
-                        didOpen: () => Swal.getContainer().style.zIndex = '10000'
-                    });
+                    Swal.fire({ icon: 'info', title: 'Punto no ubicado', text: 'No ubicamos el punto exacto. Mueve el pin manualmente.', confirmButtonColor: '#2A1B5E', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
                 }
-            } catch (error) {
-                console.error("Error en geocodificación:", error);
-            } finally {
-                icon.className = originalClass;
-            }
+            } catch (error) { console.error("Error geocodificación:", error); }
+            finally { icon.className = originalClass; }
         });
     }
 
     if (btnGuardarUI) {
         btnGuardarUI.addEventListener('click', function () {
-            const calle = inputCalle.value.trim();
-            const num = inputNumero.value.trim();
-            const com = selectComuna.value;
-
-            if (!calle || !num || !com) {
-                Swal.fire({ icon: 'warning', title: '¡Casi listo!', text: 'Por favor, completa tu calle, número y comuna antes de confirmar.', confirmButtonColor: '#E53935', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
+            if (!inputCalle.value.trim() || !inputNumero.value.trim() || !selectComuna.value) {
+                Swal.fire({ icon: 'warning', title: '¡Casi listo!', text: 'Completa calle, número y comuna.', confirmButtonColor: '#E53935', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
                 return;
             }
-
-            Swal.fire({
-                title: '¡Dirección lista!',
-                text: 'Cencocalín ya sabe dónde entregarte tus pedidos. ¡Excelente!',
-                imageUrl: BASE_URL + 'img/cencocalin/cencocalin_celebrando_compra.png',
-                imageWidth: 120,
-                imageAlt: 'Cencocalín Celebrando',
-                confirmButtonColor: '#85C226',
-                confirmButtonText: '¡Genial!',
-                customClass: { popup: 'rounded-4 shadow-lg border-0' },
-                didOpen: () => Swal.getContainer().style.zIndex = '10000'
-            });
+            Swal.fire({ title: '¡Dirección lista!', text: 'Cencocalín ya sabe dónde entregarte.', imageUrl: `${BASE_URL}img/cencocalin/cencocalin_celebrando_compra.png`, imageWidth: 120, confirmButtonColor: '#85C226', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
         });
     }
 
@@ -413,81 +438,229 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(() => { mapReg.invalidateSize(); }, 200);
             return;
         }
-        const latIni = -32.7889, lngIni = -71.2039; // La Calera
-        const mapContainer = document.getElementById('reg-map');
-        if (!mapContainer) return;
+        const latIni = -32.7889, lngIni = -71.2039;
+        const container = document.getElementById('reg-map');
+        if (!container) return;
         mapReg = L.map('reg-map').setView([latIni, lngIni], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(mapReg);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(mapReg);
         markerReg = L.marker([latIni, lngIni], { draggable: true }).addTo(mapReg);
-
         const updateCoords = (lat, lng) => {
-            const latIn = document.getElementById('reg-lat');
-            const lngIn = document.getElementById('reg-lng');
-            if (latIn) latIn.value = lat;
-            if (lngIn) lngIn.value = lng;
+            document.getElementById('reg-lat').value = lat;
+            document.getElementById('reg-lng').value = lng;
         };
-        markerReg.on('dragend', () => {
-            const pos = markerReg.getLatLng();
-            updateCoords(pos.lat, pos.lng);
-        });
-        mapReg.on('click', (e) => {
-            markerReg.setLatLng(e.latlng);
-            updateCoords(e.latlng.lat, e.latlng.lng);
-        });
+        markerReg.on('dragend', () => { const p = markerReg.getLatLng(); updateCoords(p.lat, p.lng); });
+        mapReg.on('click', (e) => { markerReg.setLatLng(e.latlng); updateCoords(e.latlng.lat, e.latlng.lng); });
         updateCoords(latIni, lngIni);
     }
 
-    // =========================================================
-    // 🛡️ E. INTERCEPTOR FINAL DE FORMULARIO (CANDADO MAESTRO)
-    // =========================================================
+    // --- E. INTERCEPTOR FINAL DE FORMULARIO ---
     document.querySelectorAll('form[action*="auth/register"]').forEach(form => {
         form.addEventListener('submit', function (e) {
-
-            // Candado 1: Contraseñas distintas
-            const pass = document.getElementById('reg_password');
-            const passConf = document.getElementById('reg_password_confirm');
-
+            const pass = document.getElementById('reg_password'), passConf = document.getElementById('reg_password_confirm');
             if (pass && passConf && pass.value !== passConf.value) {
-                e.preventDefault();
-                passConf.focus();
+                e.preventDefault(); passConf.focus();
                 passConf.classList.add('animate__animated', 'animate__headShake');
                 setTimeout(() => passConf.classList.remove('animate__animated', 'animate__headShake'), 500);
-
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Contraseñas distintas',
-                    text: 'Asegúrate de escribir la misma clave en ambos campos.',
-                    confirmButtonColor: '#E53935',
-                    didOpen: () => { Swal.getContainer().style.zIndex = '10000'; }
-                });
-                return; // Detener flujo
+                Swal.fire({ icon: 'error', title: 'Contraseñas distintas', text: 'Escribe la misma clave en ambos campos.', confirmButtonColor: '#E53935', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
+                return;
             }
-
-            // Candado 2: Algún campo quedó marcado en rojo (.is-invalid)
             const camposMalos = this.querySelectorAll('.is-invalid');
             if (camposMalos.length > 0) {
-                e.preventDefault();
-                camposMalos[0].focus();
+                e.preventDefault(); camposMalos[0].focus();
                 camposMalos[0].classList.add('animate__animated', 'animate__headShake');
                 setTimeout(() => camposMalos[0].classList.remove('animate__animated', 'animate__headShake'), 500);
-
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Revisa tus datos',
-                    text: 'Corrige los campos marcados en rojo para continuar.',
-                    confirmButtonColor: '#E53935',
-                    didOpen: () => { Swal.getContainer().style.zIndex = '10000'; }
-                });
+                Swal.fire({ icon: 'error', title: 'Revisa tus datos', text: 'Corrige los campos marcados en rojo.', confirmButtonColor: '#E53935', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
             }
         });
     });
 
-    // Cerrar buscador predictivo al hacer clic fuera
     document.addEventListener('click', (e) => {
         const l = document.getElementById('lista-predictiva'), i = document.getElementById('inputBusqueda');
         if (l && i && !i.contains(e.target) && !l.contains(e.target)) l.classList.add('d-none');
     });
 
-}); // FIN DEL DOMContentLoaded
+    // Limpiar el modal de rastreo cuando se cierra
+    const modalRastreo = document.getElementById('modalRastreo');
+    if (modalRastreo) {
+        modalRastreo.addEventListener('hidden.bs.modal', function () {
+            document.getElementById('inputTracking').value = '';
+            document.getElementById('resultadoRastreo').style.display = 'none';
+        });
+    }
+});
+// FIN DE DOMContentLoaded
+
+// =========================================================
+// 3. FUNCIÓN DE RASTREO PÚBLICO (GLOBAL)
+// =========================================================
+async function buscarTrazabilidad(event) {
+    // 🛑 Esto detiene el recargo de página de forma definitiva
+    if (event) {
+        event.preventDefault();
+    }
+
+    const input = document.getElementById('inputTracking');
+    const btn = document.querySelector('#formRastreo button[type="submit"]');
+    const resultadoDiv = document.getElementById('resultadoRastreo');
+    const codigo = input.value.trim().toUpperCase();
+
+    if (!codigo) return;
+
+    // Bloqueamos el botón para evitar múltiples clics y mostramos carga
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    resultadoDiv.style.display = 'none';
+
+    try {
+        const response = await fetch(BASE_URL + 'home/rastrearPedido', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tracking: codigo })
+        });
+
+        const res = await response.json();
+
+        if (res.status === 'error') {
+            resultadoDiv.innerHTML = `<div class="alert alert-danger border-0 shadow-sm rounded-3"><i class="bi bi-exclamation-circle me-2"></i>${res.msg}</div>`;
+        } else {
+            // RENDERIZAR LA LÍNEA DE TIEMPO
+            const p = res.data;
+            const estado = p.estado_id;
+            const esRetiro = p.tipo_entrega === 2;
+            const h = p.horas || {}; // 🔥 Extraemos el mapa de horas que viene de PHP
+
+            const textoPaso4 = esRetiro ? 'Listo para Retiro' : 'En Ruta';
+            const iconoPaso4 = esRetiro ? 'bi-shop' : 'bi-truck';
+
+            // Función interna para armar cada fila
+            const getStepHtml = (num, icono, titulo, activo) => {
+                // 🔥 Buscamos si existe una hora registrada para este número de paso
+                const horaHito = h[num] ? h[num] : '';
+
+                return `
+        <div class="d-flex mb-3 align-items-center opacity-${activo ? '100' : '50'}">
+            <div class="bg-${activo ? 'success' : 'secondary'} text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style="width: 45px; height: 45px; flex-shrink: 0;">
+                <i class="bi ${icono} fs-5"></i>
+            </div>
+            <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold ${activo ? 'text-dark' : 'text-muted'}">${titulo}</h6>
+                    ${activo && horaHito ? `<span class="badge bg-white text-dark border shadow-sm fw-normal" style="font-size: 0.75rem;">${horaHito} hrs</span>` : ''}
+                </div>
+                ${activo && num === estado && estado < 5 ? `<small class="text-success fw-bold d-block mt-1">Estado actual</small>` : ''}
+            </div>
+        </div>
+    `;
+            };
+
+            let html = `
+    <div class="bg-light p-3 rounded-4 border mb-4 text-center shadow-sm">
+        <h6 class="fw-bold mb-1 text-muted small">Fecha Estimada de Entrega</h6>
+        <span class="text-cenco-indigo fw-black fs-4">${p.fecha_estimada}</span>
+    </div>
+    <div class="position-relative ms-2">
+`;
+
+            // Renderizamos cada paso pasando su ID correspondiente para buscar la hora
+            html += getStepHtml(1, 'bi-receipt', 'Pedido Recibido', estado >= 1);
+            html += getStepHtml(2, 'bi-credit-card-check', 'Pago Confirmado', estado >= 2);
+            html += getStepHtml(3, 'bi-box-seam', 'En Preparación', estado >= 3);
+            html += getStepHtml(4, iconoPaso4, textoPaso4, estado >= 4);
+            html += getStepHtml(5, 'bi-house-check', 'Entregado', estado === 5);
+
+            html += `</div>`;
+            resultadoDiv.innerHTML = html;
+        }
+    } catch (err) {
+        console.error("Error en la petición:", err);
+        resultadoDiv.innerHTML = `<div class="alert alert-danger rounded-3"><i class="bi bi-wifi-off me-2"></i>Error al conectar con el servidor.</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Buscar';
+        resultadoDiv.style.display = 'block';
+    }
+
+    window.ejecutarRastreo = async function () {
+        const input = document.getElementById('inputTracking');
+        const btn = document.getElementById('btnBuscarRastreo');
+        const resultadoDiv = document.getElementById('resultadoRastreo');
+
+        const codigo = input.value.trim().toUpperCase();
+        if (!codigo) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        resultadoDiv.style.display = 'none';
+
+        try {
+            const response = await fetch(BASE_URL + 'home/rastrearPedido', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tracking: codigo })
+            });
+
+            const res = await response.json();
+            console.log("Datos recibidos del servidor:", res); // ← REVISA ESTO EN LA CONSOLA (F12)
+
+            if (res.status === 'error') {
+                resultadoDiv.innerHTML = `<div class="alert alert-danger border-0 shadow-sm rounded-3">${res.msg}</div>`;
+            } else {
+                const p = res.data;
+                const estado = p.estado_id;
+                const esRetiro = p.tipo_entrega === 2;
+                const h = p.horas || {}; // ← Mapa de horas
+
+                const textoPaso4 = esRetiro ? 'Listo para Retiro' : 'En Ruta';
+                const iconoPaso4 = esRetiro ? 'bi-shop' : 'bi-truck';
+
+                // Función de renderizado por paso
+                const getStepHtml = (num, icono, titulo, activo) => {
+                    const horaHito = h[num] || ''; // Busca la hora en el mapa
+
+                    return `
+                    <div class="d-flex mb-3 align-items-center opacity-${activo ? '100' : '50'}">
+                        <div class="bg-${activo ? 'success' : 'secondary'} text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style="width: 45px; height: 45px; flex-shrink: 0;">
+                            <i class="bi ${icono} fs-5"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0 fw-bold ${activo ? 'text-dark' : 'text-muted'}">${titulo}</h6>
+                                ${activo && horaHito ? `<span class="badge bg-white text-dark border shadow-sm fw-normal" style="font-size: 0.75rem;">${horaHito} hrs</span>` : ''}
+                            </div>
+                            ${activo && num === estado && estado < 5 ? `<small class="text-success fw-bold d-block mt-1">Estado actual</small>` : ''}
+                        </div>
+                    </div>
+                `;
+                };
+
+                let html = `
+                <div class="bg-light p-3 rounded-4 border mb-4 text-center shadow-sm">
+                    <h6 class="fw-bold mb-1 text-muted small">Fecha Estimada de Entrega</h6>
+                    <span class="text-cenco-indigo fw-black fs-4">${p.fecha_estimada}</span>
+                </div>
+                <div class="position-relative ms-2">
+            `;
+
+                if (estado === 6) {
+                    html += `<div class="alert alert-danger text-center fw-bold rounded-3">Pedido Anulado</div>`;
+                } else {
+                    html += getStepHtml(1, 'bi-receipt', 'Pedido Recibido', estado >= 1);
+                    html += getStepHtml(2, 'bi-credit-card-check', 'Pago Confirmado', estado >= 2);
+                    html += getStepHtml(3, 'bi-box-seam', 'En Preparación', estado >= 3);
+                    html += getStepHtml(4, iconoPaso4, textoPaso4, estado >= 4);
+                    html += getStepHtml(5, 'bi-house-check', 'Entregado', estado === 5);
+                }
+
+                html += `</div>`;
+                resultadoDiv.innerHTML = html;
+            }
+        } catch (err) {
+            resultadoDiv.innerHTML = `<div class="alert alert-danger">Error de conexión.</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Buscar';
+            resultadoDiv.style.display = 'block';
+        }
+    };
+}
+

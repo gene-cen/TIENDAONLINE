@@ -1,10 +1,13 @@
 <?php
+
 /**
  * ARCHIVO: layout_main.php (Estructura principal REFACTORIZADA V2)
- * Descripción: Maneja la identidad visual, seguridad por ID y accesibilidad global.
+ * Descripción: Maneja la identidad visual, seguridad por ID, accesibilidad global y Venta Asistida.
  */
 
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 if (!defined('BASE_URL')) define('BASE_URL', '/');
 
 // 🔥 1. SEGURIDAD: Identificamos si es Administrador por ID (1=Super, 2=Sucursal)
@@ -12,7 +15,8 @@ $esAdmin = (isset($_SESSION['rol_id']) && in_array((int)$_SESSION['rol_id'], [1,
 
 // Helper para clases activas en sidebar
 if (!function_exists('isActiveAdmin')) {
-    function isActiveAdmin($ruta) {
+    function isActiveAdmin($ruta)
+    {
         $current = $_GET['url'] ?? 'admin/dashboard';
         return (strpos($current, $ruta) === 0) ? 'bg-cenco-indigo text-white shadow-sm' : 'text-secondary hover-bg-light';
     }
@@ -24,7 +28,9 @@ if (!isset($categorias) || empty($categorias)) {
         try {
             $stmt = $this->db->query("SELECT DISTINCT categoria AS nombre FROM productos WHERE activo = 1 AND categoria IS NOT NULL ORDER BY categoria ASC");
             $categorias = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        } catch (\Exception $e) { $categorias = []; }
+        } catch (\Exception $e) {
+            $categorias = [];
+        }
     }
 }
 $categoriasMenu = $categorias; // Sincronizamos ambas variables
@@ -33,20 +39,20 @@ $categoriasMenu = $categorias; // Sincronizamos ambas variables
 include __DIR__ . '/header.php';
 ?>
 
-<div id="wrapper" class="d-flex">
 
-    <?php 
+
+<div id="wrapper" class="d-flex">
+    <?php
     // Sidebar de Admin (Solo si el controlador lo solicita y es admin)
-    if ($esAdmin && isset($mostrarSidebarAdmin) && $mostrarSidebarAdmin) {
-        include __DIR__ . '/sidebar.php'; 
+    // 💡 NOTA: Ocultamos el sidebar de admin si estamos en Venta Asistida para dar más espacio al catálogo
+    if ($esAdmin && isset($mostrarSidebarAdmin) && $mostrarSidebarAdmin && !isset($_SESSION['modo_venta_asistida'])) {
+        include __DIR__ . '/sidebar.php';
     }
     ?>
 
     <div id="page-content-wrapper" class="d-flex flex-column min-vh-100 w-100">
 
-        <div class="sticky-top w-100 bg-white shadow-sm" style="z-index: 1040; top: 0;">
-            <?php include __DIR__ . '/navbar.php'; ?>
-        </div>
+        <?php include __DIR__ . '/navbar.php'; ?>
 
         <main class="container-fluid px-0 flex-grow-1 pt-4 mt-2">
             <?php
@@ -61,39 +67,70 @@ include __DIR__ . '/header.php';
             ?>
         </main>
 
-        <?php include __DIR__ . '/footer.php'; ?>
-        
-    </div> </div> <?php 
+        <?php
+        // 🔥 Detectamos si es una ruta de administración para ocultar el footer
+        $urlActualMain = $_GET['url'] ?? 'home';
+        $esRutaAdminMain = (strpos($urlActualMain, 'admin/') === 0 || strpos($urlActualMain, 'empleos/rrhh_') === 0);
+
+        // El footer solo se muestra si NO estamos en el panel de control
+        if (!$esRutaAdminMain) {
+            include __DIR__ . '/footer.php';
+        }
+        ?>
+
+    </div>
+</div>
+
+<?php
 // Menús laterales (Categorías, Carrito, etc.)
-include __DIR__ . '/../componentes/offcanvas.php'; 
-
-// Todos los Modales (Login, Accesibilidad, etc.)
-include __DIR__ . '/../componentes/modales.php'; 
+include __DIR__ . '/../componentes/offcanvas.php';
+include __DIR__ . '/../componentes/modales.php'; // Aquí vive tu botón de accesibilidad
+include __DIR__ . '/../componentes/scripts_globales.php';
 ?>
-
-<svg style="display:none" aria-hidden="true">
-    <defs>
-        <filter id="protanopia">
-            <feColorMatrix type="matrix" values="0.567,0.433,0,0,0 0.558,0.442,0,0,0 0,0.242,0.758,0,0 0,0,0,1,0"/>
-        </filter>
-        <filter id="deuteranopia">
-            <feColorMatrix type="matrix" values="0.625,0.375,0,0,0 0.7,0.3,0,0,0 0,0.3,0.7,0,0 0,0,0,1,0"/>
-        </filter>
-        <filter id="tritanopia">
-            <feColorMatrix type="matrix" values="0.95,0.05,0,0,0 0,0.433,0.567,0,0 0,0.475,0.525,0,0 0,0,0,1,0"/>
-        </filter>
-    </defs>
-</svg>
-
-<?php include __DIR__ . '/../componentes/scripts_globales.php'; ?>
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        if (window.AccessManager) {
-            window.AccessManager.init();
+        // 1. Leemos la URL de forma segura
+        const urlParams = new URLSearchParams(window.location.search);
+        const msg = urlParams.get('msg');
+
+        // 2. Si hay mensaje, lo mostramos
+        if (msg) {
+            if (msg === 'login_exito') {
+                console.log("¡Bienvenido al Centro de Operaciones!");
+            }
+
+            // 🔥 ALERTAS DE VENTA ASISTIDA
+            if (msg === 'venta_asistida_on') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: 'Modo Caja Activado',
+                    text: 'Iniciando venta presencial.',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+            }
+            if (msg === 'venta_asistida_off') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Caja Cerrada',
+                    text: 'Has salido del modo venta asistida correctamente.',
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+            }
+
+            // 3. Limpiamos la URL silenciosamente para que no moleste más
+            const url = new URL(window.location);
+            url.searchParams.delete('msg');
+            window.history.replaceState({}, document.title, url);
         }
     });
 </script>
-
 </body>
+
 </html>

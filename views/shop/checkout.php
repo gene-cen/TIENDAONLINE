@@ -10,8 +10,14 @@ $costoServicioFijo = 490;
 $esAdmin = (isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2]));
 $esInvitado = !isset($_SESSION['user_id']);
 
-$sucursalActivaID = $_SESSION['sucursal_activa'] ?? 29;
+// Usamos la variable $sucursal_id que el CheckoutController calculó magistralmente 
+// en su "Radar de Sucursal", o usamos la variable de sesión específica del checkout.
+$sucursalActivaID = $sucursal_id ?? $_SESSION['checkout_sucursal_activa'] ?? 29;
+
 $comunaRetiroPredefinida = ($sucursalActivaID == 10) ? 'Villa Alemana' : 'La Calera';
+
+// Lógica Principal de Retiro: Si es La Calera (29), forzamos solo retiro.
+$esSoloRetiro = ($sucursalActivaID == 29); 
 
 $listaComunasFiltrada = array_filter($listaComunas ?? [], function ($c) use ($sucursalActivaID) {
     $sId = is_object($c) ? ($c->sucursal_id ?? null) : ($c['sucursal_id'] ?? null);
@@ -25,9 +31,12 @@ if (!empty($_SESSION['carrito'])) {
     }
 }
 
-$costoEnvio = ($totalCarro >= $umbralEnvioGratis) ? 0 : $costoDespachoFijo;
+// Si es solo retiro, el costo de envío es 0 por defecto al cargar.
+$costoEnvio = ($esSoloRetiro || $totalCarro >= $umbralEnvioGratis) ? 0 : $costoDespachoFijo;
 $faltaParaGratis = $umbralEnvioGratis - $totalCarro;
-$mostrarAlerta = ($totalCarro >= $umbralAlerta && $totalCarro < $umbralEnvioGratis);
+
+// Ocultamos la alerta de "faltan $X para gratis" si está obligado a retirar en tienda.
+$mostrarAlerta = (!$esSoloRetiro && $totalCarro >= $umbralAlerta && $totalCarro < $umbralEnvioGratis);
 
 $jsSucursales = [];
 foreach ($sucursales as $s) {
@@ -106,7 +115,7 @@ foreach ($sucursales as $s) {
                                                 <select class="form-select shadow-sm" id="selector_segundo_contacto" name="telefono_seleccionado_2" onchange="gestionarSegundoTelefono()">
                                                     <option value="">-- No indicar otro número --</option>
                                                     <?php foreach ($telefonos ?? [] as $tel): if (!$tel->es_principal): ?>
-                                                            <option value="<?= htmlspecialchars($tel->numero) ?>"><?= htmlspecialchars($tel->alias) ?>: <?= htmlspecialchars($tel->numero) ?></option>
+                                                        <option value="<?= htmlspecialchars($tel->numero) ?>"><?= htmlspecialchars($tel->alias) ?>: <?= htmlspecialchars($tel->numero) ?></option>
                                                     <?php endif;
                                                     endforeach; ?>
                                                     <option value="nuevo" class="text-primary fw-bold">+ Añadir nuevo número...</option>
@@ -132,14 +141,13 @@ foreach ($sucursales as $s) {
 
                         <hr class="border-light my-4">
 
-                        <?php $esSoloRetiro = ($sucursalActivaID == 29); ?>
                         <div class="row g-3 mb-4">
                             <div class="col-6">
                                 <input type="radio" class="btn-check" name="tipo_entrega" id="opcion_despacho" value="1" <?= $esSoloRetiro ? 'disabled' : 'checked' ?> onchange="cambiarMetodoEntrega()">
                                 <label class="btn btn-outline-cenco-indigo checkout-method-card w-100 py-3 d-flex flex-column align-items-center justify-content-center gap-1 h-100 shadow-sm border-2 rounded-3 <?= $esSoloRetiro ? 'opacity-50 bg-light' : '' ?>" for="opcion_despacho" style="min-height: 120px;">
                                     <i class="bi bi-house-door-fill fs-2"></i> <span class="fw-bold">A Domicilio</span>
                                     <?php if ($esSoloRetiro): ?>
-                                        <span class="badge bg-danger mt-2 text-wrap shadow-sm"><i class="bi bi-cone-striped me-1"></i>No disponible</span>
+                                        <span class="badge bg-danger mt-2 text-wrap shadow-sm"><i class="bi bi-cone-striped me-1"></i>Solo habilitado Retiro</span>
                                     <?php else: ?>
                                         <span class="small fw-bold"><?= ($totalCarro >= $umbralEnvioGratis) ? '<span class="text-success fw-black">¡GRATIS!</span>' : '$' . number_format($costoDespachoFijo, 0, ',', '.') ?></span>
                                         <span class="badge bg-light text-dark border mt-1"><i class="bi bi-clock text-primary"></i> 09:00 a 19:00 hrs</span>
@@ -165,7 +173,7 @@ foreach ($sucursales as $s) {
                             </div>
                         </div>
 
-                        <div id="bloque_despacho">
+                        <div id="bloque_despacho" class="<?= $esSoloRetiro ? 'd-none' : '' ?>">
                             <div class="alert alert-primary bg-primary bg-opacity-10 border-0 shadow-sm d-flex align-items-center mb-4 p-3 rounded-4">
                                 <i class="bi bi-info-circle-fill text-primary fs-2 me-3"></i>
                                 <div>
@@ -229,14 +237,14 @@ foreach ($sucursales as $s) {
                             <input type="hidden" name="direccion" id="direccion_final_texto" value="<?= htmlspecialchars($usuario->direccion ?? '') ?>">
                         </div>
 
-                        <div id="bloque_retiro" class="d-none">
+                        <div id="bloque_retiro" class="<?= $esSoloRetiro ? '' : 'd-none' ?>">
                             <div class="mb-3">
                                 <label class="fw-bold text-cenco-indigo small mb-1">Sucursal de Retiro</label>
                                 <select id="filtro_comuna_retiro" class="form-select border-cenco-green" disabled>
                                     <option selected><?= $comunaRetiroPredefinida ?></option>
                                 </select>
                             </div>
-                            <div id="contenedor-detalle-sucursal" class="d-none">
+                            <div id="contenedor-detalle-sucursal" class="<?= $esSoloRetiro ? '' : 'd-none' ?>">
                                 <div class="sucursal-card-detail shadow-sm border border-success border-opacity-25 rounded-4 overflow-hidden">
                                     <div class="row g-0">
                                         <div class="col-md-5 bg-light p-3 d-flex flex-column justify-content-center">
@@ -332,7 +340,8 @@ foreach ($sucursales as $s) {
         esInvitado: <?= $esInvitado ? 'true' : 'false' ?>,
         sucursales: <?= json_encode($jsSucursales) ?>,
         nombreCliente: <?= json_encode($usuario->nombre ?? 'Invitado') ?>,
-        telefonoPrincipal: <?= json_encode($usuario->telefono_principal ?? '') ?>
+        telefonoPrincipal: <?= json_encode($usuario->telefono_principal ?? '') ?>,
+        esSoloRetiro: <?= $esSoloRetiro ? 'true' : 'false' ?> // Nueva variable para Javascript
     };
 </script>
 <script src="<?= BASE_URL ?>js/shop/checkout.js?v=<?= time() ?>"></script>

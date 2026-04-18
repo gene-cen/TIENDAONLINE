@@ -22,7 +22,6 @@ class Analytics
     // SECCIÓN 1: CAPTURA DE DATOS (ESCRITURA)
     // ==========================================================================
 
-
     public function registrarEvento($tipoEvento, $etiqueta)
     {
         if (session_status() === PHP_SESSION_NONE) session_start();
@@ -42,27 +41,125 @@ class Analytics
         }
     }
 
-    
+    public function registrarVisita($usuario_id, $comuna_id, $url, $ip, $agent) {
+        
+        $pais = 'Desconocido';
+        $ciudad = 'Desconocido';
+        $lat = null;
+        $lng = null;
 
-    private function esRutaExcluida($url)
-    {
-        return strpos($url, 'admin') === 0 || 
-               preg_match('/\.(css|js|jpg|png|ico|svg|woff2)$/i', $url);
+        // 🌟 PRIORIDAD 1: Revisar si ya tenemos el GPS exacto en la sesión
+        if (isset($_SESSION['gps_lat']) && isset($_SESSION['gps_lng'])) {
+            $pais = $_SESSION['gps_pais'] ?? 'Chile';
+            $ciudad = $_SESSION['gps_ciudad'] ?? 'Coordenadas GPS';
+            $lat = $_SESSION['gps_lat'];
+            $lng = $_SESSION['gps_lng'];
+        } 
+        // 🌟 PRIORIDAD 2 (Fallback): Usar la IP si no hay GPS autorizado aún
+        else if (!empty($ip) && $ip !== '127.0.0.1' && $ip !== '::1') {
+            try {
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, "https://get.geojs.io/v1/ip/geo/{$ip}.json");
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                
+                $respuesta = curl_exec($ch);
+                curl_close($ch);
+
+                if ($respuesta) {
+                    $geoData = json_decode($respuesta);
+                    if ($geoData && isset($geoData->latitude)) {
+                        $pais = $geoData->country;
+                        $ciudad = $geoData->city;
+                        $lat = $geoData->latitude;
+                        $lng = $geoData->longitude;
+                    }
+                }
+            } catch (Exception $e) {
+                // Silencioso
+            }
+        }
+
+        $sql = "INSERT INTO analitica_visitas 
+                (usuario_id, comuna_id, url_visitada, ip_address, user_agent, fecha, pais, ciudad, lat_real, lng_real) 
+                VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)";
+        
+        try {
+            $stmt = $this->db->prepare($sql);
+            $exito = $stmt->execute([
+                $usuario_id, $comuna_id, $url, $ip, $agent, $pais, $ciudad, $lat, $lng
+            ]);
+            
+            if ($exito) {
+                $_SESSION['ultima_visita_id'] = $this->db->lastInsertId();
+            }
+            return $exito;
+        } catch (Exception $e) {
+            error_log("Error guardando visita Analytics: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function actualizarGPSVisita($ip, $lat, $lng) {
+        $ciudad = 'Coordenadas GPS';
+        $pais = 'Desconocido';
+
+        // 1. Preguntarle a OpenStreetMap
+        try {
+            $ch = curl_init();
+            $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&addressdetails=1";
+            
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Cencocal-Analytics/1.0');
+            curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            
+            $respuesta = curl_exec($ch);
+            curl_close($ch);
+
+            if ($respuesta) {
+                $data = json_decode($respuesta, true);
+                if (isset($data['address'])) {
+                    $ciudad = $data['address']['city'] ?? $data['address']['town'] ?? $data['address']['village'] ?? $data['address']['county'] ?? 'Coordenadas GPS';
+                    $pais = $data['address']['country'] ?? 'Chile';
+                }
+            }
+        } catch (Exception $e) { }
+
+        // 2. Actualizamos la Base de Datos con los nombres reales
+        try {
+            $sql = "UPDATE analitica_visitas 
+                    SET lat_real = ?, lng_real = ?, ciudad = ?, pais = ? 
+                    WHERE ip_address = ? AND DATE(fecha) = CURDATE()";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$lat, $lng, $ciudad, $pais, $ip]);
+            
+            return ['ciudad' => $ciudad, 'pais' => $pais];
+        } catch (Exception $e) {
+            return false;
+        }
     }
 
     // ==========================================================================
-    // SECCIÓN 2: REPORTES Y KPIS (LECTURA)
+    // SECCIÓN 2: REPORTES Y KPIS (LECTURA PARA EL DASHBOARD)
     // ==========================================================================
 
-    // Nota: He renombrado este a obtenerTrafico para que coincida con tu controlador
-    public function obtenerTrafico($fechaInicio, $fechaFin, $busqueda = '')
+    public function obtenerTrafico($desde, $hasta, $comuna = '')
     {
-        list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'v');
-        $join = !empty($busqueda) ? "LEFT JOIN usuarios u ON v.user_id = u.id" : "";
+        $sql = "SELECT DATE(v.fecha) as etiqueta, COUNT(DISTINCT v.ip_address) as total 
+                FROM analitica_visitas v
+                WHERE DATE(v.fecha) BETWEEN :desde AND :hasta ";
+        
+        $params = [':desde' => $desde, ':hasta' => $hasta];
 
-        $sql = "SELECT DATE(v.fecha_hora) as etiqueta, COUNT(DISTINCT v.session_id) as total
-                FROM analytics_visitas v $join $where
-                GROUP BY etiqueta ORDER BY etiqueta ASC";
+        if (!empty($comuna)) {
+            $sql .= " AND v.comuna_id = :comuna ";
+            $params[':comuna'] = $comuna;
+        }
+
+        $sql .= " GROUP BY DATE(v.fecha) ORDER BY DATE(v.fecha) ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -71,28 +168,35 @@ class Analytics
 
     public function obtenerKPIs($fechaInicio, $fechaFin, $busqueda = '')
     {
-        list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'v');
-        $join = !empty($busqueda) ? "LEFT JOIN usuarios u ON v.user_id = u.id" : "";
+        list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'v', 'visitas');
+        $join = !empty($busqueda) ? "LEFT JOIN usuarios u ON v.usuario_id = u.id" : "";
 
-        $sql = "SELECT 
+        // 1. Visitantes Totales y Únicos
+        $sqlBase = "SELECT 
                     COUNT(*) as total_visitas, 
-                    COUNT(DISTINCT v.session_id) as visitantes_unicos,
-                    (SELECT COUNT(*) FROM (
-                        SELECT session_id FROM analytics_visitas GROUP BY session_id HAVING COUNT(*) = 1
-                    ) AS tmp) as sesiones_rebote
-                FROM analytics_visitas v $join $where";
+                    COUNT(DISTINCT v.ip_address) as visitantes_unicos
+                FROM analitica_visitas v $join $where";
         
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->db->prepare($sqlBase);
         $stmt->execute($params);
         $data = $stmt->fetch(PDO::FETCH_ASSOC);
 
+        // 2. Tasa de Rebote
+        $sqlRebote = "SELECT COUNT(*) FROM (
+                        SELECT v.ip_address FROM analitica_visitas v $join $where 
+                        GROUP BY v.ip_address, DATE(v.fecha) HAVING COUNT(*) = 1
+                      ) as tmp";
+        $stmtRebote = $this->db->prepare($sqlRebote);
+        $stmtRebote->execute($params);
+        $reboteCount = $stmtRebote->fetchColumn() ?: 0;
+
         $totalSesiones = $data['visitantes_unicos'] ?: 1;
-        $rebote = ($data['sesiones_rebote'] / $totalSesiones) * 100;
+        $rebote = ($reboteCount / $totalSesiones) * 100;
 
         return [
             'total_visitas'     => $data['total_visitas'] ?: 0,
             'visitantes_unicos' => $data['visitantes_unicos'] ?: 0,
-            'rebote'            => round($rebote, 1),
+            'rebote'            => round(min($rebote, 100), 1),
             'duracion_promedio' => $this->obtenerDuracionMedia($where, $params, $join)
         ];
     }
@@ -100,37 +204,41 @@ class Analytics
     private function obtenerDuracionMedia($where, $params, $join)
     {
         $sql = "SELECT AVG(duracion) FROM (
-                    SELECT TIMESTAMPDIFF(SECOND, MIN(fecha_hora), MAX(fecha_hora)) as duracion
-                    FROM analytics_visitas v $join $where
-                    GROUP BY v.session_id
+                    SELECT TIMESTAMPDIFF(MINUTE, MIN(v.fecha), MAX(v.fecha)) as duracion
+                    FROM analitica_visitas v $join $where
+                    GROUP BY v.ip_address, DATE(v.fecha)
                     HAVING duracion > 0
                 ) t";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        $segundos = $stmt->fetchColumn() ?: 0;
-        return round($segundos / 60, 1);
+        $minutos = $stmt->fetchColumn() ?: 0;
+        
+        return round($minutos, 1);
     }
 
-    public function obtenerPaginasPopulares($fechaInicio, $fechaFin, $busqueda = '', $limit = 10)
+    public function obtenerPaginasPopulares($desde, $hasta, $comuna = '')
     {
-        list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'v');
-        $join = !empty($busqueda) ? "LEFT JOIN usuarios u ON v.user_id = u.id" : "";
+        $sql = "SELECT v.url_visitada as url, COUNT(*) as visitas 
+                FROM analitica_visitas v
+                WHERE DATE(v.fecha) BETWEEN :desde AND :hasta ";
+        
+        $params = [':desde' => $desde, ':hasta' => $hasta];
 
-        $sql = "SELECT v.url, COUNT(*) as visitas, COUNT(DISTINCT v.session_id) as visitantes_unicos
-                FROM analytics_visitas v $join $where
-                GROUP BY v.url ORDER BY visitas DESC LIMIT " . (int)$limit;
+        if (!empty($comuna)) {
+            $sql .= " AND v.comuna_id = :comuna ";
+            $params[':comuna'] = $comuna;
+        }
+
+        $sql .= " GROUP BY v.url_visitada ORDER BY visitas DESC LIMIT 10";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * 🔥 AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA
-     */
     public function obtenerClicsPopulares($fechaInicio, $fechaFin, $busqueda = '')
     {
-        list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'e');
+        list($where, $params) = $this->construirWhere($fechaInicio, $fechaFin, $busqueda, 'e', 'eventos');
         $join = !empty($busqueda) ? "LEFT JOIN usuarios u ON e.user_id = u.id" : "";
 
         $sql = "SELECT e.etiqueta, COUNT(*) as total
@@ -143,49 +251,34 @@ class Analytics
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function registrarVisita($usuario_id, $comuna_id, $url, $ip, $agent) {
-    $sql = "INSERT INTO analitica_visitas (usuario_id, comuna_id, url_visitada, ip_address, user_agent, fecha) 
-            VALUES (?, ?, ?, ?, ?, NOW())";
-    
-    try {
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute([
-            $usuario_id, 
-            $comuna_id, // 🔥 El ID que rescatamos de la sesión
-            $url, 
-            $ip, 
-            $agent
-        ]);
-    } catch (Exception $e) {
-        error_log("Error en Analytics: " . $e->getMessage());
-        return false;
-    }
-}
-public function obtenerVisitasPorComuna($desde, $hasta, $busqueda = '')
-{
-    // Ya no necesitamos entrar a direcciones_usuarios. ¡Directo al grano!
-    $sql = "SELECT c.nombre as comuna, COUNT(av.id) as visitas
-            FROM analitica_visitas av
-            INNER JOIN comunas c ON av.comuna_id = c.id
-            WHERE av.fecha BETWEEN ? AND ?
-            GROUP BY av.comuna_id
-            ORDER BY visitas DESC";
+    public function obtenerVisitasMapaGlobal($desde, $hasta)
+    {
+        $sql = "SELECT pais, ciudad, lat_real as lat, lng_real as lng, COUNT(id) as visitas
+                FROM analitica_visitas
+                WHERE DATE(fecha) BETWEEN ? AND ? 
+                AND lat_real IS NOT NULL AND lng_real IS NOT NULL
+                GROUP BY pais, ciudad, lat_real, lng_real
+                ORDER BY visitas DESC";
 
-    $stmt = $this->db->prepare($sql);
-    $stmt->execute([$desde, $hasta]);
-    return $stmt->fetchAll(\PDO::FETCH_ASSOC);
-}
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$desde, $hasta]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // ==========================================================================
     // HELPERS
     // ==========================================================================
 
-    private function construirWhere($fechaInicio, $fechaFin, $busqueda, $alias = 'v')
+    private function construirWhere($fechaInicio, $fechaFin, $busqueda, $alias = 'v', $tabla = 'visitas')
     {
-        $where = "WHERE DATE($alias.fecha_hora) BETWEEN :inicio AND :fin";
+        $colFecha = ($tabla === 'eventos') ? 'fecha_hora' : 'fecha';
+        $colSession = ($tabla === 'eventos') ? 'session_id' : 'ip_address';
+
+        $where = "WHERE DATE($alias.$colFecha) BETWEEN :inicio AND :fin";
         $params = [':inicio' => $fechaInicio, ':fin' => $fechaFin];
 
         if (!empty($busqueda)) {
-            $where .= " AND (u.nombre LIKE :bus OR u.email LIKE :bus OR $alias.session_id LIKE :bus)";
+            $where .= " AND (u.nombre LIKE :bus OR u.email LIKE :bus OR $alias.$colSession LIKE :bus)";
             $params[':bus'] = "%$busqueda%";
         }
         return [$where, $params];

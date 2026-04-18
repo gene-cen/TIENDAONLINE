@@ -1,6 +1,7 @@
 /**
  * ARCHIVO: navbar.js
- * Descripción: Manejo de geolocalización, cambio de sucursal y corrección de modales.
+ * Descripción: Manejo de geolocalización y cambio de sucursal.
+ * (Nota: El fix de modales se maneja centralizado en scripts_globales.php)
  */
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -17,51 +18,8 @@ document.addEventListener('DOMContentLoaded', function () {
             solicitarGeolocalizacion();
         }
     }
-
-    // 3. FIX DE ACCESIBILIDAD Y PANTALLA NEGRA (MODALES)
-    const todosLosModales = document.querySelectorAll('.modal');
-
-    todosLosModales.forEach(modalElement => {
-        // Movemos el modal al body para evitar el bug de la pantalla negra
-        if (modalElement.parentNode !== document.body) {
-            document.body.appendChild(modalElement);
-        }
-
-        // --- EVENTO: CUANDO EL MODAL EMPIEZA A ABRIRSE ---
-        modalElement.addEventListener('show.bs.modal', function () {
-            // Eliminamos el atributo conflictivo de raíz para que no choque con el foco
-            modalElement.removeAttribute('aria-hidden');
-            // Añadimos atributo de modal activo para lectores de pantalla
-            modalElement.setAttribute('aria-modal', 'true');
-
-            // Cerramos offcanvas abiertos para que no peleen por el foco
-            const offcanvasAbiertos = document.querySelectorAll('.offcanvas.show');
-            offcanvasAbiertos.forEach(off => {
-                const bsOffcanvas = bootstrap.Offcanvas.getInstance(off);
-                if (bsOffcanvas) bsOffcanvas.hide();
-            });
-        });
-
-        // --- EVENTO: CUANDO EL MODAL SE HA OCULTADO COMPLETAMENTE ---
-        modalElement.addEventListener('hidden.bs.modal', function () {
-            // 🔥 FIX CRÍTICO: Quitamos el foco de cualquier botón (como btn-close)
-            // Esto evita el error "Blocked aria-hidden... descendant retained focus"
-            if (document.activeElement && modalElement.contains(document.activeElement)) {
-                document.activeElement.blur();
-            }
-
-            // Marcamos como oculto para tecnologías de asistencia
-            modalElement.setAttribute('aria-hidden', 'true');
-            modalElement.removeAttribute('aria-modal');
-
-            // Limpieza profunda de residuos de Bootstrap (Backdrops y Clases)
-            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-            document.body.classList.remove('modal-open');
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
-        });
-    });
 });
+
 // =========================================================
 // FUNCIONES DE GEOLOCALIZACIÓN Y COMUNAS
 // =========================================================

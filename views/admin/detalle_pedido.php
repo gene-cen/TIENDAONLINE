@@ -96,6 +96,7 @@ $badgeClass = match ($estadoStr) {
 <script>
     // IMPORTANTE: Definimos las constantes ANTES de cargar el archivo JS externo
     const PEDIDO_ID = <?= (int)($idPedido ?? 0) ?>;
+    const SUCURSAL_PEDIDO = "<?= $pedido['sucursal_codigo'] ?>";
 
     // ANCLAMOS EL JS AL VALOR REAL DEL BANCO
     const MONTO_WEBPAY_ORIGINAL = <?= (int)$montoFijoBanco ?>;

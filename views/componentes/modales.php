@@ -383,29 +383,29 @@
             </div>
             <div class="modal-body p-3 bg-light">
                 <div class="d-grid gap-2">
-                    <div class="bg-white p-2 rounded border shadow-sm">
-                        <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Visualización</span>
-                        <button onclick="AccessManager.toggle('dark')" class="btn btn-sm btn-light w-100 text-start mb-1"><i class="bi bi-moon-stars me-2 text-primary"></i>Modo Oscuro</button>
-                        <button onclick="AccessManager.toggle('high-contrast')" class="btn btn-sm btn-light w-100 text-start mb-1"><i class="bi bi-brightness-high me-2 text-warning"></i>Alto Contraste</button>
-                        <button onclick="AccessManager.toggle('invert')" class="btn btn-sm btn-light w-100 text-start"><i class="bi bi-circle-half me-2"></i>Invertir</button>
-                    </div>
-                    <div class="bg-white p-2 rounded border shadow-sm">
-                        <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Lectura</span>
-                        <button onclick="AccessManager.cycleText()" class="btn btn-sm btn-light w-100 text-start mb-1 d-flex align-items-center"><i id="text-size-icon" class="bi bi-type me-2"></i><span id="text-size-label">Tamaño</span><small class="ms-auto">(Rotar)</small></button>
-                        <button onclick="AccessManager.toggle('dyslexic')" class="btn btn-sm btn-light w-100 text-start"><i class="bi bi-book me-2 text-info"></i>Fuente Dislexia</button>
-                    </div>
-                    <div class="bg-white p-2 rounded border shadow-sm">
-                        <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Motor y Color</span>
-                        <button onclick="AccessManager.toggle('no-anim')" class="btn btn-sm btn-light w-100 text-start mb-2"><i class="bi bi-pause-circle me-2 text-danger"></i>Sin Animaciones</button>
-                        <select class="form-select form-select-sm" onchange="AccessManager.setFilter(this.value)" aria-label="Filtro de Color">
-                            <option value="">Filtro Color (Normal)</option>
-                            <option value="grayscale">Escala de Grises</option>
-                            <option value="protanopia">Protanopia (Rojo)</option>
-                            <option value="deuteranopia">Deuteranopia (Verde)</option>
-                            <option value="tritanopia">Tritanopia (Azul)</option>
-                        </select>
-                    </div>
-                    <button onclick="AccessManager.reset()" class="btn btn-outline-danger btn-sm w-100 rounded-pill mt-2">Restaurar Todo</button>
+                   <div class="bg-white p-2 rounded border shadow-sm">
+    <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Visualización</span>
+    <button onclick="window.AccessManager.toggle('dark')" class="btn btn-sm btn-light w-100 text-start mb-1"><i class="bi bi-moon-stars me-2 text-primary"></i>Modo Oscuro</button>
+    <button onclick="window.AccessManager.toggle('high-contrast')" class="btn btn-sm btn-light w-100 text-start mb-1"><i class="bi bi-brightness-high me-2 text-warning"></i>Alto Contraste</button>
+    <button onclick="window.AccessManager.toggle('invert')" class="btn btn-sm btn-light w-100 text-start"><i class="bi bi-circle-half me-2"></i>Invertir</button>
+</div>
+<div class="bg-white p-2 rounded border shadow-sm">
+    <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Lectura</span>
+    <button onclick="window.AccessManager.cycleText()" class="btn btn-sm btn-light w-100 text-start mb-1 d-flex align-items-center"><i id="text-size-icon" class="bi bi-type me-2"></i><span id="text-size-label">Tamaño</span><small class="ms-auto">(Rotar)</small></button>
+    <button onclick="window.AccessManager.toggle('dyslexic')" class="btn btn-sm btn-light w-100 text-start"><i class="bi bi-book me-2 text-info"></i>Fuente Dislexia</button>
+</div>
+<div class="bg-white p-2 rounded border shadow-sm">
+    <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Motor y Color</span>
+    <button onclick="window.AccessManager.toggle('no-anim')" class="btn btn-sm btn-light w-100 text-start mb-2"><i class="bi bi-pause-circle me-2 text-danger"></i>Sin Animaciones</button>
+    <select class="form-select form-select-sm" onchange="window.AccessManager.setFilter(this.value)" aria-label="Filtro de Color">
+        <option value="">Filtro Color (Normal)</option>
+        <option value="grayscale">Escala de Grises</option>
+        <option value="protanopia">Protanopia (Rojo)</option>
+        <option value="deuteranopia">Deuteranopia (Verde)</option>
+        <option value="tritanopia">Tritanopia (Azul)</option>
+    </select>
+</div>
+<button onclick="window.AccessManager.reset()" class="btn btn-outline-danger btn-sm w-100 rounded-pill mt-2">Restaurar Todo</button>
                 </div>
             </div>
         </div>
@@ -603,7 +603,7 @@
     </div>
 </div>
 
-<button class="btn btn-accessibility rounded-circle shadow-lg position-fixed bottom-0 start-0 m-4 d-flex align-items-center justify-content-center"
-    data-bs-toggle="modal" data-bs-target="#accessibilityModal" style="z-index: 2050; width: 60px; height: 60px;" aria-label="Menú de Accesibilidad">
+<button class="btn btn-accessibility shadow-lg"
+    data-bs-toggle="modal" data-bs-target="#accessibilityModal" aria-label="Menú de Accesibilidad">
     <i class="bi bi-universal-access-circle fs-1"></i>
 </button>

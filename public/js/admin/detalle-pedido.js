@@ -4,6 +4,13 @@
  */
 
 document.addEventListener("DOMContentLoaded", function () {
+
+    // 🔥 FIX CRÍTICO: Este bloque permite escribir en SweetAlert cuando el modal de edición está abierto
+    document.addEventListener('focusin', (e) => {
+        if (e.target.closest('.swal2-container')) {
+            e.stopImmediatePropagation();
+        }
+    });
     const urlParams = new URLSearchParams(window.location.search);
 
     // 1. Notificaciones de Éxito/Error (Alertas Post-Carga)
@@ -180,19 +187,14 @@ function confirmarAnulacionReembolso() {
 let edicionConfirmada = false; // <-- NUEVA VARIABLE: NUESTRO ESCUDO ANTI-BUCLES
 
 document.getElementById('modalEditarPedido')?.addEventListener('show.bs.modal', function (event) {
-
-    // Si el admin ya dio en "Entendido", dejamos que el modal se abra normalmente
     if (edicionConfirmada) return;
 
-    // 1. FRENAMOS LA APERTURA DEL MODAL TEMPORALMENTE
     event.preventDefault();
+    const myModal = this;
 
-    const myModal = this; // Guardamos la referencia al modal
-
-    // 2. LANZAMOS LA ALERTA DE SWEETALERT
     Swal.fire({
         title: '⚠️ Regla de Reemplazos',
-        html: 'Recuerda que por ahora <b>la empresa no asume diferencias de precio</b>.<br><br>Asegúrate de que el nuevo total del pedido sea <b>igual o menor</b> a lo que el cliente ya pagó.',
+        html: 'Recuerda que por ahora <b>la empresa no asume diferencias de precio</b>.<br><br>Asegúrate de que el nuevo total sea <b>igual o menor</b> al pago original.',
         icon: 'info',
         confirmButtonColor: '#2A1B5E',
         confirmButtonText: 'Entendido, ¡a editar!',
@@ -201,18 +203,16 @@ document.getElementById('modalEditarPedido')?.addEventListener('show.bs.modal', 
         cancelButtonColor: '#6c757d',
         customClass: { popup: 'rounded-4 shadow-lg' }
     }).then((result) => {
-        // 3. SI EL ADMIN ACEPTA, CLONAMOS LOS DATOS Y ABRIMOS EL MODAL MANUALMENTE
         if (result.isConfirmed) {
+            edicionConfirmada = true;
 
-            edicionConfirmada = true; // <-- ACTIVAMOS LA BANDERA PARA ROMPER EL BUCLE
-
-            // Clonamos el carrito original inyectado desde la vista
+            // Estandarizamos a 'producto_id'
             carritoEditado = CARRITO_ORIGINAL.map(item => {
-                const estaEliminado = item.es_eliminado === true || item.es_eliminado === 1 || item.es_eliminado === 'true' || item.es_eliminado === '1';
-                const estaAgregado = item.es_agregado === true || item.es_agregado === 1 || item.es_agregado === 'true' || item.es_agregado === '1';
+                const estaEliminado = [true, 1, 'true', '1'].includes(item.es_eliminado);
+                const estaAgregado = [true, 1, 'true', '1'].includes(item.es_agregado);
 
                 return {
-                    id_producto: item.producto_id,
+                    producto_id: item.producto_id, // Llave estándar
                     cod_producto: item.cod_producto,
                     nombre: item.nombre_producto || item.nombre,
                     imagen: item.imagen,
@@ -224,14 +224,11 @@ document.getElementById('modalEditarPedido')?.addEventListener('show.bs.modal', 
             });
 
             renderizarTablaEdicion();
-
-            // Abrimos el modal oficialmente (esta vez no será frenado)
             const bsModal = bootstrap.Modal.getOrCreateInstance(myModal);
             bsModal.show();
         }
     });
 });
-
 
 
 // Reiniciamos la bandera cuando cierran el modal, por si quieren volver a entrar
@@ -425,7 +422,8 @@ function initBuscadorProductos() {
 
 
         // 2. Llamar a la ruta ninja en AdminController
-        fetch(`${BASE_URL}admin/buscar_reemplazo?q=${encodeURIComponent(q)}&pedido_id=${PEDIDO_ID}`)
+        // Dentro de initBuscadorProductos, cambia la línea del fetch por esta:
+        fetch(`${BASE_URL}admin/buscar_reemplazo?q=${encodeURIComponent(q)}&pedido_id=${PEDIDO_ID}&sucursal=${SUCURSAL_PEDIDO}`)
             .then(r => {
                 if (!r.ok) throw new Error("Error de ruta HTTP " + r.status);
                 return r.text(); // Leemos como texto por si PHP escupe un error raro
@@ -483,24 +481,20 @@ function initBuscadorProductos() {
                 res.innerHTML = '<div class="p-3 text-danger small text-center"><i class="bi bi-x-octagon-fill fs-4 d-block mb-2"></i>Ruta no encontrada. Asegúrate de haber guardado el PHP.</div>';
             });
     });
-}
-function agregarProductoEdicion(id, cod, nombre, img, precio) {
-    // 1. Buscamos si el producto ya está en el carrito editado
-    let itemExistente = carritoEditado.find(item => item.id_producto == id);
+} function agregarProductoEdicion(id, cod, nombre, img, precio) {
+    // Buscamos usando la nueva llave estándar
+    let itemExistente = carritoEditado.find(item => item.producto_id == id);
 
     if (itemExistente) {
         if (itemExistente.es_eliminado) {
-            // Si estaba en la lista pero lo habían eliminado, lo restauramos
             itemExistente.es_eliminado = false;
             itemExistente.cantidad = 1;
         } else {
-            // Si ya estaba activo, simplemente sumamos 1 a la cantidad
             itemExistente.cantidad += 1;
         }
     } else {
-        // Si no existe, lo agregamos como una fila completamente nueva
         carritoEditado.push({
-            id_producto: id,
+            producto_id: id, // Llave estándar
             cod_producto: cod,
             nombre: nombre,
             imagen: img,
@@ -513,52 +507,57 @@ function agregarProductoEdicion(id, cod, nombre, img, precio) {
 
     renderizarTablaEdicion();
 }
-
-/**
- * Guardar Edición con Evidencia (FormData)
- */
-/**
- * Guardar Edición con Validación de Monto Previa
- */
 function guardarEdicionPedido() {
-    // 1. Filtrar solo los productos que quedaron activos
     const limpios = carritoEditado.filter(i => !i.es_eliminado);
 
     if (limpios.length === 0) {
-        return Swal.fire('Error', 'El pedido no puede estar vacío', 'warning');
+        return Swal.fire({ title: 'Error', text: 'El pedido no puede estar vacío', icon: 'warning', confirmButtonColor: '#2A1B5E' });
     }
 
-    // 2. CALCULAR EL NUEVO TOTAL (Productos + Despacho)
     const nuevoTotalProductos = limpios.reduce((acc, item) => acc + (item.precio_bruto * item.cantidad), 0);
     const nuevoTotalFinal = nuevoTotalProductos + (typeof COSTO_ENVIO_FIJO !== 'undefined' ? COSTO_ENVIO_FIJO : 0);
 
-    // 3. ¡VALIDACIÓN DE ORO!: Comparar contra lo que el cliente pagó originalmente
     if (nuevoTotalFinal > MONTO_WEBPAY_ORIGINAL) {
         const diferencia = nuevoTotalFinal - MONTO_WEBPAY_ORIGINAL;
         return Swal.fire({
             title: 'Acción Bloqueada',
-            html: `No se pueden guardar los cambios porque el nuevo total <b>($${nuevoTotalFinal.toLocaleString('es-CL')})</b> es superior a lo pagado por el cliente <b>($${MONTO_WEBPAY_ORIGINAL.toLocaleString('es-CL')})</b>.<br><br><span class="text-danger fw-bold">Diferencia: $${diferencia.toLocaleString('es-CL')}</span><br><br>Por favor, ajusta las cantidades o elige productos de menor valor.`,
-            icon: 'error',
-            confirmButtonColor: '#2A1B5E',
-            customClass: { popup: 'rounded-4 shadow-lg' }
+            html: `Monto superior al pagado por el cliente.<br><span class="text-danger fw-bold">Diferencia: $${diferencia.toLocaleString('es-CL')}</span>`,
+            icon: 'error', confirmButtonColor: '#2A1B5E'
         });
     }
 
-    // 4. SI PASA LA VALIDACIÓN, RECIÉN AHÍ PEDIMOS EL MOTIVO Y LA FOTO
     Swal.fire({
         title: '¿Confirmar Cambios?',
-        html: `<p class="small text-muted">El monto es correcto. Por favor, indica el motivo y adjunta el respaldo.</p>
-               <input type="text" id="swal-motivo" class="form-control mb-2" placeholder="Motivo del cambio (Ej: Cliente solicita cambio de sabor)">
-               <input type="file" id="swal-foto" class="form-control" accept="image/*">`,
-        target: document.getElementById('modalEditarPedido'),
+        html: `
+            <p class="small text-muted">El monto es correcto. Indica el motivo y adjunta el respaldo.</p>
+            <div class="text-start">
+                <label class="small fw-bold text-dark">Motivo de la edición:</label>
+                <input type="text" id="swal-motivo" class="form-control mb-3" 
+                       placeholder="Ej: Cambio de sabor solicitado"
+                       oninput="this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1)">
+                
+                <label class="small fw-bold text-dark">Imagen de respaldo (Opcional):</label>
+                <input type="file" id="swal-foto" class="form-control" accept="image/*">
+            </div>
+        `,
         showCancelButton: true,
         confirmButtonText: 'Guardar Pedido',
-        cancelButtonText: 'Cancelar',
+        cancelButtonText: 'Volver',
         confirmButtonColor: '#2A1B5E',
+        customClass: { popup: 'rounded-4 shadow-lg' },
+        // Forzamos el foco al abrirse para asegurar la escritura
+        didOpen: () => {
+            const input = document.getElementById('swal-motivo');
+            if (input) input.focus();
+        },
         preConfirm: () => {
-            const m = document.getElementById('swal-motivo').value.trim();
-            if (!m) return Swal.showValidationMessage('El motivo es obligatorio para la auditoría');
-            return { motivo: m, foto: document.getElementById('swal-foto').files[0] };
+            const motivo = document.getElementById('swal-motivo').value.trim();
+            const foto = document.getElementById('swal-foto').files[0];
+            if (!motivo) {
+                Swal.showValidationMessage('El motivo es obligatorio');
+                return false;
+            }
+            return { motivo, foto };
         }
     }).then((res) => {
         if (res.isConfirmed) {
@@ -569,27 +568,20 @@ function guardarEdicionPedido() {
             fd.append('carrito_editado', JSON.stringify(limpios));
             if (res.value.foto) fd.append('evidencia', res.value.foto);
 
-            Swal.fire({
-                title: 'Sincronizando con ERP...',
-                allowOutsideClick: false,
-                target: document.getElementById('modalEditarPedido'),
-                didOpen: () => Swal.showLoading()
-            });
+            Swal.fire({ title: 'Sincronizando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
             fetch(`${BASE_URL}admin/pedido/guardar_edicion`, { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(data => {
                     if (data.status) {
-                        Swal.fire('¡Listo!', 'El pedido ha sido modificado exitosamente.', 'success')
-                            .then(() => location.reload());
+                        Swal.fire('¡Listo!', 'Pedido modificado exitosamente.', 'success').then(() => location.reload());
                     } else {
-                        Swal.fire('Error del Servidor', data.message, 'error');
+                        Swal.fire('Error', data.message, 'error');
                     }
-                });
+                }).catch(() => Swal.fire('Error', 'Error de conexión', 'error'));
         }
     });
 }
-
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;

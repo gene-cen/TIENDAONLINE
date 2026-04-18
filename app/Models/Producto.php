@@ -58,15 +58,15 @@ class Producto
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
-    private function getBaseQuery($para_web = true)
+private function getBaseQuery($para_web = true)
     {
         $sucursal_id = (int)($_SESSION['sucursal_activa'] ?? 29);
         $sqlStock = self::getSqlStockDisponible('ps', 'w'); // Usamos 'w' porque así lo aliaste aquí
 
-        $sql = "SELECT p.id, p.cod_producto, p.nombre, p.precio_unidad_medida, p.descripcion, p.imagen, p.activo,
+        $sql = "SELECT p.id, p.cod_producto, p.nombre, p.descripcion, p.imagen, p.activo,
                        COALESCE(w.nombre_web, p.nombre) as nombre_mostrar,
                        ps.precio,
+                       COALESCE(ps.ppum, p.precio_unidad_medida) as precio_unidad_medida, -- 🔥 TRUCO MÁGICO: Lee el PPUM de la sucursal
                        {$sqlStock} as stock, 
                        m.nombre as nombre_marca,
                        wc.nombre as nombre_categoria_web,

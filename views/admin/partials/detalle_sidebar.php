@@ -41,18 +41,27 @@ if ((int)($pedido['forma_pago_id'] ?? 0) === 7 && (int)($pedido['estado_pedido_i
     </div>
 </div>
 <?php
-// --- CONFIGURACIÓN DE SEGURIDAD ---
+// --- 1. PREPARACIÓN DE DATOS DE PAGO ---
 $idPagoMetodo = (int)($pedido['forma_pago_id'] ?? 0);
 $nombreMetodo = strtolower($pedido['forma_pago_nombre'] ?? '');
-$statusWP     = $estadoWebpay ?? 'sin_pago';
 
-// El monto que el sistema dice que hay que cobrar AHORA (Post-edición)
+// 🔥 IMPORTANTE: Asegúrate de que en tu controlador estés pasando la variable $estadoWebpay 
+// Buscamos el estado real en la transacción de la BD
+$statusWP = isset($estadoWebpay) ? strtolower($estadoWebpay) : 'sin_pago';
+
+// Monto a cobrar (Post-edición)
 $montoASolicitar = (int)$cobroCliente;
 
-// Verificamos si es Webpay (ID 5 o por nombre)
-if ($idPagoMetodo === 5 || str_contains($nombreMetodo, 'webpay')): ?>
+// --- 2. LÓGICA DE VISIBILIDAD ---
+// Solo mostramos este panel si es Webpay (ID 5) y el usuario tiene permisos (1 o 2)
+$esAdminConPermiso = isset($_SESSION['rol_id']) && in_array((int)$_SESSION['rol_id'], [1, 2]);
 
-    <?php if ($statusWP === 'autorizado' || $statusWP === 'authorized'): ?>
+if (($idPagoMetodo === 5 || str_contains($nombreMetodo, 'webpay')) && $esAdminConPermiso):
+?>
+
+    <?php
+    // ESTADO: AUTORIZADO (El dinero está retenido, falta cobrarlo)
+    if ($statusWP === 'autorizado' || $statusWP === 'authorized'): ?>
 
         <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-4 border-success bg-white">
             <div class="card-body p-4">
@@ -60,48 +69,49 @@ if ($idPagoMetodo === 5 || str_contains($nombreMetodo, 'webpay')): ?>
                     <div class="bg-success bg-opacity-10 p-2 rounded-circle me-2">
                         <i class="bi bi-robot text-success"></i>
                     </div>
-                    <h6 class="fw-bold mb-0 text-success">Captura Automatizada</h6>
+                    <h6 class="fw-bold mb-0 text-success">Captura de Pago Webpay</h6>
                 </div>
 
                 <form action="<?= BASE_URL ?>admin/pedido/capturar_pago" method="POST" id="formCapturaWebpay">
                     <input type="hidden" name="pedido_id" value="<?= $idPedido ?>">
 
                     <div class="mb-3">
-                        <label class="form-label small fw-bold text-muted">Monto calculado por Sistema:</label>
+                        <label class="form-label small fw-bold text-muted">Monto a cobrar al cliente:</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light border-0 text-cenco-indigo fw-bold">$</span>
                             <input type="number"
                                 class="form-control fw-black text-cenco-indigo fs-4 bg-light border-0"
                                 name="monto_final"
                                 value="<?= $montoASolicitar ?>"
-                                readonly
-                                style="pointer-events: none;">
+                                readonly>
                         </div>
 
                         <div class="form-text mt-3 p-2 bg-light rounded-3" style="font-size: 0.75rem;">
                             <i class="bi bi-info-circle-fill text-primary me-1"></i>
-                            Este monto corresponde al total de productos vigentes + despacho + servicio.
-                            <strong>Máximo permitido por banco: $<?= number_format($montoFijoBanco, 0, ',', '.') ?></strong>
+                            Al confirmar, se realizará el cobro real en la tarjeta del cliente.
+                            <strong>Máximo disponible: $<?= number_format($montoFijoBanco ?? 0, 0, ',', '.') ?></strong>
                         </div>
                     </div>
 
                     <button type="button" class="btn btn-success w-100 fw-bold shadow-sm py-3 rounded-pill"
                         onclick="confirmarCapturaWebpay(this.form, <?= $montoASolicitar ?>)">
-                        <i class="bi bi-check-all me-2"></i>CONFIRMAR CAPTURA
+                        <i class="bi bi-check-all me-2"></i>CONFIRMAR CAPTURA Y PREPARAR
                     </button>
                 </form>
             </div>
         </div>
 
-    <?php elseif ($statusWP === 'capturado' || $statusWP === 'captured'): ?>
+    <?php
+    // ESTADO: YA CAPTURADO (El dinero ya se cobró)
+    elseif ($statusWP === 'capturado' || $statusWP === 'captured'): ?>
 
         <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-4 border-secondary bg-light">
             <div class="card-body p-4 text-center">
                 <div class="bg-white d-inline-flex p-3 rounded-circle shadow-sm mb-3">
                     <i class="bi bi-shield-check text-success fs-2"></i>
                 </div>
-                <h6 class="fw-bold text-success mb-1">Pago Capturado</h6>
-                <p class="small text-muted mb-0">La transacción bancaria fue cerrada exitosamente.</p>
+                <h6 class="fw-bold text-success mb-1">Pago Procesado Exitosamente</h6>
+                <p class="small text-muted mb-0">La transacción bancaria fue cerrada y el dinero está en camino.</p>
             </div>
         </div>
 
@@ -191,8 +201,7 @@ if (isset($pedido['forma_pago_id']) && $pedido['forma_pago_id'] == 8):
                 </div>
 
                 <form id="form-comprobante" action="<?= BASE_URL ?>admin/pedidos/subir_comprobante" method="POST" enctype="multipart/form-data" onsubmit="return validarFolioPreparacion(event)">
-                    <input type="hidden" name="id_pedido" value="<?= $pedido['id'] ?>">
-
+                    <input type="hidden" name="pedido_id" value="<?= $pedido['id'] ?>">
                     <input type="hidden" id="flag_confianza" value="<?= $pedido['es_cliente_confianza'] ?? 0 ?>">
 
                     <div class="mb-3">
@@ -207,7 +216,7 @@ if (isset($pedido['forma_pago_id']) && $pedido['forma_pago_id'] == 8):
 
                     <div class="mb-3">
                         <label class="form-label small fw-bold">Foto del Comprobante *</label>
-                        <input class="form-control form-control-sm" type="file" name="foto_comprobante" required>
+                        <input class="form-control form-control-sm" type="file" name="comprobante" id="comprobante" accept="image/*,.pdf" required>
                     </div>
 
                     <div class="mb-3" id="bloque_folio">

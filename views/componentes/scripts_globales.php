@@ -12,7 +12,11 @@
     window.BASE_URL = "<?= BASE_URL ?>";
 
     window.AccessManager = {
-        settings: { activeClasses: [], filter: '', textLevel: 0 },
+        settings: {
+            activeClasses: [],
+            filter: '',
+            textLevel: 0
+        },
         init: function() {
             const saved = localStorage.getItem('cenco_accessibility');
             if (saved) {
@@ -37,10 +41,46 @@
             this.save();
         },
         cycleText: function() {
-            document.body.classList.remove('access-lvl-1', 'access-lvl-2', 'access-lvl-3');
+            // 1. Limpiamos niveles previos del HTML
+            document.documentElement.classList.remove('access-lvl-1', 'access-lvl-2', 'access-lvl-3');
+
             this.settings.textLevel++;
             if (this.settings.textLevel > 3) this.settings.textLevel = 0;
-            else if (this.settings.textLevel > 0) document.body.classList.add('access-lvl-' + this.settings.textLevel);
+
+            // 2. Aplicamos el nuevo nivel al HTML para que Bootstrap escale todo
+            if (this.settings.textLevel > 0) {
+                document.documentElement.classList.add('access-lvl-' + this.settings.textLevel);
+            }
+
+            this.updateTextButtonLabel();
+            this.save();
+        },
+
+        applySettings: function() {
+            this.settings.activeClasses.forEach(c => document.body.classList.add(c));
+            if (this.settings.filter) this.setFilter(this.settings.filter);
+            // Aplicamos el texto al HTML al cargar
+            if (this.settings.textLevel > 0) document.documentElement.classList.add('access-lvl-' + this.settings.textLevel);
+            this.updateTextButtonLabel();
+        },
+
+        reset: function() {
+            this.settings = {
+                activeClasses: [],
+                filter: '',
+                textLevel: 0
+            };
+
+            // Limpiamos el BODY
+            const bodyClasses = ['access-dark', 'access-invert', 'access-high-contrast', 'access-dyslexic', 'access-no-anim'];
+            bodyClasses.forEach(c => document.body.classList.remove(c));
+
+            // Limpiamos el HTML (Filtros y Tamaños de texto)
+            document.documentElement.classList.remove('filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia', 'access-lvl-1', 'access-lvl-2', 'access-lvl-3');
+
+            const selectFiltro = document.querySelector('select[aria-label="Filtro de Color"]');
+            if (selectFiltro) selectFiltro.value = '';
+
             this.updateTextButtonLabel();
             this.save();
         },
@@ -51,8 +91,13 @@
             btnLabel.innerText = labels[this.settings.textLevel];
         },
         setFilter: function(filterName) {
-            document.body.classList.remove('filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia');
-            if (filterName) document.body.classList.add('filter-' + filterName);
+            // Quitamos los filtros antiguos del HTML
+            document.documentElement.classList.remove('filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia');
+
+            // Aplicamos el nuevo
+            if (filterName) document.documentElement.classList.add('filter-' + filterName);
+
+            // Guardamos en el JSON maestro
             this.settings.filter = filterName;
             this.save();
         },
@@ -69,10 +114,27 @@
             this.updateTextButtonLabel();
         },
         reset: function() {
-            this.settings = { activeClasses: [], filter: '', textLevel: 0 };
+            // 1. Limpiamos la memoria interna
+            this.settings = {
+                activeClasses: [],
+                filter: '',
+                textLevel: 0
+            };
+
+            // 2. Limpiamos el BODY (Modo oscuro, dislexia, tamaños de texto)
             const classes = ['access-dark', 'access-invert', 'access-high-contrast', 'access-dyslexic', 'access-no-anim', 'access-lvl-1', 'access-lvl-2', 'access-lvl-3'];
             classes.forEach(c => document.body.classList.remove(c));
-            this.setFilter('');
+
+            // 3. Limpiamos el HTML (Filtros de Daltonismo)
+            document.documentElement.classList.remove('filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia');
+
+            // 4. Reiniciamos el selector (Dropdown) visualmente a su estado "Normal"
+            const selectFiltro = document.querySelector('select[aria-label="Filtro de Color"]');
+            if (selectFiltro) {
+                selectFiltro.value = '';
+            }
+
+            // 5. Actualizamos textos y guardamos
             this.updateTextButtonLabel();
             this.save();
         },
@@ -82,7 +144,7 @@
     };
 
     function cambiarModal(actualId, siguienteId) {
-        if (document.activeElement) document.activeElement.blur(); 
+        if (document.activeElement) document.activeElement.blur();
         bootstrap.Modal.getOrCreateInstance(document.getElementById(actualId)).hide();
         setTimeout(() => {
             bootstrap.Modal.getOrCreateInstance(document.getElementById(siguienteId)).show();
@@ -112,7 +174,7 @@
         const pass2 = document.getElementById('reg_password_confirm').value;
 
         if (pass1 !== pass2) {
-            event.preventDefault(); 
+            event.preventDefault();
             Swal.fire({
                 icon: 'error',
                 title: 'Contraseñas no coinciden',
@@ -132,6 +194,22 @@
         return true;
     }
 
+    function cambiarFiltroAccesibilidad(nombreFiltro) {
+        // 1. Lista de filtros posibles para limpiar los anteriores
+        const filtros = ['filter-grayscale', 'filter-protanopia', 'filter-deuteranopia', 'filter-tritanopia'];
+
+        // 2. Quitamos todos los filtros actuales del <html>
+        filtros.forEach(f => document.documentElement.classList.remove(f));
+
+        // 3. Aplicamos el nuevo y lo guardamos
+        if (nombreFiltro) {
+            document.documentElement.classList.add(nombreFiltro);
+            localStorage.setItem('cenco_access_filter', nombreFiltro);
+        } else {
+            // Si es "Restablecer"
+            localStorage.removeItem('cenco_access_filter');
+        }
+    }
 
     function togglePassword(inputId, iconId) {
         const input = document.getElementById(inputId);
@@ -162,92 +240,6 @@
         document.getElementById('direccion-input').value = direccionCompleta;
     }
 
-    let mapaReg = null;
-    let markerReg = null;
-
-    delete L.Icon.Default.prototype._getIconUrl;
-    L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-    });
-
-    function toggleDireccion() {
-        const box = document.getElementById('direccion-box');
-        const isChecked = document.getElementById('checkDireccion').checked;
-
-        if (isChecked) {
-            box.style.display = 'block';
-            requestAnimationFrame(() => {
-                setTimeout(() => { inicializarMapaRegistro(); }, 300);
-            });
-        } else {
-            box.style.display = 'none';
-        }
-    }
-
-    function inicializarMapaRegistro() {
-        if (mapaReg !== null) { mapaReg.invalidateSize(); return; }
-
-        const latInicial = -32.7845;
-        const lngInicial = -71.2136;
-        mapaReg = L.map('mapa-container').setView([latInicial, lngInicial], 14);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(mapaReg);
-        markerReg = L.marker([latInicial, lngInicial], { draggable: true }).addTo(mapaReg);
-
-        setTimeout(() => { mapaReg.invalidateSize(); }, 500);
-
-        markerReg.on('dragend', function(e) {
-            const position = markerReg.getLatLng();
-            document.getElementById('latitud').value = position.lat;
-            document.getElementById('longitud').value = position.lng;
-        });
-
-        mapaReg.on('click', function(e) {
-            markerReg.setLatLng(e.latlng);
-            document.getElementById('latitud').value = e.latlng.lat;
-            document.getElementById('longitud').value = e.latlng.lng;
-        });
-
-        if (window.innerWidth <= 768 && navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    const lat = pos.coords.latitude; const lng = pos.coords.longitude;
-                    mapaReg.setView([lat, lng], 17); markerReg.setLatLng([lat, lng]);
-                    document.getElementById('latitud').value = lat; document.getElementById('longitud').value = lng;
-                },
-                (err) => { console.warn("GPS denegado"); }
-            );
-        }
-    }
-
-    function ubicarEnMapa() {
-        actualizarInputFinal();
-        const dir = document.getElementById('direccion-input').value;
-        const comuna = document.getElementById('reg_comuna').value;
-
-        if (dir.trim() === '' || !comuna) { Swal.fire('Faltan Datos', 'Ingresa tu calle y selecciona una comuna.', 'warning'); return; }
-
-        const busqueda = dir + ", Región de Valparaíso, Chile";
-        const btn = event.currentTarget;
-        const oldHtml = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
-        btn.disabled = true;
-
-        fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(busqueda))
-            .then(res => res.json())
-            .then(data => {
-                if (data.length > 0) {
-                    const lat = parseFloat(data[0].lat); const lng = parseFloat(data[0].lon);
-                    mapaReg.setView([lat, lng], 17); markerReg.setLatLng([lat, lng]);
-                    document.getElementById('latitud').value = lat; document.getElementById('longitud').value = lng;
-                } else {
-                    Swal.fire('No encontrada', 'No pudimos ubicar la calle. Arrastra el pin rojo del mapa hasta tu casa.', 'info');
-                }
-            })
-            .finally(() => { btn.innerHTML = oldHtml; btn.disabled = false; });
-    }
 
     function procesarIrAPagar() {
         const usuarioAutorizado = <?= (isset($_SESSION['user_id']) || isset($_SESSION['invitado'])) ? 'true' : 'false' ?>;
@@ -255,7 +247,9 @@
             window.location.href = BASE_URL + 'checkout';
         } else {
             bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasCarrito')).hide();
-            setTimeout(() => { bootstrap.Modal.getOrCreateInstance(document.getElementById('checkoutAuthModal')).show(); }, 350);
+            setTimeout(() => {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('checkoutAuthModal')).show();
+            }, 350);
         }
     }
 </script>
@@ -280,90 +274,106 @@
 <?php if (isset($_GET['msg'])): ?>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
- // 8. Éxito al crear cuenta (Registro exitoso)
-   // ==========================================
-    // ALERTAS DE REGISTRO Y BASE DE DATOS
-    // ==========================================
+            // 1. CAPTURA SEGURA DE LA VARIABLE
+            const urlParams = new URLSearchParams(window.location.search);
+            const msg = urlParams.get('msg');
 
-    // 8. Éxito al crear cuenta (Registro exitoso)
-    if (msg === 'registro_ok' || msg === 'registro_exito') {
-        Swal.fire({
-            title: '<span style="color: var(--cenco-indigo); font-weight: 900;">¡Has creado tu cuenta exitosamente!</span>',
-            html: 'Te enviamos un enlace de validación para activarla.',
-            imageUrl: BASE_URL + 'img/cencocalin/cencocalin_envio_correo.png',
-            imageWidth: 140, 
-            imageAlt: 'Correo Enviado',
-            confirmButtonColor: '#76C043', 
-            confirmButtonText: '¡Iré a revisar!', 
-            backdrop: `rgba(42, 27, 94, 0.4)`,
-            customClass: { popup: 'rounded-4 shadow-lg border-0' }
-        });
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
+            // Si por alguna razón no hay mensaje, detenemos la ejecución
+            if (!msg) return;
 
-    // 9. Éxito, pero falló el envío de correo (Error de Gmail)
-    else if (msg === 'registro_exito_sin_correo') {
-        Swal.fire({
-            title: '<span style="color: var(--cenco-indigo); font-weight: 900;">Cuenta creada</span>',
-            html: 'Tu cuenta fue guardada en la base de datos, pero <b>tuvimos un bloqueo al enviar el correo de activación</b>.<br><br><small><i>Tip técnico: Revisa la contraseña de aplicación de Gmail.</i></small>',
-            icon: 'warning', 
-            confirmButtonColor: '#E53935', 
-            confirmButtonText: 'Entendido',
-            customClass: { popup: 'rounded-4 shadow-lg border-0' }
-        });
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
+            // ==========================================
+            // ALERTAS DE REGISTRO Y BASE DE DATOS
+            // ==========================================
 
-    // 10. Correo duplicado al intentar registrarse
-    else if (msg === 'error_email_duplicado') {
-        Swal.fire({
-            title: '¡Ups!', 
-            text: 'Este correo electrónico ya está registrado en nuestra base de datos. Intenta iniciar sesión.',
-            icon: 'error', 
-            confirmButtonColor: '#E53935',
-            customClass: { popup: 'rounded-4 shadow-lg border-0' }
-        }).then(() => {
-            if(document.getElementById('loginModal')) {
-                new bootstrap.Modal(document.getElementById('loginModal')).show();
+            // 8. Éxito al crear cuenta (Registro exitoso)
+            if (msg === 'registro_ok' || msg === 'registro_exito') {
+                Swal.fire({
+                    title: '<span style="color: var(--cenco-indigo); font-weight: 900;">¡Has creado tu cuenta exitosamente!</span>',
+                    html: 'Te enviamos un enlace de validación para activarla.',
+                    imageUrl: BASE_URL + 'img/cencocalin/cencocalin_envio_correo.png',
+                    imageWidth: 140,
+                    imageAlt: 'Correo Enviado',
+                    confirmButtonColor: '#76C043',
+                    confirmButtonText: '¡Iré a revisar!',
+                    backdrop: `rgba(42, 27, 94, 0.4)`,
+                    customClass: {
+                        popup: 'rounded-4 shadow-lg border-0'
+                    }
+                });
             }
-        });
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
 
-    // 11. Intentar comprar como invitado con un correo que ya existe
-    else if (msg === 'cuenta_existente') {
-        Swal.fire({
-            title: '<span style="color: var(--cenco-indigo); font-weight: 900;">¡Ya eres parte de Cencocal!</span>',
-            html: 'El correo que ingresaste ya tiene una cuenta registrada con nosotros.<br><br>Por seguridad, <b>por favor inicia sesión</b> en el panel izquierdo para continuar con tu compra.',
-            icon: 'info', 
-            confirmButtonColor: '#2A1B5E', 
-            confirmButtonText: 'Iniciar Sesión',
-            customClass: { popup: 'rounded-4 shadow-lg border-0' }
-        }).then(() => {
-            // Buscamos el modal del checkout, si no existe, abrimos el normal
-            const checkoutAuthModal = document.getElementById('checkoutAuthModal');
-            const loginModal = document.getElementById('loginModal');
-            
-            if (checkoutAuthModal) {
-                bootstrap.Modal.getOrCreateInstance(checkoutAuthModal).show();
-            } else if (loginModal) {
-                bootstrap.Modal.getOrCreateInstance(loginModal).show();
+            // 9. Éxito, pero falló el envío de correo (Error de Gmail)
+            else if (msg === 'registro_exito_sin_correo') {
+                Swal.fire({
+                    title: '<span style="color: var(--cenco-indigo); font-weight: 900;">Cuenta creada</span>',
+                    html: 'Tu cuenta fue guardada en la base de datos, pero <b>tuvimos un bloqueo al enviar el correo de activación</b>.<br><br><small><i>Tip técnico: Revisa la contraseña de aplicación de Gmail.</i></small>',
+                    icon: 'warning',
+                    confirmButtonColor: '#E53935',
+                    confirmButtonText: 'Entendido',
+                    customClass: {
+                        popup: 'rounded-4 shadow-lg border-0'
+                    }
+                });
             }
-        });
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
 
-    // 12. Error general de Base de Datos
-    else if (msg === 'error_db') {
-        Swal.fire({
-            title: 'Error del Sistema', 
-            text: 'No pudimos guardar los datos en la base de datos.', 
-            icon: 'error',
-            confirmButtonColor: '#E53935',
-            customClass: { popup: 'rounded-4 shadow-lg border-0' }
-        });
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
+            // 10. Correo duplicado al intentar registrarse
+            else if (msg === 'error_email_duplicado') {
+                Swal.fire({
+                    title: '¡Ups!',
+                    text: 'Este correo electrónico ya está registrado en nuestra base de datos. Intenta iniciar sesión.',
+                    icon: 'error',
+                    confirmButtonColor: '#E53935',
+                    customClass: {
+                        popup: 'rounded-4 shadow-lg border-0'
+                    }
+                }).then(() => {
+                    const loginEl = document.getElementById('loginModal');
+                    if (loginEl) {
+                        bootstrap.Modal.getOrCreateInstance(loginEl).show();
+                    }
+                });
+            }
+
+            // 11. Intentar comprar como invitado con un correo que ya existe
+            else if (msg === 'cuenta_existente') {
+                Swal.fire({
+                    title: '<span style="color: var(--cenco-indigo); font-weight: 900;">¡Ya eres parte de Cencocal!</span>',
+                    html: 'El correo que ingresaste ya tiene una cuenta registrada con nosotros.<br><br>Por seguridad, <b>por favor inicia sesión</b> para continuar con tu compra.',
+                    icon: 'info',
+                    confirmButtonColor: '#2A1B5E',
+                    confirmButtonText: 'Iniciar Sesión',
+                    customClass: {
+                        popup: 'rounded-4 shadow-lg border-0'
+                    }
+                }).then(() => {
+                    const checkoutAuthModal = document.getElementById('checkoutAuthModal');
+                    const loginModal = document.getElementById('loginModal');
+
+                    if (checkoutAuthModal) {
+                        bootstrap.Modal.getOrCreateInstance(checkoutAuthModal).show();
+                    } else if (loginModal) {
+                        bootstrap.Modal.getOrCreateInstance(loginModal).show();
+                    }
+                });
+            }
+
+            // 12. Error general de Base de Datos
+            else if (msg === 'error_db') {
+                Swal.fire({
+                    title: 'Error del Sistema',
+                    text: 'No pudimos guardar los datos en la base de datos.',
+                    icon: 'error',
+                    confirmButtonColor: '#E53935',
+                    customClass: {
+                        popup: 'rounded-4 shadow-lg border-0'
+                    }
+                });
+            }
+
+            // 🔥 LIMPIEZA FINAL DE LA URL (Se ejecuta una sola vez al terminar)
+            const url = new URL(window.location);
+            url.searchParams.delete('msg');
+            window.history.replaceState({}, document.title, url.pathname + url.search);
         });
     </script>
 <?php endif; ?>
@@ -373,7 +383,7 @@
     document.addEventListener("DOMContentLoaded", function() {
         const todosLosModales = document.querySelectorAll('.modal');
         todosLosModales.forEach(modal => {
-            document.body.appendChild(modal); 
+            document.body.appendChild(modal);
             modal.addEventListener('show.bs.modal', function() {
                 const offcanvasAbiertos = document.querySelectorAll('.offcanvas.show');
                 offcanvasAbiertos.forEach(function(off) {

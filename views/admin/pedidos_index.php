@@ -8,7 +8,7 @@
             <p class="text-muted mb-0">Gestiona, filtra y revisa la logística de tus pedidos.</p>
         </div>
 
-        <div class="d-flex gap-2 mt-3 mt-md-0">
+        <div class="d-flex flex-wrap justify-content-md-end gap-2 mt-3 mt-md-0">
             <?php
             // Construimos la URL de exportación manteniendo los filtros actuales
             $exportParams = $_GET;
@@ -24,7 +24,7 @@
 
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-body p-3">
-            <form action="<?= BASE_URL ?>admin/pedidos" method="GET" class="row g-2 align-items-center">
+            <form action="<?= BASE_URL ?>admin/pedidos" method="GET" class="row g-2 align-items-center" id="formFiltrosPedidos">
 
                 <div class="col-md-4 d-flex gap-2">
                     <div class="input-group">
@@ -41,17 +41,20 @@
                     </div>
                 </div>
 
-                <div class="col-md-3">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                        <input type="text" name="q" class="form-control border-start-0 ps-0"
-                            placeholder="RUT, Cliente, Folio o Tracking..."
-                            value="<?= htmlspecialchars($_GET['q'] ?? '') ?>">
+                <div class="col-md-4">
+                    <div class="input-group shadow-sm">
+                        <span class="input-group-text bg-white border-end-0 text-primary"><i class="bi bi-search"></i></span>
+                        <input type="text" name="q" id="inputBusquedaInteligente" class="form-control border-start-0 ps-0"
+                            placeholder="Escribe RUT, Cliente o Folio para filtrar..."
+                            value="<?= htmlspecialchars($_GET['q'] ?? '') ?>" autocomplete="off">
+                        <span class="input-group-text bg-white border-start-0 d-none" id="spinnerBusqueda">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        </span>
                     </div>
                 </div>
 
                 <div class="col-md-3">
-                    <select name="estado" class="form-select text-muted" onchange="this.form.submit()">
+                    <select name="estado" class="form-select text-muted shadow-sm" onchange="this.form.submit()">
                         <option value="">Todos los Estados</option>
                         <option value="1" <?= ($_GET['estado'] ?? '') == '1' ? 'selected' : '' ?>>Pendiente de Pago</option>
                         <option value="2" <?= ($_GET['estado'] ?? '') == '2' ? 'selected' : '' ?>>Pagado / Confirmado</option>
@@ -62,35 +65,31 @@
                     </select>
                 </div>
 
-                <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-cenco-indigo w-100 fw-bold shadow-sm">Buscar</button>
-                    <?php if (!empty($_GET['q']) || !empty($_GET['estado'])): ?>
-                        <a href="<?= BASE_URL ?>admin/pedidos" class="btn btn-outline-danger" title="Limpiar">
-                            <i class="bi bi-x-lg"></i>
-                        </a>
-                    <?php endif; ?>
+                <div class="col-md-1 d-flex gap-2">
+                    <a href="<?= BASE_URL ?>admin/pedidos" class="btn btn-outline-danger w-100 fw-bold shadow-sm" title="Limpiar Filtros">
+                        <i class="bi bi-eraser-fill"></i>
+                    </a>
                 </div>
             </form>
         </div>
     </div>
 
     <?php include 'partials/dashboard_subsidios.php'; ?>
+
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-
-
                     <thead class="bg-light border-bottom">
                         <tr>
-                            <th class="ps-4 py-3 text-muted small fw-bold text-uppercase border-0">Folio</th>
+                            <th class="ps-4 py-3 text-muted small fw-bold text-uppercase border-0">Orden de Pedido</th>
                             <th class="py-3 text-muted small fw-bold text-uppercase border-0">Cliente</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0" style="width: 20%;">Logística</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-end">Cobro (Cliente)</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-end">Total A Facturar</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-end">Subsidio</th>
-                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Estado</th>
-                            <th class="pe-4 py-3 text-muted small fw-bold text-uppercase border-0 text-end">Acciones</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0">Logística</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0">Modalidad de Pago</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Estado Pago</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-end">Facturar (ERP)</th>
+                            <th class="py-3 text-muted small fw-bold text-uppercase border-0 text-center">Estado Pedido</th>
+                            <th class="pe-4 py-3 text-muted small fw-bold text-uppercase border-0 text-end">Detalle</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -104,80 +103,101 @@
                         <?php else: ?>
                             <?php foreach ($pedidos as $p):
                                 $id = $p['id'] ?? 0;
-                                $fechaRaw = $p['fecha_creacion'] ?? null;
+
+                                // -----------------------------------------
+                                // COMBINACIÓN DE FECHA Y HORA REAL
+                                // -----------------------------------------
+                                $fechaCreacionRaw = $p['fecha_creacion'] ?? '';
+                                $horaCreacionRaw = $p['hora_creacion'] ?? '00:00';
+
+                                // Unimos "20260418" y "12:25" para que PHP lo entienda
+                                $fechaHoraObj = DateTime::createFromFormat('Ymd H:i', $fechaCreacionRaw . ' ' . $horaCreacionRaw);
+                                $fechaHoraDisplay = $fechaHoraObj ? $fechaHoraObj->format('d/m/y H:i') : '---';
+
                                 $nombreCliente = $p['nombre_cliente'] ?? 'Cliente Web';
                                 $rutCliente = $p['rut_cliente'] ?? '---';
 
-                                // LOGÍSTICA
-                                $sucursal = $p['sucursal_codigo'] ?? 'WEB';
+
+                                // -----------------------------------------
+                                // 1. LOGÍSTICA
+                                // -----------------------------------------
                                 $fechaEntrega = $p['fecha_entrega_fmt'] ?? null;
-                                $rangoHorario = $p['rango_horario'] ?? '';
                                 $tipoEntrega = (int)($p['tipo_entrega_id'] ?? 1);
 
                                 if ($tipoEntrega === 2) {
-                                    $textoLogistica = "Suc. $sucursal (Retiro)";
+                                    $textoLogistica = "Retiro en Tienda";
                                     $iconoLogistica = "bi-shop text-secondary";
                                 } else {
-                                    $textoLogistica = "Suc. $sucursal (Dom.)";
+                                    $textoLogistica = "Despacho a Domicilio";
                                     $iconoLogistica = "bi-house-door-fill text-cenco-red";
                                 }
 
-                                // MATEMÁTICA DE TOTALES Y SUBSIDIOS
+                                // -----------------------------------------
+                                // 2. MATEMÁTICA Y ERP
+                                // -----------------------------------------
                                 $totalERP = (int)($p['monto_total'] ?? $p['total_bruto'] ?? 0);
-                                $subsidio = (int)($p['subsidio_empresa'] ?? 0);
                                 $costoEnvio = (int)($p['costo_envio'] ?? 0);
 
-                                // ¡LA CLAVE ESTÁ AQUÍ! 
-                                // El cobro final es simplemente el ERP menos el subsidio. NO le restamos el $costoEnvio.
-                                $cobroCliente = $totalERP - $subsidio;
+                                // -----------------------------------------
+                                // 3. ESTADOS Y MODALIDADES DE PAGO
+                                // -----------------------------------------
+                                $formaPagoId = (int)($p['forma_pago_id'] ?? 5);
+                                $estadoPagoId = (int)($p['estado_pago_id'] ?? 1);
 
-                               // ESTADOS COMBINADOS (CON COLORES DINÁMICOS)
-                                $estadoLogistico = strtolower($p['estado'] ?? 'pendiente de pago');
-                                $textoEstado = strtoupper($p['estado'] ?? 'PENDIENTE DE PAGO');
-                                
-                                // ¡AQUÍ ESTÁ LA LÍNEA QUE HABÍA BORRADO POR ERROR! 👇
-                                $estadoPagoId = (int)($p['estado_pago_id'] ?? 1); 
+                                // Definir la Modalidad
+                                if ($formaPagoId === 8) {
+                                    $modalidadTexto = "Pago en Tienda";
+                                    $modalidadIcono = "bi-shop";
+                                    $modalidadColor = "text-success";
+                                } elseif ($formaPagoId === 7) {
+                                    $modalidadTexto = "Contra Entrega";
+                                    $modalidadIcono = "bi-shield-check";
+                                    $modalidadColor = "text-warning";
+                                } else {
+                                    $modalidadTexto = "Webpay Plus";
+                                    $modalidadIcono = "bi-credit-card";
+                                    $modalidadColor = "text-primary";
+                                }
+
+                                // Definir el Estado del Pago
+                                if ($formaPagoId === 5) { // WEBPAY
+                                    if ($estadoPagoId === 3) {
+                                        $estadoPagoBadge = '<span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-2"><i class="bi bi-lock-fill me-1"></i>Capturado</span>';
+                                    } elseif ($estadoPagoId === 2) {
+                                        $estadoPagoBadge = '<span class="badge bg-warning bg-opacity-10 text-dark border border-warning rounded-pill px-2"><i class="bi bi-hourglass-split me-1"></i>Retenido</span>';
+                                    } else {
+                                        $estadoPagoBadge = '<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary rounded-pill px-2"><i class="bi bi-clock me-1"></i>Pendiente</span>';
+                                    }
+                                } else { // TIENDA / CONTRA ENTREGA
+                                    if ($estadoPagoId >= 2) {
+                                        $estadoPagoBadge = '<span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-2"><i class="bi bi-check-circle-fill me-1"></i>Pagado</span>';
+                                    } else {
+                                        $estadoPagoBadge = '<span class="badge bg-warning bg-opacity-10 text-dark border border-warning rounded-pill px-2"><i class="bi bi-clock-history me-1"></i>Pendiente</span>';
+                                    }
+                                }
+
+                                // -----------------------------------------
+                                // 4. ESTADO DEL PEDIDO (Logística General)
+                                // -----------------------------------------
+                                $estadoLogistico = strtolower($p['estado'] ?? 'pendiente');
+                                $textoEstado = strtoupper($p['estado'] ?? 'PENDIENTE');
 
                                 $badgeClass = match ($estadoLogistico) {
                                     'pendiente de pago', 'pendiente' => 'bg-warning text-dark shadow-sm',
-                                    'pagado / confirmado', 'pagado'  => 'bg-info text-white shadow-sm',
+                                    'pagado / confirmado', 'pagado' => 'bg-info text-white shadow-sm',
                                     'en preparación', 'en preparacion' => 'bg-primary text-white shadow-sm',
-                                    'en ruta', 'enviado'             => 'bg-cenco-indigo text-white shadow-sm',
-                                    'entregado'                      => 'bg-success text-white shadow-sm',
-                                    'anulado', 'cancelado'           => 'bg-danger text-white shadow-sm',
-                                    default                          => 'bg-secondary text-white shadow-sm'
+                                    'en ruta', 'enviado' => 'bg-cenco-indigo text-white shadow-sm',
+                                    'entregado' => 'bg-success text-white shadow-sm',
+                                    'anulado', 'cancelado' => 'bg-danger text-white shadow-sm',
+                                    default => 'bg-secondary text-white shadow-sm'
                                 };
-
-                              
-                               
-                                $formaPagoId = (int)($p['forma_pago_id'] ?? 5);
-
-                                if ($formaPagoId === 8) {
-                                    // Si es Venta Asistida (8), revisamos si está pendiente o pagado
-                                    if ($estadoPagoId === 1) {
-                                        $formaPagoHtml = '<span class="text-warning fw-bold"><i class="bi bi-clock-history"></i> Pago Pendiente</span>';
-                                    } else {
-                                        // Si ya está pagado, leemos con qué pagó
-                                        $metodoReal = $p['metodo_pago_real'] ?? '';
-                                        if ($metodoReal === 'Efectivo') {
-                                            $formaPagoHtml = '<span class="text-success fw-bold"><i class="bi bi-shop"></i> Pago Sucursal <span style="font-size:0.55rem;" class="text-muted">(Efectivo)</span></span>';
-                                        } elseif ($metodoReal === 'Tarjeta (Transbank POS)') {
-                                            $formaPagoHtml = '<span class="text-primary fw-bold"><i class="bi bi-shop"></i> Pago Sucursal <span style="font-size:0.55rem;" class="text-muted">(TBK)</span></span>';
-                                        } else {
-                                            // Por si es un pedido antiguo antes de esta actualización
-                                            $formaPagoHtml = '<span class="text-success fw-bold"><i class="bi bi-shop"></i> Pago Sucursal</span>';
-                                        }
-                                    }
-                                } elseif ($formaPagoId === 7) {
-                                    $formaPagoHtml = '<span class="text-warning fw-bold"><i class="bi bi-shield-check"></i> Créd. Confianza</span>';
-                                } else {
-                                    $formaPagoHtml = '<span class="text-muted"><i class="bi bi-credit-card"></i> Webpay Plus</span>';
-                                }
                             ?>
                                 <tr>
                                     <td class="ps-4">
-                                        <span class="fw-bold text-primary">#<?= str_pad($id, 6, '0', STR_PAD_LEFT) ?></span><br>
-                                        <small class="text-muted" style="font-size: 0.75rem;"><?= date('d/m/y', strtotime($fechaRaw)) ?></small>
+                                        <span class="fw-bold text-primary" style="font-size: 1.1rem;">#<?= str_pad($id, 6, '0', STR_PAD_LEFT) ?></span><br>
+                                        <small class="text-muted fw-bold d-flex align-items-center mt-1" style="font-size: 0.8rem;">
+                                            <i class="bi bi-calendar3 me-1"></i> <?= $fechaHoraDisplay ?>
+                                        </small>
                                     </td>
 
                                     <td>
@@ -190,13 +210,13 @@
                                     <td>
                                         <div class="d-flex flex-column gap-1">
                                             <div>
-                                                <span class="badge bg-white text-dark border shadow-sm rounded-pill px-2">
+                                                <span class="badge bg-white text-dark border shadow-sm rounded-pill px-2" style="font-size: 0.7rem;">
                                                     <i class="bi <?= $iconoLogistica ?> me-1"></i> <?= $textoLogistica ?>
                                                 </span>
                                             </div>
                                             <?php if ($fechaEntrega): ?>
                                                 <div class="d-flex align-items-center mt-1">
-                                                    <i class="bi bi-calendar-check text-success me-1" style="font-size: 0.8rem;"></i>
+                                                    <i class="bi bi-truck text-success me-1" style="font-size: 0.8rem;"></i>
                                                     <span class="fw-bold text-dark" style="font-size: 0.75rem;"><?= $fechaEntrega ?></span>
                                                 </div>
                                             <?php else: ?>
@@ -205,46 +225,20 @@
                                         </div>
                                     </td>
 
-                                    <td class="text-end">
-                                        <div class="fw-black text-cenco-indigo fs-6">$<?= number_format($cobroCliente, 0, ',', '.') ?></div>
+                                    <td>
+                                        <span class="<?= $modalidadColor ?> fw-bold" style="font-size: 0.85rem;">
+                                            <i class="bi <?= $modalidadIcono ?> me-1"></i> <?= $modalidadTexto ?>
+                                        </span>
+                                    </td>
 
+                                    <td class="text-center">
+                                        <?= $estadoPagoBadge ?>
+                                    </td>
+
+                                    <td class="text-end">
+                                        <div class="fw-black text-cenco-indigo fs-6">$<?= number_format($totalERP, 0, ',', '.') ?></div>
                                         <?php if ($costoEnvio > 0): ?>
-                                            <div class="text-success fw-bold mb-1" style="font-size: 0.65rem;" title="Incluye valor de despacho">
-                                                (Incluye $<?= number_format($costoEnvio, 0, ',', '.') ?> envío)
-                                            </div>
-                                        <?php endif; ?>
-
-                                        <div class="d-flex align-items-center justify-content-end gap-1 mt-1" style="font-size: 0.65rem;">
-                                            <?= $formaPagoHtml ?>
-
-                                            <?php if ($estadoPagoId === 3): ?>
-                                                <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill ms-1" style="font-size: 0.55rem;" title="El dinero ya está en la cuenta Cencocal">
-                                                    <i class="bi bi-lock-fill"></i> Capturado
-                                                </span>
-                                            <?php elseif ($estadoPagoId === 2 && $formaPagoId === 5): ?>
-                                                <span class="badge bg-warning bg-opacity-10 text-dark border border-warning rounded-pill ms-1" style="font-size: 0.55rem;" title="Dinero retenido por el banco (Falta capturar)">
-                                                    <i class="bi bi-hourglass-split"></i> Retenido
-                                                </span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
-                                    <td class="text-end">
-                                        <div class="fw-bold text-dark fs-6">$<?= number_format($cobroCliente, 0, ',', '.') ?></div>
-
-                                        <?php if ($subsidio > 0): ?>
-                                            <div class="text-muted text-decoration-line-through" style="font-size: 0.65rem;" title="Valor Bruto Original">
-                                                Bruto: $<?= number_format($totalERP, 0, ',', '.') ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </td>
-
-                                    <td class="text-end">
-                                        <?php if ($subsidio > 0): ?>
-                                            <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2 rounded-pill" title="Asumido por empresa">
-                                                +$<?= number_format($subsidio, 0, ',', '.') ?>
-                                            </span>
-                                        <?php else: ?>
-                                            <span class="text-muted small">-</span>
+                                            <div class="text-success fw-bold" style="font-size: 0.65rem;">(Inc. $<?= number_format($costoEnvio, 0, ',', '.') ?> envío)</div>
                                         <?php endif; ?>
                                     </td>
 
@@ -268,9 +262,9 @@
         </div>
 
         <?php
+        // FUNCIONES DE PAGINACIÓN
         if (!function_exists('buildPageUrl')) {
-            function buildPageUrl($page)
-            {
+            function buildPageUrl($page) {
                 $params = $_GET;
                 $params['page'] = $page;
                 unset($params['url']);
@@ -321,3 +315,45 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const inputSearch = document.getElementById('inputBusquedaInteligente');
+    const form = document.getElementById('formFiltrosPedidos');
+    const spinner = document.getElementById('spinnerBusqueda');
+    let typingTimer;                
+    const doneTypingInterval = 700; // Espera 700ms luego de que el usuario deje de teclear
+
+    if (inputSearch) {
+        // Truco opcional: si venimos de una recarga de página tras buscar, 
+        // colocar el cursor al final de la palabra para que el usuario pueda seguir escribiendo si lo desea
+        if(inputSearch.value.length > 0) {
+            let val = inputSearch.value;
+            inputSearch.focus();
+            inputSearch.value = '';
+            inputSearch.value = val;
+        }
+
+        inputSearch.addEventListener('input', function () {
+            // Limpiamos el temporizador si el usuario sigue tecleando
+            clearTimeout(typingTimer);
+            
+            // Si hay texto, empezamos a contar el tiempo
+            if (inputSearch.value.trim() !== '') {
+                typingTimer = setTimeout(function () {
+                    // Mostrar feedback visual
+                    spinner.classList.remove('d-none');
+                    // Enviar formulario
+                    form.submit();
+                }, doneTypingInterval);
+            } else {
+                // Si borra todo el texto, hacemos la búsqueda vacía para resetear la lista
+                typingTimer = setTimeout(function () {
+                    spinner.classList.remove('d-none');
+                    form.submit();
+                }, doneTypingInterval);
+            }
+        });
+    }
+});
+</script>

@@ -8,17 +8,16 @@
                 </div>
                 <div class="card-body p-4 p-md-5">
                     <form action="<?= BASE_URL ?>empleos/guardar" method="POST" enctype="multipart/form-data" id="formPostulacion">
-                        
+
                         <h5 class="fw-bold text-cenco-green mb-3 border-bottom pb-2">1. ¿A dónde deseas postular?</h5>
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="form-label fw-bold text-muted small">Sucursal / Instalación</label>
-                                <select name="sucursal" id="selectSucursal" class="form-select" required>
+                                <select name="sucursal_id" id="selectSucursal" class="form-select" required>
                                     <option value="">Seleccione una ubicación...</option>
-                                    <option value="Femacal">Sucursal Femacal (La Calera)</option>
-                                    <option value="Prat">Sucursal Prat (La Calera)</option>
-                                    <option value="Bodega Nogales">Centro de Distribución (Nogales)</option>
-                                    <option value="Casa Matriz">Casa Matriz</option>
+                                    <?php foreach ($sucursales ?? [] as $suc): ?>
+                                        <option value="<?= $suc['id'] ?>"><?= htmlspecialchars($suc['nombre']) ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -60,7 +59,7 @@
                                     <option value="Masculino">Masculino</option>
                                 </select>
                             </div>
-                            
+
                             <div class="col-md-4">
                                 <label class="form-label fw-bold text-muted small">Nacionalidad</label>
                                 <select name="nacionalidad_tipo" id="selectNacionalidad" class="form-select" required>
@@ -68,7 +67,7 @@
                                     <option value="Extranjera">Extranjera</option>
                                 </select>
                             </div>
-                            
+
                             <div class="col-md-8" id="divExtranjero" style="display:none;">
                                 <div class="row g-2">
                                     <div class="col-sm-6">
@@ -103,19 +102,11 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="form-label fw-bold text-muted small">Comuna de Residencia</label>
-                                <select name="comuna" class="form-select" required>
+                                <select name="comuna_id" class="form-select" required>
                                     <option value="">Seleccione comuna...</option>
-                                    <?php if(!empty($comunas)): ?>
-                                        <?php foreach($comunas as $c): ?>
-                                            <option value="<?= htmlspecialchars($c['nombre']) ?>"><?= htmlspecialchars($c['nombre']) ?></option>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <option value="La Calera">La Calera</option>
-                                        <option value="La Cruz">La Cruz</option>
-                                        <option value="Quillota">Quillota</option>
-                                        <option value="Nogales">Nogales</option>
-                                        <option value="Hijuelas">Hijuelas</option>
-                                    <?php endif; ?>
+                                    <?php foreach ($comunas ?? [] as $c): ?>
+                                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -150,118 +141,117 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    
-    // 1. FORMATEADOR DE RUT DINÁMICO
-    const inputRut = document.getElementById('inputRut');
-    inputRut.addEventListener('input', function(e) {
-        let valor = this.value.replace(/[^0-9kK]/g, ''); // Quitar todo lo que no sea número o K
-        if (valor.length > 1) {
-            let cuerpo = valor.slice(0, -1);
-            let dv = valor.slice(-1).toUpperCase();
-            // Poner puntos al cuerpo
-            cuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-            this.value = cuerpo + '-' + dv;
-        } else {
-            this.value = valor;
-        }
-    });
+    document.addEventListener('DOMContentLoaded', function() {
 
-    // 2. LÓGICA EXTRANJEROS
-    const selectNacionalidad = document.getElementById('selectNacionalidad');
-    const divExtranjero = document.getElementById('divExtranjero');
-    const selectPais = document.getElementById('selectPais');
-    const selectPermiso = document.getElementById('selectPermiso');
-    
-    selectNacionalidad.addEventListener('change', function() {
-        if(this.value === 'Extranjera') {
-            divExtranjero.style.display = 'block'; // Mostrar combobox de paises
-            selectPais.required = true;
-            selectPermiso.required = true;
-        } else {
-            divExtranjero.style.display = 'none';
-            selectPais.required = false;
-            selectPermiso.required = false;
-            selectPais.value = '';
-            selectPermiso.value = '';
-        }
-    });
+        // 1. FORMATEADOR DE RUT DINÁMICO
+        const inputRut = document.getElementById('inputRut');
+        inputRut.addEventListener('input', function(e) {
+            let valor = this.value.replace(/[^0-9kK]/g, ''); 
+            if (valor.length > 1) {
+                let cuerpo = valor.slice(0, -1);
+                let dv = valor.slice(-1).toUpperCase();
+                cuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                this.value = cuerpo + '-' + dv;
+            } else {
+                this.value = valor;
+            }
+        });
 
-    // 3. LÓGICA SUCURSAL -> CARGOS (AJAX)
-    const selectSucursal = document.getElementById('selectSucursal');
-    const selectCargo = document.getElementById('selectCargo');
-    const infoCargoContainer = document.getElementById('infoCargoContainer');
-    const descCargo = document.getElementById('descripcionCargo');
-    let cargosActuales = [];
+        // 2. LÓGICA EXTRANJEROS
+        const selectNacionalidad = document.getElementById('selectNacionalidad');
+        const divExtranjero = document.getElementById('divExtranjero');
+        const selectPais = document.getElementById('selectPais');
+        const selectPermiso = document.getElementById('selectPermiso');
 
-    selectSucursal.addEventListener('change', function() {
-        const suc = this.value;
-        selectCargo.innerHTML = '<option value="">Cargando...</option>';
-        selectCargo.disabled = true;
-        infoCargoContainer.style.display = 'none';
+        selectNacionalidad.addEventListener('change', function() {
+            if (this.value === 'Extranjera') {
+                divExtranjero.style.display = 'block';
+                selectPais.required = true;
+                selectPermiso.required = true;
+            } else {
+                divExtranjero.style.display = 'none';
+                selectPais.required = false;
+                selectPermiso.required = false;
+                selectPais.value = '';
+                selectPermiso.value = '';
+            }
+        });
 
-        if(suc) {
-            fetch(`<?= BASE_URL ?>empleos/getCargosAjax?sucursal=${encodeURIComponent(suc)}`)
-            .then(res => res.json())
-            .then(data => {
-                cargosActuales = data;
-                selectCargo.innerHTML = '<option value="">Seleccione un cargo...</option>';
-                data.forEach(c => {
-                    selectCargo.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-                });
-                selectCargo.disabled = false;
-            });
-        }
-    });
+        // 3. LÓGICA SUCURSAL -> CARGOS (AJAX)
+        const selectSucursal = document.getElementById('selectSucursal');
+        const selectCargo = document.getElementById('selectCargo');
+        const infoCargoContainer = document.getElementById('infoCargoContainer');
+        const descCargo = document.getElementById('descripcionCargo');
+        let cargosActuales = [];
 
-    // Mostrar descripción del cargo
-    selectCargo.addEventListener('change', function() {
-        const id = this.value;
-        const cargo = cargosActuales.find(c => c.id == id);
-        if(cargo) {
-            descCargo.textContent = cargo.descripcion;
-            infoCargoContainer.style.display = 'block';
-        } else {
+        selectSucursal.addEventListener('change', function() {
+            const suc_id = this.value;
+            selectCargo.innerHTML = '<option value="">Cargando...</option>';
+            selectCargo.disabled = true;
             infoCargoContainer.style.display = 'none';
-        }
+
+            if (suc_id) {
+                // 🔥 CAMBIO CLAVE: Enviamos el ID de la sucursal en lugar del nombre
+                fetch(`<?= BASE_URL ?>empleos/getCargosAjax?sucursal_id=${encodeURIComponent(suc_id)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        cargosActuales = data;
+                        selectCargo.innerHTML = '<option value="">Seleccione un cargo...</option>';
+                        data.forEach(c => {
+                            selectCargo.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+                        });
+                        selectCargo.disabled = false;
+                    });
+            }
+        });
+
+        // Mostrar descripción del cargo
+        selectCargo.addEventListener('change', function() {
+            const id = this.value;
+            const cargo = cargosActuales.find(c => c.id == id);
+            if (cargo) {
+                descCargo.textContent = cargo.descripcion;
+                infoCargoContainer.style.display = 'block';
+            } else {
+                infoCargoContainer.style.display = 'none';
+            }
+        });
+
+        // ==========================================
+        // 4. ALERTAS SWEETALERT2
+        // ==========================================
+        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'exito'): ?>
+            Swal.fire({
+                title: '¡Postulación Enviada!',
+                text: 'Hemos recibido tus datos con éxito. Nuestro equipo de selección los revisará a la brevedad.',
+                imageUrl: '<?= BASE_URL ?>img/cencocalin/cencocalin_positivo.png',
+                imageWidth: 100,
+                imageHeight: 100,
+                imageAlt: 'Cencocalin',
+                confirmButtonColor: '#2A1B5E'
+            }).then(() => {
+                window.location.href = '<?= BASE_URL ?>home'; 
+            });
+        <?php endif; ?>
+
+        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'duplicado'): ?>
+            Swal.fire({
+                icon: 'warning',
+                title: 'Postulación en Curso',
+                text: 'Ya hemos recibido vuestra solicitud anteriormente con este RUT. ¡Mantente atento a tu teléfono o correo!',
+                confirmButtonColor: '#2A1B5E'
+            }).then(() => {
+                window.history.replaceState(null, null, window.location.pathname);
+            });
+        <?php endif; ?>
+
+        <?php if (isset($_GET['msg']) && $_GET['msg'] === 'error_cv'): ?>
+            Swal.fire({
+                icon: 'error',
+                title: 'Falta tu Curriculum',
+                text: 'Es obligatorio adjuntar tu CV en formato PDF o Word para postular.',
+                confirmButtonColor: '#d33'
+            });
+        <?php endif; ?>
     });
-
-    // ==========================================
-    // 4. ALERTAS SWEETALERT2 (CENCOCALIN)
-    // ==========================================
-    <?php if(isset($_GET['msg']) && $_GET['msg'] === 'exito'): ?>
-        Swal.fire({
-            title: '¡Postulación Enviada!',
-            text: 'Hemos recibido tus datos con éxito. Nuestro equipo de selección los revisará a la brevedad.',
-            imageUrl: '<?= BASE_URL ?>img/cencocalin/cencocalin_positivo.png',
-            imageWidth: 100,
-            imageHeight: 100,
-            imageAlt: 'Cencocalin',
-            confirmButtonColor: '#2A1B5E'
-        }).then(() => {
-            window.location.href = '<?= BASE_URL ?>empleos';
-        });
-    <?php endif; ?>
-
-    <?php if(isset($_GET['msg']) && $_GET['msg'] === 'duplicado'): ?>
-        Swal.fire({
-            icon: 'warning',
-            title: 'Postulación en Curso',
-            text: 'Ya hemos recibido vuestra solicitud anteriormente con este RUT. ¡Mantente atento a tu teléfono o correo!',
-            confirmButtonColor: '#2A1B5E'
-        }).then(() => {
-            // Limpiar la URL para que no vuelva a saltar al recargar
-            window.history.replaceState(null, null, window.location.pathname);
-        });
-    <?php endif; ?>
-
-    <?php if(isset($_GET['msg']) && $_GET['msg'] === 'error_cv'): ?>
-        Swal.fire({
-            icon: 'error',
-            title: 'Falta tu Curriculum',
-            text: 'Es obligatorio adjuntar tu CV en formato PDF o Word para postular.',
-            confirmButtonColor: '#d33'
-        });
-    <?php endif; ?>
-});
 </script>

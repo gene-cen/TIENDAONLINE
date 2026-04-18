@@ -15,104 +15,132 @@
                 </thead>
                 <tbody>
                     <?php
-                    $totalProductosERP = 0; // Variable para sumar la mercadería real
+                    $totalProductosERP = 0;
                     if (!empty($detalles)):
                         foreach ($detalles as $d):
-                            $esEliminado = $d['es_eliminado'] ?? false;
-                            $esAgregado = $d['es_agregado'] ?? false;
+                            // 1. Identificar estado del producto en la edición
+                            $esEliminado = !empty($d['es_eliminado']);
+                            $esAgregado = !empty($d['es_agregado']);
 
-                            // --- LÓGICA DE ALERTA DE STOCK ---
-                            $stockActual = (int)($d['stock_sucursal'] ?? 99);
-                            $esStockCritico = ($stockActual < 10 && !$esEliminado);
+                            // 2. Lógica de Stock (Mostrar alerta si es <= 15)
+                            $stockActual = isset($d['stock_sucursal']) ? (int)$d['stock_sucursal'] : 0;
+                            $esStockCritico = ($stockActual <= 15 && !$esEliminado);
 
-                            $precioBruto = $d['precio_bruto'] ?? ($d['precio_neto'] * 1.19);
+                            // 3. Cálculos matemáticos
+                            // Priorizamos precio_bruto, si no existe usamos neto + IVA
+                            $precioBruto = $d['precio_bruto'] ?? (($d['precio_neto'] ?? 0) * 1.19);
                             $cantidad = $d['cantidad'] ?? 0;
                             $subtotalLinea = $precioBruto * $cantidad;
 
-                            // Sumamos al ERP solo si no fue eliminado
+                            // Sumamos al ERP solo si el producto NO fue eliminado en la edición
                             if (!$esEliminado) {
                                 $totalProductosERP += $subtotalLinea;
                             }
 
+                            // Manejo de nombres e imágenes
                             $nombreProd = $d['nombre_producto'] ?? $d['nombre'] ?? 'Producto';
-                            $img = !empty($d['imagen']) ? (strpos($d['imagen'], 'http') === 0 ? $d['imagen'] : BASE_URL . 'img/productos/' . $d['imagen']) : BASE_URL . 'img/no-image.png';
+                            $img = !empty($d['imagen'])
+                                ? (strpos($d['imagen'], 'http') === 0 ? $d['imagen'] : BASE_URL . 'img/productos/' . $d['imagen'])
+                                : BASE_URL . 'img/no-image.png';
 
-                            // --- CLASES DINÁMICAS PARA LA FILA ---
+                            // 4. CLASES DINÁMICAS (El corazón visual de la auditoría)
                             $trClass = '';
-                            if ($esEliminado) {
-                                $trClass = 'bg-light opacity-50';
-                            } elseif ($esStockCritico) {
-                                $trClass = 'table-danger border-danger alert-stock-critico';
-                            } elseif ($esAgregado) {
-                                $trClass = 'bg-success bg-opacity-10 border-start border-4 border-success';
-                            }
+                            $textClass = 'text-dark';
+                            $badgeEstado = '';
+                            $estiloImagen = 'width: 45px; height: 45px; object-fit: contain;';
 
-                            $textClass = $esEliminado ? 'text-muted text-decoration-line-through' : ($esAgregado ? 'text-success fw-bold' : 'text-dark');
+                            if ($esEliminado) {
+                                // Fila gris y tachada (como en el modal)
+                                $trClass = 'bg-light opacity-50';
+                                $textClass = 'text-muted text-decoration-line-through';
+                                $badgeEstado = '<span class="badge bg-secondary ms-2" style="font-size: 0.65rem;"><i class="bi bi-trash3"></i> Eliminado</span>';
+                                $estiloImagen .= 'filter: grayscale(100%); opacity: 0.6;';
+                            } elseif ($esAgregado) {
+                                // Fila destacada en verde (Producto nuevo o ajuste)
+                                $trClass = 'bg-success bg-opacity-10 border-start border-4 border-success';
+                                $textClass = 'text-success fw-bold';
+                                $badgeEstado = '<span class="badge bg-success ms-2" style="font-size: 0.65rem;"><i class="bi bi-plus-circle"></i> Nuevo / Ajuste</span>';
+                            } elseif ($esStockCritico) {
+                                // Fila destacada en rojo por bajo stock
+                                $trClass = 'bg-danger bg-opacity-10 border-start border-4 border-danger';
+                                $textClass = 'text-danger fw-bold';
+                            }
                     ?>
-                            <tr class="<?= $trClass ?>" title="<?= $esStockCritico ? '¡ATENCIÓN! Quedan solo ' . $stockActual . ' unidades en la sucursal.' : 'Stock disponible: ' . $stockActual . ' un.' ?>">
+                            <tr class="<?= $trClass ?>">
                                 <td class="ps-4 py-3">
                                     <div class="d-flex align-items-center">
                                         <div class="position-relative me-3">
-                                            <img src="<?= $img ?>" class="rounded border bg-white" style="width: 40px; height: 40px; object-fit: contain;">
-                                            <?php if ($esStockCritico): ?>
-                                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger shadow-sm" style="font-size: 0.55rem; z-index: 5;">
+                                            <img src="<?= $img ?>" class="rounded border bg-white shadow-sm" style="<?= $estiloImagen ?>">
+
+                                            <?php if ($esStockCritico && !$esAgregado && !$esEliminado): ?>
+                                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light shadow-sm" style="font-size: 0.6rem; z-index: 5;" title="¡Stock Crítico!">
                                                     <i class="bi bi-exclamation-triangle-fill"></i>
                                                 </span>
                                             <?php endif; ?>
                                         </div>
+
                                         <div>
-                                            <div class="fw-bold <?= $textClass ?>">
-                                                <?php if ($esStockCritico): ?>
-                                                    <span class="text-danger fw-black me-1" style="font-size: 0.8rem;"><i class="bi bi-fire"></i> CRÍTICO:</span>
-                                                <?php endif; ?>
+                                            <div class="fw-bold <?= $textClass ?>" style="font-size: 0.9rem;">
                                                 <?= htmlspecialchars($nombreProd) ?>
-                                                <?php if ($esEliminado): ?> <span class="badge bg-danger ms-1" style="font-size: 0.6rem;">Removido</span> <?php endif; ?>
-                                                <?php if ($esAgregado): ?> <span class="badge bg-success ms-1" style="font-size: 0.6rem;">Añadido</span> <?php endif; ?>
+                                                <?= $badgeEstado ?>
                                             </div>
 
                                             <div class="mt-1" style="font-size: 0.75rem;">
                                                 <span class="text-muted me-3">COD: <?= $d['cod_producto'] ?? '---' ?></span>
-                                                <span class="<?= $esStockCritico ? 'text-danger fw-bold' : 'text-muted' ?>">
-                                                    <i class="bi bi-box-seam me-1"></i>Stock: <?= $stockActual ?> un.
-                                                </span>
-                                            </div>
 
+                                                <?php if (!$esEliminado): ?>
+                                                    <span class="<?= $esStockCritico ? 'text-danger fw-black px-2 py-1 rounded bg-danger bg-opacity-10 border border-danger' : 'text-primary fw-bold' ?>">
+                                                        <i class="bi bi-box-seam me-1"></i>Stock Real: <?= $stockActual ?> un.
+                                                        <?php if ($esStockCritico): ?> <span class="d-none d-md-inline ms-1 text-uppercase" style="font-size: 0.65rem;">(¡Separar urgente!)</span> <?php endif; ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="text-center">$<?= number_format($precioBruto, 0, ',', '.') ?></td>
-                                <td class="text-center"><span class="badge border px-3 <?= $esStockCritico ? 'bg-danger text-white border-danger' : 'text-dark' ?>"><?= $cantidad ?></span></td>
-                                <td class="pe-4 text-end fw-bold <?= $esStockCritico ? 'text-danger' : '' ?>">$<?= number_format($subtotalLinea, 0, ',', '.') ?></td>
+                                <td class="text-center <?= $textClass ?>">$<?= number_format($precioBruto, 0, ',', '.') ?></td>
+                                <td class="text-center">
+                                    <span class="badge border px-3 py-2 <?= $esEliminado ? 'bg-light text-muted' : ($esStockCritico ? 'bg-danger text-white border-danger' : 'bg-white text-dark shadow-sm') ?>">
+                                        <?= $cantidad ?>
+                                    </span>
+                                </td>
+                                <td class="pe-4 text-end <?= $textClass ?> fw-bold">
+                                    $<?= number_format($subtotalLinea, 0, ',', '.') ?>
+                                </td>
                             </tr>
                         <?php
                         endforeach;
-                    endif;
-                    ?>
+                    else:
+                        ?>
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="bi bi-cart-x fs-2 d-block mb-2 opacity-50"></i>
+                                No hay productos registrados en este pedido.
+                            </td>
+                        </tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 
-   <div class="card-footer bg-white p-4">
+    <div class="card-footer bg-white p-4">
         <div class="row justify-content-end">
             <div class="col-md-7 col-lg-6">
                 <?php
-                // MATEMÁTICA CORRECTA Y ALINEADA AL CLIENTE
+                // Cálculos finales
                 $costoEnvio = (int)($pedido['costo_envio'] ?? 0);
                 $costoServicio = 490;
-                
-                // El Total ERP real es lo que está en la BD (ya incluye envío y servicio)
-                $nuevoTotalERP = (int)$pedido['monto_total'];
 
-                // Subsidio de la base de datos
+                // Si el pedido fue editado, el $totalProductosERP podría haber cambiado, 
+                // así que recalculamos el total teórico a cobrar.
+                $nuevoTotalAcumulado = $totalProductosERP + $costoEnvio + $costoServicio;
                 $subsidioReal = (int)($pedido['subsidio_empresa'] ?? 0);
-
-                // Cobro Final del Cliente
-                $cobroClienteFinal = $nuevoTotalERP - $subsidioReal;
+                $cobroClienteFinal = $nuevoTotalAcumulado - $subsidioReal;
                 ?>
 
                 <div class="d-flex justify-content-between align-items-center mb-2 text-muted">
-                    <span class="fw-bold fs-6">Subtotal Productos:</span>
+                    <span class="fw-bold fs-6">Subtotal Productos (Vigentes):</span>
                     <span class="fs-6 text-dark">$<?= number_format($totalProductosERP, 0, ',', '.') ?></span>
                 </div>
 
@@ -122,10 +150,10 @@
                 </div>
 
                 <?php if ($costoEnvio > 0): ?>
-                <div class="d-flex justify-content-between align-items-center mb-2 text-muted">
-                    <span class="fw-bold fs-6">Costo de Despacho:</span>
-                    <span class="fs-6 text-dark">$<?= number_format($costoEnvio, 0, ',', '.') ?></span>
-                </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2 text-muted">
+                        <span class="fw-bold fs-6">Costo de Despacho:</span>
+                        <span class="fs-6 text-dark">$<?= number_format($costoEnvio, 0, ',', '.') ?></span>
+                    </div>
                 <?php endif; ?>
 
                 <?php if ($subsidioReal > 0): ?>
@@ -138,14 +166,13 @@
                 <hr class="my-3 border-light">
 
                 <div class="d-flex justify-content-between align-items-center">
-                    <span class="fw-black fs-5 text-cenco-indigo">COBRO CLIENTE:</span>
+                    <span class="fw-black fs-5 text-cenco-indigo">TOTAL A COBRAR:</span>
                     <span class="fw-black fs-3 text-cenco-green">$<?= number_format($cobroClienteFinal, 0, ',', '.') ?></span>
                 </div>
-                
+
                 <div class="text-end mt-1">
-                    <small class="text-muted" style="font-size: 0.65rem;"><i class="bi bi-shield-check me-1"></i>Precio final cobrado al cliente</small>
+                    <small class="text-muted" style="font-size: 0.65rem;"><i class="bi bi-info-circle me-1"></i>Total actualizado sin productos eliminados</small>
                 </div>
-                
             </div>
         </div>
     </div>

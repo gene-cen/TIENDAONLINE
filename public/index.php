@@ -2,8 +2,26 @@
 
 /**
  * CENCOCAL S.A. - Front Controller (Router)
- * Versión Limpia y Consolidada
+ * Versión Limpia, Consolidada y con Venta Asistida
  */
+
+// =========================================================
+// 🔥 FIX WEBPAY: CONFIGURACIÓN DE COOKIES SAMESITE
+// =========================================================
+$esSeguro = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ||
+    (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
+    (!empty($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'render.com') !== false);
+
+if ($esSeguro) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => $_SERVER['HTTP_HOST'],
+        'secure' => true,
+        'httponly' => true,
+        'samesite' => 'None'
+    ]);
+}
 
 session_start();
 date_default_timezone_set('America/Santiago');
@@ -35,40 +53,35 @@ $database = new Database();
 $db = $database->getConnection();
 
 // =========================================================
-// 5. ANALYTICS TRACKING (OPCIÓN PRO)
+// 5. ANALYTICS TRACKING
 // =========================================================
 $url = $_GET['url'] ?? 'home';
 $url = rtrim($url, '/');
 
-// Evitamos trackear el panel de admin y las APIs para no ensuciar el mapa de calor de clientes
-if (strpos($url, 'admin') === false && strpos($url, 'api') === false) {
+if (strpos($url, 'admin') === false && strpos($url, 'api') === false && strpos($url, 'location/') === false) {
     require_once __DIR__ . '/../app/Models/Analytics.php';
     $analytics = new \App\Models\Analytics($db);
 
-    // Capturamos los datos para el mapa Pro
     $usuarioId = $_SESSION['user_id'] ?? null;
-    $comunaId  = $_SESSION['comuna_id'] ?? 29; // 29 = La Calera (Default)
+    $comunaId  = $_SESSION['comuna_id'] ?? 29;
     $ip        = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     $agente    = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
 
-    // Registramos la visita con todos los parámetros
     $analytics->registrarVisita($usuarioId, $comunaId, $url, $ip, $agente);
 }
+
 // =========================================================
 // 6. RUTAS DINÁMICAS Y SLUGS (SEO Friendly)
 // =========================================================
 $url_parts = explode('/', $url);
 
-// --- 1. BUSCADOR CON SLUG (Ej: buscar/hamburguesa-congelada) ---
 if (strpos($url, 'buscar/') === 0) {
     $slug = end($url_parts);
-    // Convertimos los guiones de vuelta a espacios para buscar en la BD
     $_GET['q'] = urldecode(str_replace('-', ' ', $slug));
     (new \App\Controllers\HomeController($db))->catalogo();
     exit();
 }
 
-// --- 2. CATEGORÍAS CON SLUG (Ej: categoria/vinos-y-licores) ---
 if (strpos($url, 'categoria/') === 0) {
     $slug = end($url_parts);
     $_GET['categoria'] = urldecode(str_replace('-', ' ', $slug));
@@ -76,9 +89,6 @@ if (strpos($url, 'categoria/') === 0) {
     exit();
 }
 
-
-
-// --- 3. COLECCIONES/BANNERS CON SLUG (Ej: coleccion/ofertas-del-mes) ---
 if (strpos($url, 'coleccion/') === 0) {
     $slug = end($url_parts);
     $_GET['coleccion'] = urldecode(str_replace('-', ' ', $slug));
@@ -86,7 +96,7 @@ if (strpos($url, 'coleccion/') === 0) {
     exit();
 }
 
-// --- PEDIDOS Y PRODUCTOS ADMIN ---
+// --- SLUGS ADMIN ---
 if (strpos($url, 'admin/pedido/ver/') === 0) {
     $id = end($url_parts);
     require_once '../app/Controllers/AdminPedidoController.php';
@@ -111,7 +121,6 @@ if (strpos($url, 'admin/producto/eliminar/') === 0) {
 // =========================================================
 // 7. ENRUTADOR PRINCIPAL (SWITCH)
 // =========================================================
-
 switch ($url) {
     // ----------------------------------------------------
     // 🔐 AUTH & LOGIN
@@ -153,13 +162,17 @@ switch ($url) {
     case 'auth/forgot':
         (new \App\Controllers\AuthController($db))->forgot();
         break;
-
     case 'auth/send-recovery':
-        // Asegúrate de tener la función sendRecovery() creada en tu AuthController
         (new \App\Controllers\AuthController($db))->sendRecovery();
         break;
     case 'auth/reset':
         (new \App\Controllers\AuthController($db))->reset();
+        break;
+    case 'auth/check-duplicate':
+        (new \App\Controllers\AuthController($db))->checkDuplicate();
+        break;
+    case 'intranet':
+        (new \App\Controllers\AuthController($db))->intranetLogin();
         break;
 
     // ----------------------------------------------------
@@ -184,8 +197,44 @@ switch ($url) {
         (new \App\Controllers\HomeController($db))->autocomplete();
         break;
 
-    case 'auth/check-duplicate':
-        (new \App\Controllers\AuthController($db))->checkDuplicate();
+    // ----------------------------------------------------
+    // 👤 PERFIL DE USUARIO
+    // ----------------------------------------------------
+    case 'perfil':
+        (new \App\Controllers\PerfilController($db))->index();
+        break;
+    case 'perfil/guardar':
+        (new \App\Controllers\PerfilController($db))->guardar();
+        break;
+    case 'perfil/cambiarPassword':
+        (new \App\Controllers\PerfilController($db))->cambiarPassword();
+        break;
+    case 'perfil/obtenerComunas':
+        (new \App\Controllers\PerfilController($db))->obtenerComunas();
+        break;
+    case 'perfil/obtenerDireccionPorId':
+        (new \App\Controllers\PerfilController($db))->obtenerDireccionPorId();
+        break;
+    case 'perfil/agregarDireccionAjax':
+        (new \App\Controllers\PerfilController($db))->agregarDireccionAjax();
+        break;
+    case 'perfil/eliminarDireccionAjax':
+        (new \App\Controllers\PerfilController($db))->eliminarDireccionAjax();
+        break;
+    case 'perfil/hacerPrincipalAjax':
+        (new \App\Controllers\PerfilController($db))->hacerPrincipalAjax();
+        break;
+    case 'perfil/obtenerDetallePedido':
+        (new \App\Controllers\PerfilController($db))->obtenerDetallePedido();
+        break;
+    case 'perfil/eliminarTelefono':
+        (new \App\Controllers\PerfilController($db))->eliminarTelefono();
+        break;
+    case 'perfil/editarTelefono':
+        (new \App\Controllers\PerfilController($db))->editarTelefono();
+        break;
+    case 'perfil/agregarTelefonoPerfil':
+        (new \App\Controllers\PerfilController($db))->agregarTelefonoPerfil();
         break;
 
     // ----------------------------------------------------
@@ -228,38 +277,7 @@ switch ($url) {
         break;
 
     // ----------------------------------------------------
-    // 👤 PERFIL DE USUARIO
-    // ----------------------------------------------------
-    case 'perfil':
-        (new \App\Controllers\PerfilController($db))->index();
-        break;
-    case 'perfil/guardar':
-        (new \App\Controllers\PerfilController($db))->guardar();
-        break;
-    case 'perfil/agregarDireccionAjax':
-        (new \App\Controllers\PerfilController($db))->agregarDireccionAjax();
-        break;
-    case 'perfil/eliminarDireccionAjax':
-        (new \App\Controllers\PerfilController($db))->eliminarDireccionAjax();
-        break;
-    case 'perfil/hacerPrincipalAjax':
-        (new \App\Controllers\PerfilController($db))->hacerPrincipalAjax();
-        break;
-    case 'perfil/obtenerDetallePedido':
-        (new \App\Controllers\PerfilController($db))->obtenerDetallePedido();
-        break;
-    case 'perfil/eliminarTelefono':
-        (new \App\Controllers\PerfilController($db))->eliminarTelefono();
-        break;
-    case 'perfil/editarTelefono':
-        (new \App\Controllers\PerfilController($db))->editarTelefono();
-        break;
-    case 'perfil/agregarTelefonoPerfil':
-        (new \App\Controllers\PerfilController($db))->agregarTelefonoPerfil();
-        break;
-
-    // ----------------------------------------------------
-    // 📊 ZONA ADMIN: DASHBOARD & USUARIOS
+    // 📊 ZONA ADMIN: DASHBOARD, SUCURSALES & VENTA ASISTIDA
     // ----------------------------------------------------
     case 'admin/dashboard':
         (new \App\Controllers\AdminController($db))->dashboard();
@@ -270,6 +288,57 @@ switch ($url) {
     case 'admin/importar_erp':
         (new \App\Controllers\AdminController($db))->importarERP();
         break;
+    case 'admin/cambiar_sucursal':
+        (new \App\Controllers\AdminController($db))->cambiarSucursalAjax();
+        break;
+    case 'admin/buscar_reemplazo':
+        require_once __DIR__ . '/../app/Controllers/AdminController.php';
+        (new \App\Controllers\AdminController($db))->buscarReemplazoAjax();
+        break;
+
+    case 'admin/usuarios/get':
+        (new \App\Controllers\AdminController($db))->getUsuario();
+        break;
+
+    case 'pedido/detalle':
+        (new \App\Controllers\PedidoController($db))->detalle();
+        break;
+
+    case 'admin/pedidos/subir_comprobante':
+        $controller = new \App\Controllers\AdminPedidoController($db);
+        $controller->subirComprobante();
+        break;
+
+
+    case 'admin/usuarios/filtrar':
+        (new \App\Controllers\AdminController($db))->filtrarUsuarios();
+        break;
+
+    case 'admin/usuarios/update':
+        (new \App\Controllers\AdminController($db))->actualizarUsuario();
+        break;
+
+    case 'admin/usuarios/crear_colaborador':
+        (new \App\Controllers\AdminController($db))->crearColaborador();
+        break;
+
+    // 🔥 RUTAS DE VENTA ASISTIDA
+    case 'admin/iniciarVentaAsistida':
+        (new \App\Controllers\AdminController($db))->iniciarVentaAsistida();
+        break;
+    case 'admin/salirVentaAsistida':
+        (new \App\Controllers\AdminController($db))->salirVentaAsistida();
+        break;
+    case 'admin/buscar_cliente_venta_asistida':
+        (new \App\Controllers\AdminController($db))->buscarClienteVentaAsistidaAjax();
+        break;
+    case 'admin/ventas_sucursal':
+        (new \App\Controllers\AdminController($db))->ventas_sucursal();
+        break;
+
+    // ----------------------------------------------------
+    // 👥 ADMIN: USUARIOS
+    // ----------------------------------------------------
     case 'admin/usuarios':
         (new \App\Controllers\AdminController($db))->usuarios();
         break;
@@ -279,12 +348,9 @@ switch ($url) {
     case 'admin/usuarios/update':
         (new \App\Controllers\AdminController($db))->actualizarUsuarioAjax();
         break;
-    case 'admin/buscar_cliente_venta_asistida':
-        (new \App\Controllers\AdminController($db))->buscarClienteVentaAsistidaAjax();
-        break;
 
     // ----------------------------------------------------
-    // 📦 ADMIN: PRODUCTOS (Especialista)
+    // 📦 ADMIN: PRODUCTOS
     // ----------------------------------------------------
     case 'admin/productos':
         require_once '../app/Controllers/AdminProductoController.php';
@@ -308,7 +374,7 @@ switch ($url) {
         break;
 
     // ----------------------------------------------------
-    // 🧾 ADMIN: PEDIDOS (Especialista)
+    // 🧾 ADMIN: PEDIDOS
     // ----------------------------------------------------
     case 'admin/pedidos':
         require_once '../app/Controllers/AdminPedidoController.php';
@@ -340,7 +406,7 @@ switch ($url) {
         break;
 
     // ----------------------------------------------------
-    // 🖼️ ADMIN: BANNERS & MARCAS (AJAX FIX INCLUIDO)
+    // 🖼️ ADMIN: BANNERS & MARCAS
     // ----------------------------------------------------
     case 'admin/banners':
         (new \App\Controllers\AdminController($db))->banners();
@@ -366,8 +432,6 @@ switch ($url) {
     case 'admin/banners/cargarProductosPorCodigosAjax':
         (new \App\Controllers\AdminController($db))->cargarProductosPorCodigosAjax();
         break;
-
-    // En la sección de MARCAS (alrededor de la línea 170)
     case 'admin/marcas':
         (new \App\Controllers\AdminController($db))->marcas();
         break;
@@ -380,33 +444,51 @@ switch ($url) {
     case 'admin/marcas/borrarAjax':
         (new \App\Controllers\AdminController($db))->borrarMarcaAjax();
         break;
-    // 🔥 AÑADE ESTA LÍNEA:
     case 'admin/marcas/reordenarAjax':
         (new \App\Controllers\AdminController($db))->reordenarMarcasAjax();
         break;
 
     // ----------------------------------------------------
-    // 💼 RRHH & EMPLEOS
+    // 👔 EMPLEOS Y RECURSOS HUMANOS
     // ----------------------------------------------------
     case 'empleos':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
+    case 'empleos/index':
         (new \App\Controllers\EmpleosController($db))->index();
         break;
     case 'empleos/postulante':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
         (new \App\Controllers\EmpleosController($db))->postulante();
         break;
-    case 'empleos/dashboardRRHH':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
-        (new \App\Controllers\EmpleosController($db))->dashboardRRHH();
+    case 'empleos/guardar':
+        (new \App\Controllers\EmpleosController($db))->guardar();
+        break;
+    case 'empleos/getCargosAjax':
+        (new \App\Controllers\EmpleosController($db))->getCargosAjax();
+        break;
+    case 'empleos/rrhh_dashboard':
+        (new \App\Controllers\EmpleosController($db))->rrhh_dashboard();
+        break;
+    case 'empleos/rrhh_reclutamiento':
+        (new \App\Controllers\EmpleosController($db))->rrhh_reclutamiento();
+        break;
+    case 'empleos/rrhh_mantenedor':
+        (new \App\Controllers\EmpleosController($db))->rrhh_mantenedor();
+        break;
+    case 'empleos/guardarCargo':
+        (new \App\Controllers\EmpleosController($db))->guardarCargo();
+        break;
+    case 'empleos/toggleCargoAjax':
+        (new \App\Controllers\EmpleosController($db))->toggleCargoAjax();
         break;
     case 'empleos/exportarExcelRRHH':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
         (new \App\Controllers\EmpleosController($db))->exportarExcelRRHH();
         break;
     case 'empleos/cambiarEstado':
-        require_once __DIR__ . '/../app/Controllers/EmpleosController.php';
         (new \App\Controllers\EmpleosController($db))->cambiarEstado();
+        break;
+
+    case 'home/rastrearPedido':
+        $controller = new \App\Controllers\HomeController($db);
+        $controller->rastrearPedido();
         break;
 
     // ----------------------------------------------------
@@ -433,12 +515,10 @@ switch ($url) {
     case 'location/actualizar_por_nombre':
         (new \App\Controllers\LocationController($db))->actualizar_por_nombre();
         break;
-
-    // 🔥 NUEVA RUTA: Buscador para reemplazo de productos en pedidos
-    case 'admin/buscar_reemplazo':
-        require_once __DIR__ . '/../app/Controllers/AdminController.php';
-        (new \App\Controllers\AdminController($db))->buscarReemplazoAjax();
+    case 'location/guardarGPSAjax':
+        (new \App\Controllers\LocationController($db))->guardarGPSAjax();
         break;
+
     // ----------------------------------------------------
     // 🚨 404 NOT FOUND
     // ----------------------------------------------------

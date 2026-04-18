@@ -26,7 +26,8 @@ class CheckoutController
         $this->sucursalModel = new Sucursal($db);
         $this->direccionModel = new Direccion($db);
     }
-public function index()
+
+    public function index()
     {
         // 1. SEGURIDAD: Si el carrito está vacío
         if (empty($_SESSION['carrito'])) {
@@ -34,64 +35,46 @@ public function index()
             exit();
         }
 
-        // --- EL GUARDIÁN: Validación preventiva antes de mostrar el formulario ---
-        $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
-        $erroresStock = $this->validarStockAntesDePagar($sucursal_id);
-        if (!empty($erroresStock)) {
-            $_SESSION['checkout_errors'] = $erroresStock;
-            header("Location: " . BASE_URL . "carrito/ver");
-            exit;
-        }
-
         $usuario = new \stdClass();
         $telefonos = [];
         $direcciones = [];
         $esAsistido = false;
 
-        // 🔥 1. MODO VENTA ASISTIDA (Normalizado)
-        // Eliminamos el chequeo de $_SESSION['rol'] (texto) y usamos rol_id (numérico)
+        // 🔥 PASO 1: IDENTIFICAR AL USUARIO (Para saber su sucursal base)
         if (isset($_SESSION['rol_id']) && in_array((int)$_SESSION['rol_id'], [1, 2]) && isset($_GET['modo']) && $_GET['modo'] === 'asistido') {
             $esAsistido = true;
             $usuario->id = null;
             $usuario->nombre = "MODO: VENTA ASISTIDA";
-            $usuario->rut = ""; 
-            $usuario->email = ""; 
+            $usuario->rut = "";
+            $usuario->email = "";
             $usuario->telefono_principal = "";
-            $usuario->razon_social = ""; 
+            $usuario->razon_social = "";
             $usuario->giro = "";
-            
-            // Usamos los nuevos nombres de propiedad que vienen del JOIN
-            $usuario->direccion_principal = ""; 
-            $usuario->comuna_id = null; 
+            $usuario->direccion_principal = "";
+            $usuario->comuna_id = null;
             $usuario->nombre_comuna = "Seleccione Comuna";
             $usuario->es_cliente_confianza = 0;
-        }
-        
-        // 🔥 2. USUARIO REGISTRADO (Normalizado)
-        elseif (!empty($_SESSION['user_id'])) {
-            // El método getById ahora trae direccion_principal y nombre_rol vía JOIN
+            $usuario->sucursal_codigo = $_SESSION['sucursal_codigo'] ?? 29; // Admin
+        } elseif (!empty($_SESSION['user_id'])) {
             $usuario = $this->userModel->getById($_SESSION['user_id']);
-            
+
             if (method_exists($this->userModel, 'getTelefonos')) {
                 $telefonos = $this->userModel->getTelefonos($_SESSION['user_id']);
             }
-            
+
             $usuario->telefono_principal = '';
             foreach ($telefonos as $t) {
-                if ($t->es_principal) { $usuario->telefono_principal = $t->numero; break; }
+                if ($t->es_principal) {
+                    $usuario->telefono_principal = $t->numero;
+                    break;
+                }
             }
 
-            // Traemos su libreta de direcciones completa
             $direcciones = $this->direccionModel->obtenerPorUsuario($_SESSION['user_id']);
-            
-            // Aseguramos valores por defecto para evitar Warnings de PHP
             $usuario->es_cliente_confianza = $usuario->es_cliente_confianza ?? 0;
             $usuario->razon_social = $usuario->razon_social ?? '';
             $usuario->giro = $usuario->giro ?? '';
-        }
-        
-        // 🔥 3. INVITADO (Normalizado)
-        elseif (!empty($_SESSION['invitado'])) {
+        } elseif (!empty($_SESSION['invitado'])) {
             $invitado = $_SESSION['invitado'];
             $usuario->id = null;
             $usuario->nombre = $invitado['nombre'];
@@ -100,16 +83,37 @@ public function index()
             $usuario->telefono_principal = $invitado['telefono'];
             $usuario->razon_social = "";
             $usuario->giro = "";
-            
-            // Propiedades de dirección vacías para el formulario de invitado
-            $usuario->direccion_principal = ''; 
+            $usuario->direccion_principal = '';
             $usuario->nombre_comuna = '';
-            $usuario->comuna_id = null; 
+            $usuario->comuna_id = null;
             $usuario->es_cliente_confianza = 0;
-        }
-        else {
+        } else {
             header("Location: " . BASE_URL . "carrito/ver?auth=requerido");
             exit();
+        }
+
+        // 🔥 PASO 2: EL RADAR DE SUCURSAL (Evita que Villa Alemana quede bloqueada)
+        $sucursal_id = 29; // Default La Calera
+        if (!empty($_SESSION['sucursal_activa'])) {
+            $sucursal_id = $_SESSION['sucursal_activa'];
+        } elseif (!empty($_SESSION['sucursal_codigo'])) {
+            $sucursal_id = $_SESSION['sucursal_codigo']; // Para Admins
+        } elseif (!empty($_COOKIE['sucursal_activa'])) {
+            $sucursal_id = $_COOKIE['sucursal_activa']; // Para Invitados
+        } elseif (isset($usuario->sucursal_codigo) && !empty($usuario->sucursal_codigo)) {
+            $sucursal_id = $usuario->sucursal_codigo; // Para Registrados
+        }
+        $sucursal_id = (int)$sucursal_id;
+        
+        // Guardamos la sucursal detectada en sesión para que el procesar() la use directo
+        $_SESSION['checkout_sucursal_activa'] = $sucursal_id;
+
+        // 🔥 PASO 3: EL GUARDIÁN (Validación preventiva de stock)
+        $erroresStock = $this->validarStockAntesDePagar($sucursal_id);
+        if (!empty($erroresStock)) {
+            $_SESSION['checkout_errors'] = $erroresStock;
+            header("Location: " . BASE_URL . "carrito/ver");
+            exit;
         }
 
         // --- CARGA DE LISTAS PARA SELECTS ---
@@ -122,7 +126,9 @@ public function index()
                 $stmt = $this->db->query("SELECT * FROM comunas ORDER BY nombre ASC");
                 $listaComunas = $stmt->fetchAll(\PDO::FETCH_OBJ);
             }
-        } catch (\Exception $e) { error_log("Error cargando comunas en Checkout: " . $e->getMessage()); }
+        } catch (\Exception $e) {
+            error_log("Error cargando comunas en Checkout: " . $e->getMessage());
+        }
 
         ob_start();
         include __DIR__ . '/../../views/shop/checkout.php';
@@ -136,17 +142,18 @@ public function index()
             if (ob_get_level()) ob_end_clean();
             ob_start();
 
-            // 🔥 VALIDACIÓN FINAL DE STOCK (JUST-IN-TIME) 🔥
-            // Si alguien compró el último pack de pañales mientras el cliente llenaba el Rut, aquí lo detectamos.
-            $sucursal_id = $_SESSION['sucursal_activa'] ?? 29;
-            $erroresStock = $this->validarStockAntesDePagar($sucursal_id);
+            // 🔥 Usamos la sucursal real que detectó el index
+            $sucursalActivaID = $_SESSION['checkout_sucursal_activa'] ?? 29;
+
+            // VALIDACIÓN FINAL DE STOCK (JUST-IN-TIME)
+            $erroresStock = $this->validarStockAntesDePagar($sucursalActivaID);
             if (!empty($erroresStock)) {
                 $_SESSION['checkout_errors'] = $erroresStock;
                 header("Location: " . BASE_URL . "carrito/ver");
                 exit;
             }
 
-            // 1. IDENTIFICACIÓN DE DATOS (Mantenemos todas tus variables originales)
+            // 1. IDENTIFICACIÓN DE DATOS
             $tipoCliente = 'registrado';
             $adminAsistenteId = null;
             $usuarioIdBD = $_SESSION['user_id'] ?? null;
@@ -192,10 +199,14 @@ public function index()
                 date_default_timezone_set('America/Santiago');
                 $fechaProcesamiento = new \DateTime();
 
-                // Lógica de Fechas (Mantenida 1:1)
+                // Lógica de Fechas
                 if ($tipoCliente === 'asistido') {
-                    if ($tipoEntrega === 2) { $fechaEntrega = $fechaProcesamiento->format('Y-m-d H:i:s'); } 
-                    else { $fechaProcesamiento->modify('+2 hours'); $fechaEntrega = $fechaProcesamiento->format('Y-m-d H:i:s'); }
+                    if ($tipoEntrega === 2) {
+                        $fechaEntrega = $fechaProcesamiento->format('Y-m-d H:i:s');
+                    } else {
+                        $fechaProcesamiento->modify('+2 hours');
+                        $fechaEntrega = $fechaProcesamiento->format('Y-m-d H:i:s');
+                    }
                 } else {
                     if ((int)$fechaProcesamiento->format('H') >= 15 || in_array((int)$fechaProcesamiento->format('w'), [0, 6])) {
                         $fechaProcesamiento->modify('+1 day');
@@ -209,7 +220,8 @@ public function index()
                     $fechaEntrega = $fechaProcesamiento->format('Y-m-d');
                 }
 
-                $totalBruto = 0; $cantidad_total_productos = 0;
+                $totalBruto = 0;
+                $cantidad_total_productos = 0;
                 foreach ($_SESSION['carrito'] as $id => $item) {
                     $totalBruto += $item['precio'] * $item['cantidad'];
                     $cantidad_total_productos += $item['cantidad'];
@@ -219,7 +231,7 @@ public function index()
                 $costoEnvio = ($tipoEntrega === 2 || $totalBruto >= 39950) ? 0 : 2990;
                 $costoServicio = 490;
 
-                $sucursalActivaID = $_SESSION['sucursal_activa'] ?? 29;
+                // Definimos los IDs correctos basados en el Radar
                 $sucursalCodigo = ($sucursalActivaID == 10) ? '10' : '29';
 
                 if ($tipoEntrega === 2) {
@@ -242,17 +254,31 @@ public function index()
                 $rangoHorarioId = null;
 
                 $datosPedido = [
-                    'usuario_id' => $usuarioIdBD, 'rut_cliente' => $rutERP, 'sucursal_codigo' => $sucursalCodigo,
-                    'vendedor_codigo' => '0003', 'total_neto' => $totalNeto,
-                    'monto_total' => $totalBruto + $costoEnvio + $costoServicio, 'costo_envio' => $costoEnvio,
-                    'direccion_entrega_texto' => $direccionTexto, 'comuna_id' => $comunaId,
-                    'estado_pedido_id' => 1, 'estado_pago_id' => 1, 'forma_pago_id' => $formaPagoFinal,
-                    'cantidad_items' => $cantidad_items, 'cantidad_total_productos' => $cantidad_total_productos,
-                    'tipo_entrega_id' => $tipoEntrega, 'nombre_destinatario' => $nombreCliente,
-                    'telefono_contacto' => $telefonoContacto, 'email_cliente' => $correoCliente,
-                    'tipo_cliente' => $tipoCliente, 'primer_nombre' => $primerNombre, 'primer_apellido' => $primerApellido,
-                    'segundo_nombre' => $segundoNombre, 'segundo_apellido' => $segundoApellido,
-                    'admin_asistente_id' => $adminAsistenteId, 'fecha_entrega_estimada' => $fechaEntrega,
+                    'usuario_id' => $usuarioIdBD,
+                    'rut_cliente' => $rutERP,
+                    'sucursal_codigo' => $sucursalCodigo,
+                    'vendedor_codigo' => '0003',
+                    'total_neto' => $totalNeto,
+                    'monto_total' => $totalBruto + $costoEnvio + $costoServicio,
+                    'costo_envio' => $costoEnvio,
+                    'direccion_entrega_texto' => $direccionTexto,
+                    'comuna_id' => $comunaId,
+                    'estado_pedido_id' => 1,
+                    'estado_pago_id' => 1,
+                    'forma_pago_id' => $formaPagoFinal,
+                    'cantidad_items' => $cantidad_items,
+                    'cantidad_total_productos' => $cantidad_total_productos,
+                    'tipo_entrega_id' => $tipoEntrega,
+                    'nombre_destinatario' => $nombreCliente,
+                    'telefono_contacto' => $telefonoContacto,
+                    'email_cliente' => $correoCliente,
+                    'tipo_cliente' => $tipoCliente,
+                    'primer_nombre' => $primerNombre,
+                    'primer_apellido' => $primerApellido,
+                    'segundo_nombre' => $segundoNombre,
+                    'segundo_apellido' => $segundoApellido,
+                    'admin_asistente_id' => $adminAsistenteId,
+                    'fecha_entrega_estimada' => $fechaEntrega,
                     'rango_horario_id' => $rangoHorarioId
                 ];
 
@@ -267,7 +293,8 @@ public function index()
                         $productoReal = (object)$productoReal;
                         $productoReal->id = $idProducto;
                         $this->pedidoModel->agregarDetalle($pedidoId, $productoReal, $item['cantidad'], [
-                            'neto' => round($item['precio'] / 1.19), 'bruto' => $item['precio']
+                            'neto' => round($item['precio'] / 1.19),
+                            'bruto' => $item['precio']
                         ]);
                     }
                 }
@@ -276,7 +303,7 @@ public function index()
                 $this->db->prepare("UPDATE pedidos SET monto_total = ? WHERE id = ?")->execute([$montoFinalReal, $pedidoId]);
                 $this->db->commit();
 
-                // Lógica de Correos (Mantenida)
+                // Lógica de Correos
                 if ($tipoCliente === 'asistido' && class_exists('\App\Services\MailService')) {
                     $mailService = new \App\Services\MailService();
                     $correoAdmin = $_SESSION['email'] ?? 'admin@cencocal.cl';
@@ -285,6 +312,7 @@ public function index()
                 }
 
                 unset($_SESSION['carrito']);
+                unset($_SESSION['modo_venta_asistida']);
 
                 if ($formaPagoFinal == 5) {
                     header("Location: " . BASE_URL . "webpay/iniciar?id=" . $pedidoId);
@@ -304,9 +332,6 @@ public function index()
         }
     }
 
-    /**
-     * 🔥 LA FUNCIÓN GUARDIANA (Basada en tu nueva regla unificada)
-     */
     private function validarStockAntesDePagar($sucursal_id)
     {
         $errores = [];
@@ -318,7 +343,7 @@ public function index()
                     INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
                     LEFT JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto
                     WHERE p.id = ? AND ps.sucursal_id = ?";
-            
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$id, $sucursal_id]);
             $disponible = (int)$stmt->fetchColumn();

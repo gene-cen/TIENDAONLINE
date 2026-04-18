@@ -18,12 +18,7 @@ class ProductoAdmin
         $this->db = $db;
     }
 
-    /**
-     * Obtiene los productos con todos los filtros del Dashboard
-     */
-    /**
-     * Obtiene los productos con todos los filtros del Dashboard
-     */
+ 
     public function obtenerPaginadosAdmin($limit, $offset, $filtros = [])
     {
         $params = [];
@@ -85,7 +80,7 @@ class ProductoAdmin
 
 
         // 5. Ordenamiento
-        // 5. Ordenamiento Dinámico (¡Nuevas opciones añadidas!)
+
         switch ($filtros['orden'] ?? '') {
             case 'asc':
                 $sql .= " ORDER BY stock ASC, p.id DESC";

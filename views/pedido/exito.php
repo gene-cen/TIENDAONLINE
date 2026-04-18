@@ -86,7 +86,6 @@ $subtotalProductos = (int)$pedido['monto_total'] - $costoEnvio - $costoServicio;
                     </div>
 
                     <?php 
-                    // Fecha exacta que se calculó en el Checkout (puede ser el mismo día si fue asistida)
                     $fechaTexto = date('d/m/Y H:i', strtotime($pedido['fecha_entrega_estimada'])); 
                     ?>
 
@@ -103,7 +102,7 @@ $subtotalProductos = (int)$pedido['monto_total'] - $costoEnvio - $costoServicio;
                     <?php if ($esAsistido): ?>
                         <div class="alert alert-primary border-0 shadow-sm d-flex align-items-center mb-4 text-start bg-primary bg-opacity-10">
                             <i class="bi bi-camera-fill fs-3 text-primary me-3"></i>
-                            <small class="text-dark"><strong>¡Importante!</strong> Ve al detalle de este pedido para adjuntar la foto de la boleta o voucher de Transbank.</small>
+                            <small class="text-dark"><strong>¡Importante!</strong> No olvides adjuntar la foto de la boleta o voucher de Transbank.</small>
                         </div>
                     <?php elseif ($esContraEntrega): ?>
                         <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center mb-4 text-start">
@@ -119,9 +118,9 @@ $subtotalProductos = (int)$pedido['monto_total'] - $costoEnvio - $costoServicio;
 
                     <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
                         <?php if ($esAsistido): ?>
-                            <a href="<?= BASE_URL ?>admin/pedido/ver/<?= $pedido['id'] ?>" class="btn btn-primary px-4 py-2 fw-bold rounded-pill shadow-sm">
+                            <button type="button" class="btn btn-primary px-4 py-2 fw-bold rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalSubirComprobante">
                                 <i class="bi bi-cloud-arrow-up-fill me-2"></i>Subir Comprobante
-                            </a>
+                            </button>
                             <a href="<?= BASE_URL ?>home/catalogo" class="btn btn-outline-cenco-indigo px-4 py-2 fw-bold rounded-pill">
                                 <i class="bi bi-cart-plus me-2"></i>Nueva Venta
                             </a>
@@ -143,6 +142,34 @@ $subtotalProductos = (int)$pedido['monto_total'] - $costoEnvio - $costoServicio;
 
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalSubirComprobante" tabindex="-1" aria-labelledby="modalSubirComprobanteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 shadow">
+            <div class="modal-header border-bottom-0">
+                <h5 class="modal-title fw-bold text-cenco-indigo" id="modalSubirComprobanteLabel">
+                    <i class="bi bi-cloud-arrow-up-fill me-2"></i>Subir Comprobante
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="<?= BASE_URL ?>admin/pedidos/subir_comprobante" method="POST" enctype="multipart/form-data">
+                <div class="modal-body py-0">
+                    <p class="text-muted">Adjunta la foto o PDF del comprobante de pago para la orden <strong>#<?= str_pad($pedido['id'], 6, '0', STR_PAD_LEFT) ?></strong>.</p>
+                    
+                    <input type="hidden" name="pedido_id" value="<?= $pedido['id'] ?>">
+                    
+                    <div class="mb-3">
+                        <input class="form-control" type="file" id="comprobante" name="comprobante" accept="image/*,.pdf" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 justify-content-center">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Guardar</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

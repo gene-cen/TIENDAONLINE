@@ -98,6 +98,24 @@
     box-shadow: 0 3px 8px rgba(76, 175, 80, 0.2);
 }
 
+/* Normaliza los nombres de las marcas en el sidebar */
+.sidebar-marca-link {
+    text-transform: capitalize !important;
+    display: block;
+    padding: 4px 0;
+    transition: all 0.2s ease;
+    color: #4b5563; /* Gris elegante */
+    text-decoration: none;
+}
+
+.sidebar-marca-link:hover {
+    color: var(--cenco-indigo);
+    padding-left: 5px;
+}
+
+/* Mejora general de las sombras y bordes */
+.rounded-4 { border-radius: 1rem !important; }
+.shadow-sm { box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.04) !important; }
 /* Scrollbar fina para que no se vea tosco */
 .custom-scrollbar::-webkit-scrollbar { width: 5px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: #f8f9fa; }

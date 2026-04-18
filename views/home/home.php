@@ -24,7 +24,7 @@ function crearSlug($texto)
         <div class="col-lg-8">
             <div class="position-relative">
                 <form onsubmit="event.preventDefault(); window.location.href='<?= BASE_URL ?>buscar/' + document.getElementById('inputBusqueda').value.trim().toLowerCase().replace(/\s+/g, '-');" class="d-flex shadow-sm rounded-pill bg-white overflow-hidden border border-1 border-secondary border-opacity-25" autocomplete="off">
-                    <input type="text" id="inputBusqueda" class="form-control border-0 shadow-none ps-4 py-3 fs-5" placeholder="¿Qué estás buscando hoy? Ej: hamburguesa" required onkeyup="buscarPredictivo(this.value)">
+                    <input type="text" id="inputBusqueda" class="form-control border-0 shadow-none ps-4 py-3 fs-5" placeholder="¿Qué estás buscando hoy?" required onkeyup="buscarPredictivo(this.value)">
                     <button type="submit" class="btn btn-cenco-green rounded-pill px-5 fw-black d-flex align-items-center m-1 fs-5 text-white">
                         <i class="bi bi-search me-2 d-none d-sm-inline"></i> Buscar
                     </button>
@@ -73,7 +73,7 @@ function crearSlug($texto)
     </div>
     <div class="row row-cols-2 row-cols-sm-2 row-cols-md-4 g-3 g-md-4">
         <?php
-        $categoriasPermitidas = ['Bebidas y Refrescos', 'Congelados', 'Despensa', 'Galletas y Golosinas', 'Conservas', 'Limpieza y Aseo', 'Vinos y Licores', 'Mascotas'];
+        $categoriasPermitidas = ['Bebidas y Refrescos', 'Congelados', 'Despensa', 'Golosinas', 'Conservas', 'Aseo', 'Vinos y Licores', 'Mascotas'];
         $categoriasGrid = array_filter($categorias ?? [], function ($cat) use ($categoriasPermitidas) {
             $nombreDB = trim($cat['nombre']);
             foreach ($categoriasPermitidas as $permitida) {
@@ -126,6 +126,62 @@ function crearSlug($texto)
     </div>
 </div>
 
+<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">DESCUBRE NUESTROS PRECIOS</h3>
+        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fs-6 fw-black"><i class="bi bi-tags-fill me-1"></i> Increíbles</span>
+    </div>
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 g-md-4 mb-5">
+        <?php if (empty($masVendidos)): ?>
+            <div class="col-12 text-center text-muted py-4">Aún no hay suficientes datos.</div>
+        <?php else: foreach ($masVendidos as $p) {
+                $mostrarBadgeNuevo = false;
+                include __DIR__ . '/partials/tarjeta_producto.php';
+            }
+        endif; ?>
+    </div>
+</div>
+
+<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
+    <div class="row">
+        <div class="col-12">
+            <a href="<?= BASE_URL ?>home/locales" class="d-block text-decoration-none rounded-4 overflow-hidden shadow hover-scale transition-hover">
+                <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-4 p-md-4 w-100 position-relative" style="background: linear-gradient(135deg, #85C226 0%, #649618 100%); overflow: hidden;">
+                    <div class="position-absolute w-100 h-100" style="background-image: radial-gradient(circle, #ffffff20 2px, transparent 2px); background-size: 20px 20px; top:0; left:0;"></div>
+                    <div class="text-center text-md-start mb-3 mb-md-0 position-relative z-1 ms-md-4">
+                        <h2 class="fw-black text-white mb-1" style="font-size: 2.2rem; letter-spacing: -1px;">
+                            ¡Retira tu pedido <span style="color:#1A36B6;">gratis</span> en nuestros locales!
+                        </h2>
+                        <h5 class="text-light opacity-75 mb-0 fw-bold">Servicio exclusivo en sucursales de La Calera y Villa Alemana</h5>
+                    </div>
+                    <div class="position-relative z-1 mt-3 mt-md-0 me-md-4">
+                        <button class="btn btn-dark text-white btn-lg fw-black rounded-pill shadow px-5">Conócelos aquí <i class="bi bi-chevron-right ms-1"></i></button>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<?php if (isset($marcasHome[0]) && $marcasHome[0] !== null) echo renderMarcaShowcase($marcasHome[0]); ?>
+
+<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">LOS MÁS VENDIDOS</h3>
+    </div>
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 g-md-4 mb-5">
+        <?php if (empty($masVendidos)): ?>
+            <div class="col-12 text-center text-muted py-4">Aún no hay suficientes datos.</div>
+        <?php else: foreach ($masVendidos as $p) {
+                $mostrarBadgeNuevo = false;
+                include __DIR__ . '/partials/tarjeta_producto.php';
+            }
+        endif; ?>
+    </div>
+</div>
+
+<?php if (isset($marcasHome[1]) && $marcasHome[1] !== null) echo renderMarcaShowcase($marcasHome[1]); ?>
+
 <div id="catalogo-rapido" class="d-flex justify-content-between align-items-center mb-4 container-fluid px-3 px-xl-5 mt-5">
     <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">NUEVOS INGRESOS</h3>
     <a href="<?= BASE_URL ?>home/catalogo" class="btn btn-outline-cenco-indigo rounded-pill fw-black px-4 transition-hover">Ver Todo <i class="bi bi-arrow-right"></i></a>
@@ -145,90 +201,6 @@ function crearSlug($texto)
     </div>
 </div>
 
-<div class="container-fluid px-3 px-xl-5 mb-5 mt-4">
-    <div class="row">
-        <div class="col-12">
-            <a href="<?= BASE_URL ?>home/catalogo" class="d-block text-decoration-none rounded-4 overflow-hidden shadow hover-scale transition-hover">
-                <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-4 p-md-4 w-100 position-relative" style="background: linear-gradient(135deg, #85C226 0%, #649618 100%); overflow: hidden;">
-                    <i class="bi bi-truck position-absolute opacity-25" style="font-size: 15rem; right: -50px; top: -50px; color: #ffffff;"></i>
-                    <div class="text-center text-md-start mb-3 mb-md-0 position-relative z-1 ms-md-4">
-                        <h2 class="fw-black text-white mb-0" style="font-size: 2.2rem; letter-spacing: -1px;">
-                            ¡Despachos en <span style="color:#1A36B6;">tiempo récord</span> a toda la zona!
-                        </h2>
-                    </div>
-                    <div class="position-relative z-1 mt-3 mt-md-0 me-md-4">
-                        <button class="btn btn-dark text-white btn-lg fw-black rounded-pill shadow px-5">Pide ahora <i class="bi bi-chevron-right ms-1"></i></button>
-                    </div>
-                </div>
-            </a>
-        </div>
-    </div>
-</div>
-
-<?php if (isset($marcasHome[0]) && $marcasHome[0] !== null) echo renderMarcaShowcase($marcasHome[0]); ?>
-
-<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">LOS MÁS VENDIDOS</h3>
-        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fs-6 fw-black"><i class="bi bi-star-fill me-1"></i> Top 5</span>
-    </div>
-    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 g-md-4 mb-5">
-        <?php if (empty($masVendidos)): ?>
-            <div class="col-12 text-center text-muted py-4">Aún no hay suficientes datos.</div>
-        <?php else: foreach ($masVendidos as $p) {
-                $mostrarBadgeNuevo = false;
-                include __DIR__ . '/partials/tarjeta_producto.php';
-            }
-        endif; ?>
-    </div>
-</div>
-
-<?php if (isset($marcasHome[1]) && $marcasHome[1] !== null) echo renderMarcaShowcase($marcasHome[1]); ?>
-
-<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">LOS MÁS LLEVADOS</h3>
-    </div>
-    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 g-md-4 mb-5">
-        <?php if (empty($masVendidos)): ?>
-            <div class="col-12 text-center text-muted py-4">Aún no hay suficientes datos.</div>
-        <?php else: foreach ($masVendidos as $p) {
-                $mostrarBadgeNuevo = false;
-                include __DIR__ . '/partials/tarjeta_producto.php';
-            }
-        endif; ?>
-    </div>
-</div>
-<div class="container-fluid px-3 px-xl-5 mb-5 mt-4">
-    <div class="row">
-        <div class="col-12">
-            <a href="<?= BASE_URL ?>home/catalogo?precio_max=1000" class="d-block text-decoration-none rounded-4 overflow-hidden shadow hover-scale transition-hover position-relative" style="background: linear-gradient(90deg, #FFAB00 0%, #FF8F00 100%);">
-
-                <i class="bi bi-coin position-absolute" style="font-size: 14rem; color: #ffffff; opacity: 0.15; left: 5%; top: -50px; transform: rotate(-15deg);"></i>
-                <i class="bi bi-piggy-bank-fill position-absolute d-none d-md-block" style="font-size: 16rem; color: #ffffff; opacity: 0.1; right: -20px; top: -60px; transform: rotate(10deg);"></i>
-
-                <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-4 p-md-4 w-100 position-relative z-1">
-
-                    <div class="text-center text-md-start mb-3 mb-md-0 ms-md-2">
-                        <h2 class="fw-bold text-white mb-2" style="font-size: 2rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.1);">
-                            ¡Miles de productos por menos de luca! 💸
-                        </h2>
-                        <span class="bg-white text-dark fw-bold px-3 py-1 rounded-pill small shadow-sm d-inline-block mt-1" style="font-size: 0.85rem;">
-                            Aprovecha precios imbatibles a $1.000 o menos
-                        </span>
-                    </div>
-
-                    <div class="flex-shrink-0 mt-2 mt-md-0 me-md-2">
-                        <button class="btn btn-dark btn-lg fw-bold rounded-pill shadow px-4" style="font-size: 0.95rem;">
-                            Descubrir ofertas <i class="bi bi-bag-check-fill text-warning ms-1"></i>
-                        </button>
-                    </div>
-
-                </div>
-            </a>
-        </div>
-    </div>
-</div>
 <?php if (isset($marcasHome[2]) && $marcasHome[2] !== null) echo renderMarcaShowcase($marcasHome[2]); ?>
 
 <?php if (!empty($bannersSecundarios)): ?>
@@ -263,6 +235,34 @@ function crearSlug($texto)
 <div class="container-fluid px-3 px-xl-5 mb-5 mt-4">
     <div class="row">
         <div class="col-12">
+            <a href="<?= BASE_URL ?>home/catalogo?max_price=1000" class="d-block text-decoration-none rounded-4 overflow-hidden shadow hover-scale transition-hover position-relative" style="background: linear-gradient(90deg, #FFAB00 0%, #FF8F00 100%);">
+                <i class="bi bi-coin position-absolute" style="font-size: 14rem; color: #ffffff; opacity: 0.15; left: 5%; top: -50px; transform: rotate(-15deg);"></i>
+                <i class="bi bi-piggy-bank-fill position-absolute d-none d-md-block" style="font-size: 16rem; color: #ffffff; opacity: 0.1; right: -20px; top: -60px; transform: rotate(10deg);"></i>
+                <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-4 p-md-4 w-100 position-relative z-1">
+                    <div class="text-center text-md-start mb-3 mb-md-0 ms-md-2">
+                        <h2 class="fw-bold text-white mb-2" style="font-size: 2rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.1);">
+                            ¡Miles de productos por menos de luca! 💸
+                        </h2>
+                        <span class="bg-white text-dark fw-bold px-3 py-1 rounded-pill small shadow-sm d-inline-block mt-1" style="font-size: 0.85rem;">
+                            Aprovecha precios imbatibles a $1.000 o menos
+                        </span>
+                    </div>
+                    <div class="flex-shrink-0 mt-2 mt-md-0 me-md-2">
+                        <button class="btn btn-dark btn-lg fw-bold rounded-pill shadow px-4" style="font-size: 0.95rem;">
+                            Descubrir ofertas <i class="bi bi-bag-check-fill text-warning ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<?php if (isset($marcasHome[4]) && $marcasHome[4] !== null) echo renderMarcaShowcase($marcasHome[4]); ?>
+
+<div class="container-fluid px-3 px-xl-5 mb-5 mt-4">
+    <div class="row">
+        <div class="col-12">
             <a href="https://wa.me/56946452516" target="_blank" class="d-block text-decoration-none rounded-4 overflow-hidden shadow hover-scale transition-hover">
                 <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-4 p-md-4 w-100 position-relative" style="background: linear-gradient(135deg, #1A36B6 0%, #11257a 100%); overflow: hidden;">
                     <i class="bi bi-shop position-absolute opacity-25" style="font-size: 15rem; left: -50px; top: -50px; color: #ffffff;"></i>
@@ -273,29 +273,6 @@ function crearSlug($texto)
                     </div>
                     <div class="position-relative z-1 flex-shrink-0 mt-3 mt-md-0 me-md-4">
                         <button class="btn btn-warning text-dark btn-lg fw-black rounded-pill shadow px-5">Hablemos por WhatsApp <i class="bi bi-whatsapp ms-1 text-success"></i></button>
-                    </div>
-                </div>
-            </a>
-        </div>
-    </div>
-</div>
-
-<?php if (isset($marcasHome[4]) && $marcasHome[4] !== null) echo renderMarcaShowcase($marcasHome[4]); ?>
-
-<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
-    <div class="row">
-        <div class="col-12">
-            <a href="<?= BASE_URL ?>home/locales" class="d-block text-decoration-none rounded-4 overflow-hidden shadow hover-scale transition-hover">
-                <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-4 p-md-4 w-100 position-relative" style="background: linear-gradient(135deg, #85C226 0%, #649618 100%); overflow: hidden;">
-                    <div class="position-absolute w-100 h-100" style="background-image: radial-gradient(circle, #ffffff20 2px, transparent 2px); background-size: 20px 20px; top:0; left:0;"></div>
-                    <div class="text-center text-md-start mb-3 mb-md-0 position-relative z-1 ms-md-4">
-                        <h2 class="fw-black text-white mb-1" style="font-size: 2.2rem; letter-spacing: -1px;">
-                            ¡Retira tu pedido <span style="color:#1A36B6;">gratis</span> en nuestros locales!
-                        </h2>
-                        <h5 class="text-light opacity-75 mb-0 fw-bold">Servicio exclusivo en sucursales de La Calera y Villa Alemana</h5>
-                    </div>
-                    <div class="position-relative z-1 mt-3 mt-md-0 me-md-4">
-                        <button class="btn btn-dark text-white btn-lg fw-black rounded-pill shadow px-5">Conócelos aquí <i class="bi bi-chevron-right ms-1"></i></button>
                     </div>
                 </div>
             </a>

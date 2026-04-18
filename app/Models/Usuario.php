@@ -51,19 +51,47 @@ class Usuario
     // =========================================================
     // 🔐 SECCIÓN 2: AUTENTICACIÓN
     // =========================================================
+// =========================================================
+    // 🔐 SECCIÓN 2: AUTENTICACIÓN (CON MIGRACIÓN SILENCIOSA)
+    // =========================================================
 
     public function login($email, $password)
     {
         $user = $this->getByEmail($email);
 
-        if ($user && password_verify($password, $user->password)) {
-            $this->registrarAcceso($user->id, true);
-            return $user;
-        }
-
         if ($user) {
+            // 🛡️ 1. Intento Moderno (Bcrypt / Argon2)
+            if (password_verify($password, $user->password)) {
+                $this->registrarAcceso($user->id, true);
+                return $user;
+            }
+
+            // 🕰️ 2. Intento Legacy (Transición de MD5 a Bcrypt)
+            // Si la clave moderna falla, comprobamos si era una clave antigua de la fase de pruebas
+            if (md5($password) === $user->password) {
+                
+                // ¡La clave es correcta pero el formato es viejo!
+                // Actualizamos silenciosamente a la seguridad moderna en este instante
+                $nuevoHash = password_hash($password, PASSWORD_DEFAULT);
+                
+                try {
+                    $stmt = $this->db->prepare("UPDATE {$this->table} SET password = ? WHERE id = ?");
+                    $stmt->execute([$nuevoHash, $user->id]);
+                    
+                    // Actualizamos el objeto en memoria por consistencia
+                    $user->password = $nuevoHash;
+                } catch (PDOException $e) {
+                    error_log("Error migrando hash de MD5 a Bcrypt para usuario ID {$user->id}: " . $e->getMessage());
+                }
+
+                $this->registrarAcceso($user->id, true);
+                return $user;
+            }
+
+            // ❌ 3. Contraseña definitivamente incorrecta
             $this->registrarAcceso($user->id, false);
         }
+        
         return false;
     }
 
@@ -307,4 +335,138 @@ public function actualizarPassword($id, $newPassword)
             return false;
         }
     }
+
+    // =========================================================
+    // 🧠 MÓDULO ADMINISTRATIVO (FILTROS Y GESTIÓN VIP)
+    // =========================================================
+
+    /**
+     * Obtiene usuarios con filtros inteligentes
+     */
+    public function obtenerFiltradosAdmin($busqueda = '', $rol_id = '', $sucursal_id = '', $estado = '', $confianza = '')
+    {
+        $sql = "SELECT u.*, r.nombre_rol, s.nombre as nombre_sucursal 
+                FROM usuarios u
+                LEFT JOIN roles r ON u.rol_id = r.id
+                LEFT JOIN sucursales s ON u.sucursal_asignada = s.id
+                WHERE 1=1";
+        
+        $params = [];
+
+        // 1. Filtro de Búsqueda (Nombre, Email o RUT)
+        if (!empty($busqueda)) {
+            $busquedaLimpia = preg_replace('/[^0-9kK]/', '', $busqueda);
+            $sql .= " AND (u.nombre LIKE :q1 OR u.email LIKE :q2 OR REPLACE(REPLACE(u.rut, '.', ''), '-', '') LIKE :q3)";
+            $params[':q1'] = "%$busqueda%";
+            $params[':q2'] = "%$busqueda%";
+            $params[':q3'] = "%$busquedaLimpia%";
+        }
+
+        // 2. Filtro por Rol
+        if ($rol_id !== '') {
+            $sql .= " AND u.rol_id = :rol";
+            $params[':rol'] = $rol_id;
+        }
+
+        // 3. Filtro por Sucursal Asignada
+        if ($sucursal_id !== '') {
+            $sql .= " AND u.sucursal_asignada = :sucursal";
+            $params[':sucursal'] = $sucursal_id;
+        }
+
+        // 4. Filtro por Estado (Activo/Inactivo)
+        if ($estado !== '') {
+            $sql .= " AND u.estado = :estado";
+            $params[':estado'] = $estado;
+        }
+
+        // 5. Filtro por Cliente de Confianza
+        if ($confianza !== '') {
+            $sql .= " AND u.es_cliente_confianza = :confianza";
+            $params[':confianza'] = $confianza;
+        }
+
+        $sql .= " ORDER BY u.id DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Actualización Completa desde el Panel de Control
+     */
+    public function actualizarDesdeAdmin($id, $datos)
+    {
+        $sql = "UPDATE usuarios SET 
+                    nombre = :nombre, 
+                    rut = :rut, 
+                    razon_social = :razon,
+                    rol_id = :rol_id,
+                    es_cliente_confianza = :confianza,
+                    estado = :estado,
+                    sucursal_asignada = :sucursal
+                WHERE id = :id";
+
+        return $this->db->prepare($sql)->execute([
+            ':nombre'    => $datos['nombre'],
+            ':rut'       => $datos['rut'],
+            ':razon'     => $datos['razon_social'] ?? null,
+            ':rol_id'    => $datos['rol_id'],
+            ':confianza' => $datos['es_cliente_confianza'] ?? 0,
+            ':estado'    => $datos['estado'] ?? 1,
+            ':sucursal'  => !empty($datos['sucursal_asignada']) ? $datos['sucursal_asignada'] : null,
+            ':id'        => $id
+        ]);
+    }
+
+    /**
+     * Crea un usuario Administrativo/Colaborador desde el Panel
+     */
+    public function crearColaborador($datos)
+    {
+        // Encriptamos la contraseña provista por el administrador
+        $hash = password_hash($datos['password'], PASSWORD_DEFAULT);
+        
+        $sql = "INSERT INTO usuarios 
+                (nombre, rut, email, password, rol_id, sucursal_asignada, estado, fecha_registro) 
+                VALUES (:nombre, :rut, :email, :pass, :rol, :sucursal, 1, NOW())";
+
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([
+            ':nombre'   => $datos['nombre'],
+            ':rut'      => $datos['rut'],
+            ':email'    => $datos['email'],
+            ':pass'     => $hash,
+            ':rol'      => $datos['rol_id'],
+            ':sucursal' => !empty($datos['sucursal_asignada']) ? $datos['sucursal_asignada'] : null
+        ]);
+    }
+
+    /**
+     * Cuenta el total de registros para calcular las páginas
+     */
+    public function contarFiltradosAdmin($busqueda = '', $rol_id = '', $sucursal_id = '', $estado = '', $confianza = '')
+    {
+        $sql = "SELECT COUNT(u.id) FROM usuarios u WHERE 1=1";
+        $params = [];
+
+        if (!empty($busqueda)) {
+            $busquedaLimpia = preg_replace('/[^0-9kK]/', '', $busqueda);
+            $sql .= " AND (u.nombre LIKE :q1 OR u.email LIKE :q2 OR REPLACE(REPLACE(u.rut, '.', ''), '-', '') LIKE :q3)";
+            $params[':q1'] = "%$busqueda%";
+            $params[':q2'] = "%$busqueda%";
+            $params[':q3'] = "%$busquedaLimpia%";
+        }
+        if ($rol_id !== '') { $sql .= " AND u.rol_id = :rol"; $params[':rol'] = $rol_id; }
+        if ($sucursal_id !== '') { $sql .= " AND u.sucursal_asignada = :sucursal"; $params[':sucursal'] = $sucursal_id; }
+        if ($estado !== '') { $sql .= " AND u.estado = :estado"; $params[':estado'] = $estado; }
+        if ($confianza !== '') { $sql .= " AND u.es_cliente_confianza = :confianza"; $params[':confianza'] = $confianza; }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchColumn();
+    }
+
+    
 }

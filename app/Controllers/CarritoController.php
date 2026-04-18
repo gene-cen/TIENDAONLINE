@@ -241,9 +241,17 @@ class CarritoController
         exit();
     }
 
-    public function vaciar() {
+   public function vaciar() {
         $_SESSION['carrito'] = [];
-        header("Location: " . BASE_URL . "home");
+        $_SESSION['carrito_cantidad'] = 0;
+        $_SESSION['carrito_total'] = 0;
+        
+        // 🔥 Si estaba en modo venta asistida y vacía el carro, apagamos el modo.
+        if (isset($_SESSION['modo_venta_asistida'])) {
+            unset($_SESSION['modo_venta_asistida']);
+        }
+
+        header("Location: " . $_SERVER['HTTP_REFERER']);
         exit();
     }
 

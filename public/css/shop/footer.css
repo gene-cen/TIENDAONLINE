@@ -32,7 +32,50 @@
 .trust-badge { background: white; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; height: 50px; width: 100%; transition: transform 0.3s; }
 .trust-badge:hover { transform: scale(1.05); }
 .trust-badge img { max-height: 100%; max-width: 100%; object-fit: contain; }
+/* === BOTÓN FLOTANTE ACCESIBILIDAD (FIJO TOTAL) === */
+.btn-accessibility { 
+    position: fixed !important; /* 🔥 Esto lo deja quieto sin importar el scroll */
+    bottom: 30px; /* Separación del borde inferior */
+    left: 30px;   /* Separación del borde izquierdo */
+    width: 60px; 
+    height: 60px; 
+    border: 2px solid rgba(255, 255, 255, 0.8); 
+    background-color: var(--cenco-indigo); 
+    color: white; 
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    z-index: 9999; /* 🔥 Por encima de cualquier sidebar o modal */
+}
 
-/* === BOTÓN FLOTANTE ACCESIBILIDAD === */
-.btn-accessibility { width: 55px; height: 55px; border: 2px solid rgba(255, 255, 255, 0.8); background-color: var(--cenco-indigo); color: white; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2000; }
-.btn-accessibility:hover { transform: scale(1.1) rotate(10deg); background-color: var(--cenco-green); border-color: white; color: white; }
+.btn-accessibility:hover { 
+    transform: scale(1.1) rotate(10deg); 
+    background-color: var(--cenco-green); 
+    border-color: white; 
+}
+/* Estilo para la tarjeta de acceso interno */
+.intranet-card {
+    transition: all 0.3s ease;
+}
+
+.intranet-card:hover {
+    background: rgba(255,255,255,0.15) !important;
+    transform: translateY(-5px);
+}
+
+.btn-outline-light:hover {
+    background-color: var(--cenco-green);
+    border-color: var(--cenco-green);
+    color: white;
+}
+
+/* Para que las tarjetas tengan el mismo alto */
+.footer-heading {
+    border-left: 3px solid var(--cenco-green);
+    padding-left: 10px;
+    margin-bottom: 20px;
+    font-weight: 700;
+}

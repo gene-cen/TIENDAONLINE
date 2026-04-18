@@ -74,4 +74,66 @@ class PedidoController
         $content = ob_get_clean();
         include __DIR__ . '/../../views/layouts/main.php';
     }
+
+    // =========================================================
+    // 🔥 NUEVO MÉTODO: VER DETALLE (Con Ediciones y Stock)
+    // =========================================================
+    public function detalle()
+    {
+        // 1. Detectar Administrador
+        $esAdmin = (isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2]));
+
+        // 2. Seguridad: Debe estar logueado o ser un invitado válido
+        if (!$esAdmin && empty($_SESSION['user_id']) && empty($_SESSION['invitado'])) {
+            header("Location: " . BASE_URL . "home");
+            exit();
+        }
+
+        // 3. Validar ID
+        $idPedido = $_GET['id'] ?? null;
+        if (!$idPedido) {
+            header("Location: " . BASE_URL . "home");
+            exit();
+        }
+
+        // 4. Obtener la cabecera del pedido (Info del cliente, totales, estado)
+        $pedido = $this->pedidoModel->obtenerPorId($idPedido);
+        if (!$pedido) {
+            header("Location: " . BASE_URL . "home");
+            exit();
+        }
+
+        // 5. Validar Pertenencia (Misma seguridad estricta que usas en 'exito')
+        $esDueno = false;
+        if ($esAdmin) {
+            $esDueno = true;
+        } elseif (!empty($_SESSION['user_id'])) {
+            if ($pedido['usuario_id'] == $_SESSION['user_id']) {
+                $esDueno = true;
+            }
+        } elseif (!empty($_SESSION['invitado'])) {
+            $rutPedido = $pedido['rut_cliente'] ?? '';
+            $rutPedidoLimpio = ltrim(str_replace(['.', '-'], '', $rutPedido), '0');
+            $rutInvitadoLimpio = ltrim(str_replace(['.', '-'], '', $_SESSION['invitado']['rut']), '0');
+
+            if ($pedido['usuario_id'] === null && strtoupper($rutPedidoLimpio) === strtoupper($rutInvitadoLimpio)) {
+                $esDueno = true;
+            }
+        }
+
+        if (!$esDueno) {
+            header("Location: " . BASE_URL . "home");
+            exit();
+        }
+
+        // ✅ LA NUEVA FORMA (Trae los vivos, los eliminados y el stock real)
+        $sucursalId = $pedido['sucursal_codigo']; // Extraemos la sucursal del pedido (ej: 10 o 29)
+        $detalles = $this->pedidoModel->obtenerDetallesConEdiciones($idPedido, $sucursalId);
+
+        // 7. Renderizar la vista "detalle.php"
+        ob_start();
+        include __DIR__ . '/../../views/pedido/detalle.php';
+        $content = ob_get_clean();
+        include __DIR__ . '/../../views/layouts/main.php';
+    }
 }

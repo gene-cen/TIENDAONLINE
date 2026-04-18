@@ -122,7 +122,7 @@ class HomeController
             error_log("Error banners secundarios: " . $e->getMessage());
         }
 
-       // 6. MARCAS DESTACADAS (Búsqueda inteligente con verificación de stock)
+        // 6. MARCAS DESTACADAS (Búsqueda inteligente con verificación de stock)
         $todasLasMarcasDestacadas = $this->db->query("SELECT * FROM marcas_destacadas WHERE estado_activo = 1 ORDER BY orden ASC")->fetchAll(\PDO::FETCH_ASSOC);
 
         $sqlProdMarca = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
@@ -321,7 +321,51 @@ class HomeController
         include __DIR__ . '/../../views/home/catalogo_view.php';
         $content = ob_get_clean();
         include __DIR__ . '/../../views/layouts/main.php';
+    }public function rastrearPedido() {
+    if (ob_get_length()) ob_clean(); // Limpia cualquier residuo de texto previo
+    header('Content-Type: application/json');
+
+    $data = json_decode(file_get_contents("php://input"), true);
+    $tracking = trim($data['tracking'] ?? '');
+
+    // 1. Buscamos el pedido
+    $sql = "SELECT id, estado_pedido_id, tipo_entrega_id, fecha_entrega_estimada 
+            FROM pedidos WHERE numero_seguimiento = ? LIMIT 1";
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute([$tracking]);
+    $pedido = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$pedido) {
+        echo json_encode(['status' => 'error', 'msg' => 'No se encontró el código.']);
+        exit;
     }
+
+    // 2. 🔥 BUSCAMOS LAS HORAS (Asegúrate que la tabla se llame historial_pedidos)
+    $sqlH = "SELECT estado_pedido_id, DATE_FORMAT(fecha_creacion, '%H:%i') as hora_cambio 
+             FROM historial_pedidos 
+             WHERE pedido_id = ? 
+             ORDER BY fecha_creacion ASC";
+    $stmtH = $this->db->prepare($sqlH);
+    $stmtH->execute([$pedido['id']]);
+    $logs = $stmtH->fetchAll(\PDO::FETCH_ASSOC);
+
+    // Mapeamos los estados a sus horas
+    $mapaHoras = [];
+    foreach ($logs as $l) {
+        $mapaHoras[(int)$l['estado_pedido_id']] = $l['hora_cambio'];
+    }
+
+    echo json_encode([
+        'status' => 'success',
+        'data' => [
+            'estado_id' => (int)$pedido['estado_pedido_id'],
+            'tipo_entrega' => (int)$pedido['tipo_entrega_id'],
+            'fecha_estimada' => date('d-m-Y', strtotime($pedido['fecha_entrega_estimada'])),
+            'horas' => $mapaHoras // ← Este es el "paquete" que el JS debe leer
+        ]
+    ]);
+    exit;
+}
 
     public function autocomplete()
     {

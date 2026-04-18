@@ -54,5 +54,23 @@ function puedeRealizarVentaAsistida() {
     $sucursalAdmin = $_SESSION['admin_sucursal'] ?? null;
     return in_array((int)$sucursalAdmin, SUCURSALES_PILOTO_ASISTIDO);
 }
-?>
 
+function include_view($path, $data = []) {
+    // Extrae el array asociativo en variables individuales
+    extract($data);
+    
+    // Inicia el almacenamiento en búfer de salida
+    ob_start();
+    
+    // Construye la ruta al archivo de la vista
+    $file = __DIR__ . '/../views/' . $path . '.php';
+    
+    if (file_exists($file)) {
+        include $file;
+    } else {
+        echo "Error: La vista [{$path}] no existe en path: {$file}";
+    }
+    
+    // Devuelve el contenido del búfer y lo limpia
+    return ob_get_clean();
+}

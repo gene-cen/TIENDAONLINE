@@ -38,43 +38,7 @@ class AuthController
         $this->googleClient->addScope("profile");
     }
 
-    // =========================================================
-    // 🚪 SECCIÓN 1: LOGIN
-    public function login()
-    {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $email = $_POST['email'] ?? '';
-            $password = $_POST['password'] ?? '';
-            $redirect = $_GET['redirect'] ?? 'home';
 
-            $user = $this->userModel->login($email, $password);
-
-            // Detectamos si es AJAX por el campo oculto o por las cabeceras
-            $isAjax = isset($_POST['is_ajax']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest');
-            if ($user) {
-                $this->setSession($user);
-                if ($isAjax) {
-                    header('Content-Type: application/json');
-                    // Verificamos si la ruta ya tiene un '?' para no romper la URL
-                    $separador = (strpos($redirect, '?') !== false) ? '&' : '?';
-                    echo json_encode([
-                        'status' => 'success',
-                        'redirect' => BASE_URL . $redirect . $separador . 'msg=login_exito'
-                    ]);
-                    exit();
-                }
-                header("Location: " . BASE_URL . $redirect . "?msg=login_exito");
-            } else {
-                if ($isAjax) {
-                    header('Content-Type: application/json'); // Obligamos a responder en JSON
-                    echo json_encode(['status' => 'error']);
-                    exit();
-                }
-                header("Location: " . BASE_URL . "home?msg=login_error");
-            }
-            exit();
-        }
-    }
     public function googleLogin()
     {
         header("Location: " . $this->googleClient->createAuthUrl());
@@ -113,6 +77,9 @@ class AuthController
 
     public function logout()
     {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         $_SESSION = array();
         if (ini_get("session.use_cookies")) {
             $params = session_get_cookie_params();
@@ -123,11 +90,13 @@ class AuthController
         exit();
     }
 
+    
+
     // =========================================================
     // 📝 SECCIÓN 2: REGISTRO
     // =========================================================
 
-public function register()
+    public function register()
     {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $email = $_POST['email'] ?? '';
@@ -187,7 +156,7 @@ public function register()
                         'longitud'     => $_POST['longitud'] ?? null,
                         'es_principal' => 1
                     ];
-                    
+
                     // Guardamos la dirección (Asegúrate de tener este método en tu modelo)
                     if (method_exists($this->userModel, 'guardarDireccion')) {
                         $this->userModel->guardarDireccion($direccion);
@@ -200,7 +169,6 @@ public function register()
 
                 $msg = $enviado ? "registro_exito" : "registro_exito_sin_correo";
                 header("Location: " . BASE_URL . "home?msg=" . $msg);
-                
             } else {
                 header("Location: " . BASE_URL . "home?msg=error_db");
             }
@@ -237,6 +205,29 @@ public function register()
         header("Location: " . BASE_URL . "home?msg=error_token_invalido");
         exit();
     }
+
+
+
+    // =========================================================
+    // 🔥 ENRUTADOR INTELIGENTE POR ROL
+    // =========================================================
+    private function redireccionarSegunRol($rol_id, $redirect_default)
+    {
+        switch ($rol_id) {
+            case 1: // SuperAdmin
+            case 2: // Admin Sucursal
+                return 'admin/dashboard';
+            case 4: // RRHH
+                return 'empleos/rrhh_dashboard'; // 🔥 LA RUTA CORRECTA AL HUB
+            case 5: // Transportista
+                return 'transporte/misEntregas';
+            case 6: // Cliente
+                return $redirect_default;
+            default:
+                return 'home';
+        }
+    }
+
 
     public function forgot()
     {
@@ -392,85 +383,211 @@ public function register()
         }
     }
 
-    private function setSession($user)
+
+    public function checkDuplicate()
     {
-        $_SESSION['user_id']     = $user->id;
-        $_SESSION['user_nombre'] = $user->nombre;
-        $_SESSION['user_email']  = $user->email;
+        header('Content-Type: application/json');
+        $campo = $_GET['campo'] ?? '';
+        $valor = trim($_GET['valor'] ?? '');
 
-        // 🔥 NUEVA LÓGICA DE ROLES NUMÉRICOS
-        $_SESSION['rol_id']      = $user->rol_id;
-        $_SESSION['rol_nombre']  = $user->nombre_rol ?? 'Cliente';
-
-        // Validamos si es Admin (1=SuperAdmin, 2=Admin Sucursal)
-        if (in_array($user->rol_id, [1, 2])) {
-            $_SESSION['admin_sucursal'] = $user->sucursal_admin_id ?? null;
+        if (empty($valor)) {
+            echo json_encode(['existe' => false]);
+            exit;
         }
 
-        // Sucursal por defecto (Buscando dirección principal si existe)
+        try {
+            if ($campo === 'rut') {
+                $valorLimpio = preg_replace('/[^0-9kK]/', '', $valor);
+                $stmt = $this->db->prepare("SELECT id FROM usuarios WHERE REPLACE(REPLACE(rut, '.', ''), '-', '') = ? LIMIT 1");
+                $stmt->execute([$valorLimpio]);
+            } elseif ($campo === 'telefono') {
+                // 1. Limpiamos el valor que viene (quitamos todo lo que no sea número)
+                $soloNumeros = preg_replace('/\D/', '', $valor);
+
+                // 2. Si el usuario escribió el +569 o el 9, nos quedamos solo con los últimos 8 dígitos
+                // (que es lo que realmente identifica al número en Chile)
+                $fragmentoBusqueda = (strlen($soloNumeros) > 8) ? substr($soloNumeros, -8) : $soloNumeros;
+
+                // 3. ¡IMPORTANTE! Según tu SQL, los teléfonos están en 'usuario_telefonos'
+                // Buscamos en esa tabla limpiando el campo 'numero' de cualquier signo
+                $stmt = $this->db->prepare("SELECT id FROM usuario_telefonos WHERE REPLACE(REPLACE(numero, '+', ''), ' ', '') LIKE ? LIMIT 1");
+                $stmt->execute(["%$fragmentoBusqueda"]);
+            } else {
+                // Para el email, comparación directa
+                $stmt = $this->db->prepare("SELECT id FROM usuarios WHERE $campo = ? LIMIT 1");
+                $stmt->execute([$valor]);
+            }
+
+            $existe = $stmt->fetchColumn() ? true : false;
+            echo json_encode(['existe' => $existe]);
+        } catch (\PDOException $e) {
+            echo json_encode(['existe' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+// =========================================================
+    // 🚪 SECCIÓN 1: LOGIN (CON BARRERAS Y TRUCO AJAX)
+    // =========================================================
+    public function login()
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $email = trim($_POST['email'] ?? '');
+            $password = $_POST['password'] ?? '';
+            $redirect = $_GET['redirect'] ?? 'home';
+            
+            // Identificamos de qué formulario viene la petición
+            $login_source = $_POST['login_source'] ?? 'public';
+
+            // Obtenemos los datos desde la BD
+            $user = $this->userModel->login($email, $password);
+
+            $isAjax = isset($_POST['is_ajax']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest');
+
+            if ($user) {
+                // Extraemos el rol
+                $rol_id = 6; // Por defecto Cliente
+                if (is_object($user)) {
+                    $rol_id = $user->rol_id ?? $user->id_rol ?? $user->rol ?? 6;
+                } elseif (is_array($user)) {
+                    $rol_id = $user['rol_id'] ?? $user['id_rol'] ?? $user['rol'] ?? 6;
+                }
+                $rol_id = (int)$rol_id;
+
+                // 🛑 REGLA 1: Cliente (6) intentando entrar por la Intranet
+                if ($login_source === 'intranet' && $rol_id === 6) {
+                    if ($isAjax) {
+                        echo json_encode(['status' => 'error', 'msg' => 'no_autorizado']);
+                        exit();
+                    }
+                    header("Location: " . BASE_URL . "intranet?msg=no_autorizado");
+                    exit();
+                }
+
+                // 🛑 REGLA 2: Colaborador (1,2,3,4,5) intentando entrar por el Navbar Público
+                if ($login_source === 'public' && $rol_id !== 6) {
+                    if ($isAjax) {
+                        // 🔥 EL TRUCO: Le decimos al JS que fue un "success" para que no muestre su error genérico,
+                        // pero lo forzamos a recargar la página con la alerta correcta.
+                        echo json_encode([
+                            'status' => 'success', 
+                            'redirect' => BASE_URL . 'home?msg=usa_intranet'
+                        ]);
+                        exit();
+                    }
+                    header("Location: " . BASE_URL . "home?msg=usa_intranet");
+                    exit();
+                }
+
+                // Si pasó los filtros, iniciamos la sesión normal
+                $this->setSession($user);
+
+                $destino = $this->redireccionarSegunRol($_SESSION['rol_id'], $redirect);
+                $separador = (strpos($destino, '?') !== false) ? '&' : '?';
+
+                session_write_close();
+
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'status' => 'success',
+                        'redirect' => BASE_URL . $destino . $separador . 'msg=login_exito'
+                    ]);
+                    exit();
+                }
+
+                header("Location: " . BASE_URL . $destino . $separador . "msg=login_exito");
+                exit();
+            } else {
+                if ($isAjax) {
+                    header('Content-Type: application/json'); 
+                    echo json_encode(['status' => 'error', 'msg' => 'credenciales_invalidas']);
+                    exit();
+                }
+                header("Location: " . BASE_URL . "home?msg=login_error");
+                exit();
+            }
+        }
+    }
+
+    // =========================================================
+    // 💾 CONFIGURACIÓN DE SESIÓN (EXTRACCIÓN DIRECTA ABSOLUTA)
+    // =========================================================
+    private function setSession($user)
+    {
+        // 🔥 NADA DE TRUCOS: Leemos directamente el objeto stdClass o array que trae PDO
+        $userId     = is_object($user) ? ($user->id ?? null) : ($user['id'] ?? null);
+        $userNombre = is_object($user) ? ($user->nombre ?? 'Usuario') : ($user['nombre'] ?? 'Usuario');
+        $userEmail  = is_object($user) ? ($user->email ?? '') : ($user['email'] ?? '');
+        
+        // Extracción infalible del Rol
+        $rol_id = 6; // Cliente por defecto
+        if (is_object($user)) {
+            $rol_id = $user->rol_id ?? $user->id_rol ?? $user->rol ?? 6;
+        } elseif (is_array($user)) {
+            $rol_id = $user['rol_id'] ?? $user['id_rol'] ?? $user['rol'] ?? 6;
+        }
+
+        $rol_nombre = is_object($user) ? ($user->nombre_rol ?? 'Cliente') : ($user['nombre_rol'] ?? 'Cliente');
+
+        // Asignamos a la variable SUPER GLOBAL $_SESSION
+        $_SESSION['user_id']     = $userId;
+        $_SESSION['user_nombre'] = $userNombre;
+        $_SESSION['user_email']  = $userEmail;
+        $_SESSION['rol_id']      = (int)$rol_id;
+        $_SESSION['rol_nombre']  = $rol_nombre;
+
+        // Validamos si es Admin (1=SuperAdmin, 2=Admin Sucursal)
+        if (in_array($_SESSION['rol_id'], [1, 2])) {
+            $sucursal_admin = is_object($user) ? ($user->sucursal_admin_id ?? null) : ($user['sucursal_admin_id'] ?? null);
+            $_SESSION['admin_sucursal'] = $sucursal_admin;
+        }
+
+        // Configuración de la Sucursal por Defecto
         $suc_asignada = 29;
         try {
-            // Buscamos la comuna en su dirección principal
-            $stmt = $this->db->prepare("SELECT d.comuna_id FROM direcciones_usuarios d WHERE d.usuario_id = ? AND d.es_principal = 1");
-            $stmt->execute([$user->id]);
-            $comuna_id = $stmt->fetchColumn();
+            if (!empty($_SESSION['user_id'])) {
+                $stmt = $this->db->prepare("SELECT d.comuna_id FROM direcciones_usuarios d WHERE d.usuario_id = ? AND d.es_principal = 1");
+                $stmt->execute([$_SESSION['user_id']]);
+                $comuna_id = $stmt->fetchColumn();
 
-            if ($comuna_id) {
-                $stmtS = $this->db->prepare("SELECT sucursal_id FROM comunas WHERE id = ?");
-                $stmtS->execute([$comuna_id]);
-                $found = $stmtS->fetchColumn();
-                if ($found) $suc_asignada = $found;
+                if ($comuna_id) {
+                    $stmtS = $this->db->prepare("SELECT sucursal_id FROM comunas WHERE id = ?");
+                    $stmtS->execute([$comuna_id]);
+                    $found = $stmtS->fetchColumn();
+                    if ($found) $suc_asignada = $found;
+                }
             }
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             error_log("Error sucursal sesión: " . $e->getMessage());
         }
 
         $_SESSION['sucursal_activa'] = $suc_asignada;
         $_SESSION['comuna_nombre'] = ($suc_asignada == 10) ? 'Villa Alemana' : 'La Calera';
     }
-    
-    public function checkDuplicate()
-{
-    header('Content-Type: application/json');
-    $campo = $_GET['campo'] ?? '';
-    $valor = trim($_GET['valor'] ?? '');
 
-    if (empty($valor)) {
-        echo json_encode(['existe' => false]);
-        exit;
-    }
-
-    try {
-        if ($campo === 'rut') {
-            $valorLimpio = preg_replace('/[^0-9kK]/', '', $valor);
-            $stmt = $this->db->prepare("SELECT id FROM usuarios WHERE REPLACE(REPLACE(rut, '.', ''), '-', '') = ? LIMIT 1");
-            $stmt->execute([$valorLimpio]);
-        } 
-        elseif ($campo === 'telefono') {
-            // 1. Limpiamos el valor que viene (quitamos todo lo que no sea número)
-            $soloNumeros = preg_replace('/\D/', '', $valor);
-            
-            // 2. Si el usuario escribió el +569 o el 9, nos quedamos solo con los últimos 8 dígitos
-            // (que es lo que realmente identifica al número en Chile)
-            $fragmentoBusqueda = (strlen($soloNumeros) > 8) ? substr($soloNumeros, -8) : $soloNumeros;
-
-            // 3. ¡IMPORTANTE! Según tu SQL, los teléfonos están en 'usuario_telefonos'
-            // Buscamos en esa tabla limpiando el campo 'numero' de cualquier signo
-            $stmt = $this->db->prepare("SELECT id FROM usuario_telefonos WHERE REPLACE(REPLACE(numero, '+', ''), ' ', '') LIKE ? LIMIT 1");
-            $stmt->execute(["%$fragmentoBusqueda"]);
-        } 
-        else {
-            // Para el email, comparación directa
-            $stmt = $this->db->prepare("SELECT id FROM usuarios WHERE $campo = ? LIMIT 1");
-            $stmt->execute([$valor]);
+    // =========================================================
+    // 🏢 LOGIN INTRANET
+    // =========================================================
+    public function intranetLogin()
+    {
+        // Verificamos si la sesión está iniciada
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
         }
 
-        $existe = $stmt->fetchColumn() ? true : false;
-        echo json_encode(['existe' => $existe]);
+        // Si ya hay sesión y NO es un cliente (rol 6), usamos tu enrutador inteligente
+        if (isset($_SESSION['user_id']) && isset($_SESSION['rol_id']) && $_SESSION['rol_id'] != 6) {
+            $destino = $this->redireccionarSegunRol($_SESSION['rol_id'], 'home');
+            header("Location: " . BASE_URL . $destino);
+            exit();
+        }
 
-    } catch (\PDOException $e) {
-        echo json_encode(['existe' => false, 'error' => $e->getMessage()]);
+        // Si no está logueado, le mostramos la vista
+        require __DIR__ . '/../../views/auth/intranet_login.php';
     }
-    exit;
-}
-}
+    }
+

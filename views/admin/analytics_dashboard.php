@@ -142,6 +142,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -184,10 +186,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 2. CONFIGURACIÓN DEL MAPA (Leaflet)
-    // 2. CONFIGURACIÓN DEL MAPA (Leaflet)
+    // 2. CONFIGURACIÓN DEL MAPA MUNDIAL (Leaflet)
     if (typeof L !== 'undefined' && document.getElementById('analyticsMap')) {
-        const map = L.map('analyticsMap').setView([-32.85, -71.25], 10); // Ajusté el zoom para ver mejor la zona V
+        
+        // 🗺️ Centramos en la Región de Valparaíso por defecto (Zoom 9)
+        const map = L.map('analyticsMap').setView([-32.88, -71.25], 9); 
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; CartoDB',
@@ -195,45 +198,45 @@ document.addEventListener('DOMContentLoaded', function() {
             maxZoom: 19
         }).addTo(map);
 
-        const coordsComunas = {
-            "santiago": [-33.4489, -70.6693], "providencia": [-33.4314, -70.6093],
-            "viña del mar": [-33.0245, -71.5518], "valparaíso": [-33.0458, -71.6197],
-            "quilpué": [-33.0498, -71.4390], "villa alemana": [-33.0445, -71.3734],
-            "limache": [-32.9989, -71.2669], "quillota": [-32.8794, -71.2464],
-            "la calera": [-32.7833, -71.2000], "nogales": [-32.7333, -71.2000],
-            "hijuelas": [-32.7975, -71.1469], "la cruz": [-32.8272, -71.2294],
-            "concón": [-32.9234, -71.5178], "san felipe": [-32.7507, -70.7251],
-            "los andes": [-32.8338, -70.5977]
-        };
+        // Recibimos la nueva data global
+        const datosMapa = <?= json_encode($visitasMapaGlobal ?? []) ?>;
+        console.log("🗺️ Datos Globales del Mapa:", datosMapa);
 
-        const datosMapa = <?= json_encode($visitasMapa ?? []) ?>;
-        console.log("Datos recibidos para el mapa:", datosMapa); // 🕵️ Para que revises en F12
+        const bounds = [];
 
         datosMapa.forEach(item => {
-            const nombreNormalizado = item.comuna.toLowerCase().trim();
-            const coord = coordsComunas[nombreNormalizado];
-
-            if (coord) {
+            if (item.lat && item.lng) {
+                const coord = [parseFloat(item.lat), parseFloat(item.lng)];
                 const nVisitas = parseInt(item.visitas || 0);
-                // Si hay pocas visitas, ponemos un radio mínimo visible (1200 metros)
-                // Si hay muchas, crece dinámicamente.
-                const radioFinal = Math.min(Math.max(nVisitas * 400, 1200), 8000);
+                
+                // 🎨 ARTE DEL MAPA: Ajustamos el tamaño de la burbuja.
+                // Minimo 2000 metros (2km) para que cubra la comuna, máximo 15km si hay muchísimas visitas.
+                const radioFinal = Math.min(Math.max(nVisitas * 800, 2000), 15000); 
 
                 L.circle(coord, {
                     color: '#e63946',
                     fillColor: '#e63946',
-                    fillOpacity: 0.5,
+                    fillOpacity: 0.6, // Un poco más oscuro para que resalte
                     radius: radioFinal,
                     weight: 2
                 }).addTo(map)
                 .bindPopup(`
                     <div class="text-center p-1">
-                        <strong class="text-cenco-indigo d-block mb-1 text-uppercase">${item.comuna}</strong>
+                        <strong class="text-cenco-indigo d-block text-uppercase">${item.ciudad}</strong>
+                        <small class="text-muted d-block mb-1">${item.pais}</small>
                         <span class="badge bg-cenco-green text-white px-2 py-1">${nVisitas} Visitas</span>
                     </div>
                 `);
+
+                bounds.push(coord);
             }
         });
+
+        // 🔭 CÁMARA INTELIGENTE: Si hay datos, encuadramos la cámara para que todos se vean.
+        // Si solo hay datos de La Calera, maxZoom en 11 evita que se acerque "hasta la calle".
+        if (bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 11 });
+        }
     }
 });
 </script>

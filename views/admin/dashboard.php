@@ -1,328 +1,181 @@
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    /* Efecto de elevación elegante para las tarjetas */
+    .hover-elevate {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+    }
 
-<div class="container-fluid px-4 py-4 bg-light min-vh-100">
+    .hover-elevate:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(42, 27, 94, 0.1) !important;
+        border-color: rgba(97, 166, 14, 0.3);
+    }
 
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4">
+    .link-modulo {
+        transition: 0.2s;
+        font-weight: 500;
+        border-radius: 8px;
+    }
+
+    .link-modulo:hover {
+        color: #61A60E !important;
+        background-color: rgba(97, 166, 14, 0.05);
+        padding-left: 10px !important;
+    }
+</style>
+
+<div class="container-fluid py-4 px-lg-5" style="max-width: 1400px; margin: 0 auto;">
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3">
         <div>
-            <h2 class="fw-black text-cenco-indigo mb-1">
-                <i class="bi bi-speedometer2 me-2"></i>Panel de Control
-            </h2>
-            <p class="text-muted mb-0">Resumen en tiempo real.</p>
+            <h2 class="fw-black text-cenco-indigo mb-1" style="letter-spacing: -0.5px;">Centro de Operaciones</h2>
+            <p class="text-muted mb-0 fs-6">Selecciona un módulo para gestionar la plataforma.</p>
         </div>
-
-        <div class="d-flex gap-2 align-items-center mt-3 mt-md-0">
-            <form action="" method="GET" class="d-flex gap-2">
-                <input type="date" name="desde" class="form-control form-control-sm shadow-sm border-0" value="<?= $desde ?>">
-                <input type="date" name="hasta" class="form-control form-control-sm shadow-sm border-0" value="<?= $hasta ?>">
-                <button type="submit" class="btn btn-sm btn-cenco-indigo shadow-sm"><i class="bi bi-filter"></i></button>
-            </form>
-
-            <a href="<?= BASE_URL ?>admin/importar_erp" class="btn btn-white text-primary border shadow-sm fw-bold hover-scale btn-sm ms-2">
-                <i class="bi bi-arrow-repeat me-1"></i> ERP
-            </a>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-cenco-indigo border px-3 py-2 rounded-pill shadow-sm d-flex align-items-center">
+                <i class="bi bi-person-circle me-2 fs-6"></i>
+                <?= htmlspecialchars($_SESSION['user_nombre'] ?? 'Administrador') ?>
+                <span class="ms-2 opacity-50">| Rol <?= $_SESSION['rol_id'] ?? '?' ?></span>
+            </span>
         </div>
     </div>
 
-    <?php
-    // Alerta de Éxito
-    if (isset($_GET['msg']) && $_GET['msg'] === 'sync_ok' && isset($_SESSION['ultimo_reporte_erp'])):
-        $reporte = $_SESSION['ultimo_reporte_erp'];
-    ?>
-        <div class="alert border-success bg-success bg-opacity-10 alert-dismissible fade show shadow-sm rounded-4 mb-4 animate__animated animate__fadeInDown" role="alert">
-            <div class="d-flex align-items-center mb-2">
-                <i class="bi bi-check-circle-fill text-success fs-3 me-3"></i>
-                <h5 class="fw-bold text-success mb-0">¡Sincronización de Inventario Exitosa!</h5>
-            </div>
-            <hr class="border-success opacity-25">
-            <div class="row small text-dark">
-                <div class="col-md-3 mb-2">
-                    <i class="bi bi-file-earmark-excel me-1 text-muted"></i> Archivos: <strong><?= (int)($reporte['archivos_encontrados'] ?? 0) ?></strong>
-                </div>
-                <div class="col-md-3 mb-2">
-                    <i class="bi bi-shop me-1 text-muted"></i> Sucursales: <strong><?= !empty($reporte['sucursales_procesadas']) ? implode(', ', $reporte['sucursales_procesadas']) : 'Ninguna' ?></strong>
-                </div>
-                <div class="col-md-3 mb-2">
-                    <i class="bi bi-box-seam me-1 text-muted"></i> Productos: <strong><?= number_format((int)($reporte['productos_procesados'] ?? $reporte['actualizaciones'] ?? 0), 0, ',', '.') ?></strong>
-                </div>
-                <div class="col-md-3 mb-2">
-                    <i class="bi bi-list-ol me-1 text-muted"></i> Filas leídas: <strong><?= number_format((int)($reporte['total_filas_leidas'] ?? $reporte['total_filas'] ?? 0), 0, ',', '.') ?></strong>
-                </div>
-            </div>
+    <div class="row g-4">
 
-            <?php if (!empty($reporte['errores'])): ?>
-                <div class="mt-2 p-2 bg-white rounded border border-danger">
-                    <strong class="text-danger small"><i class="bi bi-exclamation-triangle-fill me-1"></i> Advertencias durante el proceso:</strong>
-                    <ul class="mb-0 small text-danger mt-1 ps-3">
-                        <?php foreach ($reporte['errores'] as $error): ?>
-                            <li><?= htmlspecialchars($error) ?></li>
-                        <?php endforeach; ?>
+        <div class="col-md-6 col-xl-4">
+            <div class="card bg-white shadow-sm rounded-4 h-100 hover-elevate overflow-hidden">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-3 p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="bi bi-tools fs-4"></i>
+                        </div>
+                        <h5 class="fw-bold text-cenco-indigo mb-0">Mantenedores</h5>
+                    </div>
+                    <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+                        <li>
+                            <a href="<?= BASE_URL ?>admin/banners" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                <i class="bi bi-images me-3 text-muted opacity-50"></i> Gestionar Banners
+                            </a>
+                        </li>
+
+                        <?php if (isset($_SESSION['rol_id']) && $_SESSION['rol_id'] == 1): ?>
+                            <li>
+                                <a href="<?= BASE_URL ?>admin/marcas" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                    <i class="bi bi-star-fill me-3 text-warning opacity-75"></i> Gestionar Marcas
+                                </a>
+                            </li>
+                        <?php endif; ?>
+
+                        <li>
+                            <a href="<?= BASE_URL ?>admin/productos_nuevos" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                <i class="bi bi-magic me-3 text-muted opacity-50"></i> Productos Nuevos
+                            </a>
+                        </li>
                     </ul>
                 </div>
-            <?php endif; ?>
+            </div>
+        </div>
 
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    <?php
-        unset($_SESSION['ultimo_reporte_erp']);
-    elseif (isset($_GET['msg']) && $_GET['msg'] === 'sync_ok'): // Fallback por si no hay sesión
-    ?>
-        <div class="alert border-success bg-success bg-opacity-10 alert-dismissible fade show shadow-sm rounded-4 mb-4" role="alert">
-            <i class="bi bi-check-circle-fill text-success fs-4 me-2"></i>
-            <strong class="text-success">¡Sincronización de Inventario Exitosa!</strong> El ERP se ha importado correctamente.
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    <?php endif;
-
-    // Alerta de Error
-    if (isset($_GET['msg']) && $_GET['msg'] === 'error'):
-    ?>
-        <div class="alert border-danger bg-danger bg-opacity-10 alert-dismissible fade show shadow-sm rounded-4 mb-4" role="alert">
-            <i class="bi bi-exclamation-octagon-fill text-danger fs-4 me-2"></i>
-            <strong class="text-danger">Error de Sincronización:</strong> <?= htmlspecialchars($_GET['info'] ?? 'No se pudo completar la carga del ERP.') ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    <?php endif; ?>
-    <div class="row g-4 mb-4">
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-4 bg-cenco-indigo text-white h-100 overflow-hidden position-relative">
+        <div class="col-md-6 col-xl-4">
+            <div class="card bg-white shadow-sm rounded-4 h-100 hover-elevate overflow-hidden">
                 <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <p class="text-uppercase text-white-50 fw-bold small mb-1 ls-1">Ventas (Periodo)</p>
-                            <h2 class="fw-black mb-0 display-6">$<?= number_format($ventaPeriodo, 0, ',', '.') ?></h2>
+                    <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
+                        <div class="bg-warning bg-opacity-10 text-warning rounded-3 p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="bi bi-boxes fs-4"></i>
                         </div>
-                        <div class="bg-white bg-opacity-10 p-3 rounded-circle text-white">
-                            <i class="bi bi-currency-dollar fs-4"></i>
-                        </div>
+                        <h5 class="fw-bold text-cenco-indigo mb-0">Inventario</h5>
                     </div>
-
-                    <div class="mt-4 d-flex flex-column gap-2">
-                        <div>
-                            <span class="badge bg-white bg-opacity-25 text-white fw-normal">
-                                <i class="bi bi-calendar3 me-1"></i> <?= date('d/m', strtotime($desde)) ?> - <?= date('d/m', strtotime($hasta)) ?>
-                            </span>
+                    <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+                        <li>
+                            <a href="<?= BASE_URL ?>admin/productos" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                <i class="bi bi-box-seam me-3 text-muted opacity-50"></i> Inventario Total
+                            </a>
+                        </li>
+                        <li>
+                            <a href="<?= BASE_URL ?>admin/stock_fantasma" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                <i class="bi bi-radar me-3 text-danger opacity-75"></i> Detección Stock Fantasma
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="card bg-white shadow-sm rounded-4 h-100 hover-elevate overflow-hidden">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
+                        <div class="bg-success bg-opacity-10 text-success rounded-3 p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="bi bi-bag-check-fill fs-4"></i>
                         </div>
+                        <h5 class="fw-bold text-cenco-indigo mb-0">Logística y Pedidos</h5>
+                    </div>
+                    <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+                        <li>
+                            <a href="<?= BASE_URL ?>admin/pedidos" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                <i class="bi bi-cart-check me-3 text-muted opacity-50"></i> Pedidos y Ventas
+                            </a>
+                        </li>
+                        <li>
+                            <a href="<?= BASE_URL ?>transporte/misEntregas" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                <i class="bi bi-truck me-3 text-muted opacity-50"></i> Panel Transporte
+                            </a>
+                        </li>
 
-                        <?php if ($ingresoDespacho > 0): ?>
-                            <div class="small text-white-50 fw-bold d-flex align-items-center mt-1">
-                                <i class="bi bi-truck me-2 fs-6 text-white opacity-75"></i>
-                                Recaudación Despacho: <span class="text-white ms-1">$<?= number_format($ingresoDespacho, 0, ',', '.') ?></span>
+                        <?php if (isset($_SESSION['rol_id']) && in_array($_SESSION['rol_id'], [1, 2])): ?>
+                            <li class="border-top mt-2 pt-2">
+                                <a href="<?= BASE_URL ?>admin/ventas_sucursal" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                    <i class="bi bi-graph-up-arrow me-3 text-primary opacity-75"></i> Dashboard Ventas Sucursal
+                                </a>
+                            </li>
+                        <?php endif; ?>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <?php if (isset($_SESSION['rol_id']) && $_SESSION['rol_id'] == 1): ?>
+
+            <div class="col-md-6 col-xl-4">
+                <div class="card bg-white shadow-sm rounded-4 h-100 hover-elevate overflow-hidden">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
+                            <div class="bg-info bg-opacity-10 text-info rounded-3 p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                <i class="bi bi-people-fill fs-4"></i>
                             </div>
-                        <?php endif; ?>
-                    </div>
-
-                    <i class="bi bi-graph-up-arrow position-absolute bottom-0 end-0 me-n3 mb-n3 text-white opacity-10" style="font-size: 8rem;"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <p class="text-uppercase text-muted fw-bold small mb-1 ls-1">Pedidos Pendientes</p>
-                            <h2 class="fw-black text-warning mb-0 display-6"><?= $pendientes ?></h2>
+                            <h5 class="fw-bold text-cenco-indigo mb-0">Gestión de Usuarios</h5>
                         </div>
-                        <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning">
-                            <i class="bi bi-hourglass-split fs-4"></i>
+                        <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+                            <li>
+                                <a href="<?= BASE_URL ?>admin/usuarios" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                    <i class="bi bi-people me-3 text-cenco-green opacity-75"></i> Clientes y Roles
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-4">
+                <div class="card bg-white shadow-sm rounded-4 h-100 hover-elevate overflow-hidden">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
+                            <div class="bg-danger bg-opacity-10 text-danger rounded-3 p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                <i class="bi bi-graph-up-arrow fs-4"></i>
+                            </div>
+                            <h5 class="fw-bold text-cenco-indigo mb-0">Reportes</h5>
                         </div>
-                    </div>
-                    <p class="text-muted small mt-3 mb-0">Requieren atención inmediata.</p>
-                    <a href="<?= BASE_URL ?>admin/pedidos?estado=pendiente" class="btn btn-sm btn-outline-warning mt-3 rounded-pill fw-bold">Gestionar</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <p class="text-uppercase text-muted fw-bold small mb-0 ls-1">Alertas de Stock</p>
-                        <span class="badge bg-danger rounded-pill"><?= count($stockCritico) ?> Críticos</span>
-                    </div>
-
-                    <div class="list-group list-group-flush">
-                        <?php
-                        // Filtramos para ignorar los negativos ANTES de verificar si está vacío
-                        if (!empty($stockCritico)) {
-                            $stockCritico = array_filter($stockCritico, function ($prod) {
-                                return $prod['stock'] >= 0;
-                            });
-                        }
-                        ?>
-
-                        <?php if (empty($stockCritico)): ?>
-                            <div class="text-center text-muted small py-3">Inventario saludable <i class="bi bi-check-circle text-success"></i></div>
-                        <?php else: ?>
-                            <?php foreach ($stockCritico as $prod): ?>
-                                <div class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
-                                    <div class="d-flex align-items-center">
-                                        <i class="bi bi-exclamation-triangle-fill text-danger me-2 small"></i>
-                                        <span class="small text-dark fw-bold text-truncate" style="max-width: 150px;"><?= htmlspecialchars($prod['nombre']) ?></span>
-                                    </div>
-                                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill"><?= $prod['stock'] ?> un.</span>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                        <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+                            <li>
+                                <a href="<?= BASE_URL ?>admin/analytics" class="text-decoration-none text-secondary link-modulo d-flex align-items-center p-2">
+                                    <i class="bi bi-geo-alt-fill me-3 text-muted opacity-50"></i> Data Analytics (Mapa)
+                                </a>
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </div>
-        </div>
+
+        <?php endif; ?>
+
     </div>
-
-    <div class="row g-4 mb-4">
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="fw-bold text-cenco-indigo mb-0">Tendencia de Ventas (Últimos 7 días)</h6>
-                </div>
-                <div class="card-body">
-                    <canvas id="ventasChart" height="100"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-header bg-white border-0 py-3">
-                    <h6 class="fw-bold text-cenco-indigo mb-0">Top 5 Más Vendidos</h6>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <tbody>
-                                <?php if (empty($topProductos)): ?>
-                                    <tr>
-                                        <td class="text-center text-muted p-4">Sin datos en este periodo.</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php $pos = 1;
-                                    foreach ($topProductos as $tp): ?>
-                                        <tr>
-                                            <td class="ps-4" style="width: 50px;">
-                                                <?php if ($pos == 1): ?>
-                                                    <span class="badge bg-warning text-dark rounded-circle p-2">🥇</span>
-                                                <?php elseif ($pos == 2): ?>
-                                                    <span class="badge bg-secondary bg-opacity-50 text-white rounded-circle p-2">🥈</span>
-                                                <?php elseif ($pos == 3): ?>
-                                                    <span class="badge bg-secondary bg-opacity-25 text-dark rounded-circle p-2">🥉</span>
-                                                <?php else: ?>
-                                                    <span class="text-muted fw-bold ps-2"><?= $pos ?></span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td>
-                                                <small class="d-block fw-bold text-dark text-truncate" style="max-width: 180px;">
-                                                    <?= $tp['nombre'] ?>
-                                                </small>
-                                            </td>
-                                            <td class="text-end pe-4">
-                                                <span class="badge bg-success bg-opacity-10 text-success fw-bold">
-                                                    <?= $tp['vendidos'] ?> un.
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    <?php $pos++;
-                                    endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-5">
-        <div class="card-header bg-white py-3 px-4 border-bottom border-light d-flex justify-content-between align-items-center">
-            <h6 class="fw-bold text-cenco-indigo mb-0">Últimos Pedidos Recibidos</h6>
-            <a href="<?= BASE_URL ?>admin/pedidos" class="btn btn-sm btn-light text-primary fw-bold">Ver Todos</a>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light">
-                        <tr>
-                            <th class="ps-4 text-muted small fw-bold">Folio</th>
-                            <th class="text-muted small fw-bold">Cliente</th>
-                            <th class="text-muted small fw-bold text-center">Estado</th>
-                            <th class="text-muted small fw-bold text-end">Total</th>
-                            <th class="text-muted small fw-bold text-end pe-4">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($ultimosPedidos as $p): ?>
-                            <tr>
-                                <td class="ps-4 fw-bold text-primary">#<?= str_pad($p['id'], 6, '0', STR_PAD_LEFT) ?></td>
-                                <td>
-                                    <div class="fw-bold text-dark small"><?= $p['nombre_cliente'] ?></div>
-                                    <small class="text-muted"><?= date('d/m/Y H:i', strtotime($p['fecha_creacion'] . ' ' . $p['hora_creacion'])) ?></small>
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge rounded-pill bg-<?= $p['color_estado'] ?? 'secondary' ?> px-2">
-                                        <?= $p['estado'] ?>
-                                    </span>
-                                </td>
-                                <td class="text-end fw-bold text-dark">$<?= number_format($p['monto_total'], 0, ',', '.') ?></td>
-                                <td class="text-end pe-4">
-                                    <a href="<?= BASE_URL ?>admin/pedido/ver/<?= $p['id'] ?>" class="btn btn-sm btn-outline-secondary rounded-circle">
-                                        <i class="bi bi-eye-fill"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
 </div>
-
-<script>
-    const ctx = document.getElementById('ventasChart').getContext('2d');
-
-    // Datos pasados desde PHP
-    const fechas = <?= json_encode(array_column($datosGrafico, 'fecha')) ?>;
-    const totales = <?= json_encode(array_column($datosGrafico, 'total')) ?>;
-
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: fechas,
-            datasets: [{
-                label: 'Ventas ($)',
-                data: totales,
-                borderColor: '#004481', // Cencocal Indigo
-                backgroundColor: 'rgba(0, 68, 129, 0.1)',
-                borderWidth: 2,
-                tension: 0.4, // Curvas suaves
-                fill: true,
-                pointBackgroundColor: '#fff',
-                pointBorderColor: '#004481',
-                pointRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        borderDash: [2, 4]
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    }
-                }
-            }
-        }
-    });
-</script>

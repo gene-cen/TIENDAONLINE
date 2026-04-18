@@ -1,4 +1,4 @@
-<div class="modal fade" id="modalEditarPedido" tabindex="-1" aria-labelledby="modalEditarPedidoLabel" aria-hidden="true">
+<div class="modal fade" id="modalEditarPedido" aria-labelledby="modalEditarPedidoLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content rounded-4 border-0 shadow">
             
@@ -35,7 +35,8 @@
                                     <th class="text-center pe-4">Acción</th>
                                 </tr>
                             </thead>
-                            <tbody></tbody>
+                            <tbody>
+                                </tbody>
                         </table>
                     </div>
                 </div>

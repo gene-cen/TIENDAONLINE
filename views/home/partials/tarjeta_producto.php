@@ -11,6 +11,9 @@ $esObjeto = is_object($p);
 $stockDisponible = $esObjeto ? (int)($p->stock_web ?? $p->stock ?? 0) : (int)($p['stock_web'] ?? $p['stock'] ?? 0);
 $estaAgotado = ($stockDisponible <= 0);
 
+// 🔥 CAPTURAMOS EL PPUM (Ya viene unificado y listo desde el Modelo)
+$ppum = $esObjeto ? ($p->precio_unidad_medida ?? '') : ($p['precio_unidad_medida'] ?? '');
+
 $imgHeight = $alturaImagen ?? '180px';
 ?>
 <div class="col">
@@ -57,8 +60,14 @@ $imgHeight = $alturaImagen ?? '180px';
             </div>
             
             <div class="mt-auto pt-2 d-flex justify-content-between align-items-center border-top border-light">
+                
                 <div class="d-flex flex-column">
-                    <span class="fw-black text-cenco-red fs-5" style="letter-spacing: -0.5px;">$<?= number_format($p['precio'] ?? 0, 0, ',', '.') ?></span>
+                    <span class="fw-black text-cenco-red fs-5 lh-1" style="letter-spacing: -0.5px;">$<?= number_format($p['precio'] ?? 0, 0, ',', '.') ?></span>
+                    <?php if (!empty($ppum)): ?>
+                        <span class="text-muted fw-bold mt-1" style="font-size: 0.65rem;">
+                            <?= htmlspecialchars($ppum) ?>
+                        </span>
+                    <?php endif; ?>
                 </div>
 
                 <div style="min-width: 90px; text-align: right;">

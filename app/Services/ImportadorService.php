@@ -79,10 +79,11 @@ class ImportadorService
             ");
 
             // --- 3. DETALLE SUCURSAL (Tabla productos_sucursales) ---
+            // --- 3. DETALLE SUCURSAL (Tabla productos_sucursales) ---
             $stmtDetalle = $this->db->prepare("
-                INSERT INTO productos_sucursales (cod_producto, sucursal_id, precio, stock, stock_reservado) 
-                VALUES (?, ?, ?, ?, 0) 
-                ON DUPLICATE KEY UPDATE precio = VALUES(precio), stock = VALUES(stock)
+                INSERT INTO productos_sucursales (cod_producto, sucursal_id, precio, ppum, stock, stock_reservado) 
+                VALUES (?, ?, ?, ?, ?, 0) 
+                ON DUPLICATE KEY UPDATE precio = VALUES(precio), ppum = VALUES(ppum), stock = VALUES(stock)
             ");
 
             while (($linea = fgets($handle)) !== false) {
@@ -154,7 +155,9 @@ class ImportadorService
                     // Al quitar la columna fantasma, esta línea ya no colapsará la base de datos
                     $stmtInfoWeb->execute([$sku, $nombre]);
 
-                    $stmtDetalle->execute([$sku, $sucursalId, $precio, $stock]);
+                    // 🔥 AHORA GUARDAMOS EL PRECIO Y EL PPUM ESPECÍFICO DE ESTA SUCURSAL
+                    $stmtDetalle->execute([$sku, $sucursalId, $precio, $pum, $stock]);
+
                     if ($stmtDetalle->rowCount() > 0) {
                         $this->metricas['actualizaciones']++;
                     }
