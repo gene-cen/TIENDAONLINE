@@ -35,7 +35,15 @@ if (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'render.com') 
     define('BASE_URL', 'https://' . $_SERVER['HTTP_HOST'] . '/');
 } else {
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    define('BASE_URL', 'http://' . $host . '/tienda-online/public/');
+    
+    // Si detecta que estás en el servidor de Cencocal (cPanel)
+    if (strpos($host, 'cencocal.cl') !== false) {
+        // Forzamos HTTPS y apuntamos a la carpeta correcta
+        define('BASE_URL', 'https://' . $host . '/testingto/public/');
+    } else {
+        // Si detecta que estás en tu XAMPP local
+        define('BASE_URL', 'http://' . $host . '/tienda-online/public/');
+    }
 }
 
 // 3. CARGA DE LIBRERÍAS Y HELPERS

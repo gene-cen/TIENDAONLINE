@@ -7,11 +7,7 @@ const formatearRut = (rut) => {
     let actual = rut.replace(/^0+/, "");
     let clean = actual.replace(/[^0-9kK]/g, "");
 
-    // 🔥 NUEVO CANDADO: Cortamos la cadena a un máximo de 9 caracteres base
-    if (clean.length > 9) {
-        clean = clean.slice(0, 9);
-    }
-
+    if (clean.length > 9) clean = clean.slice(0, 9);
     if (clean.length === 0) return "";
 
     let result = "";
@@ -46,9 +42,7 @@ const validarRut = (rutCompleto) => {
 async function verificarDuplicadoBD(campo, valor) {
     try {
         let valorLimpio = valor.trim();
-        if (campo === 'telefono') {
-            valorLimpio = valorLimpio.replace(/[^0-9]/g, '');
-        }
+        if (campo === 'telefono') valorLimpio = valorLimpio.replace(/[^0-9]/g, '');
         const response = await fetch(`${BASE_URL}auth/check-duplicate?campo=${campo}&valor=${encodeURIComponent(valorLimpio)}`);
         const data = await response.json();
         return data.existe;
@@ -105,19 +99,10 @@ document.addEventListener('DOMContentLoaded', function () {
         let config = {};
         switch (msg) {
             case 'registro_exito':
-                config = {
-                    title: '¡Cuenta creada!',
-                    text: 'Revisa tu bandeja de entrada o spam para verificar tu cuenta.',
-                    imageUrl: `${BASE_URL}img/cencocalin/cencocalin_celebrando_compra.png`,
-                    imageWidth: 120,
-                    confirmButtonColor: '#85C226',
-                    modal: 'loginModal'
-                };
-                break;
             case 'registro_exito_sin_correo':
                 config = {
                     title: '¡Cuenta creada!',
-                    text: 'Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión.',
+                    text: msg === 'registro_exito' ? 'Revisa tu bandeja de entrada o spam para verificar tu cuenta.' : 'Tu cuenta ha sido creada exitosamente. Ya puedes iniciar sesión.',
                     imageUrl: `${BASE_URL}img/cencocalin/cencocalin_celebrando_compra.png`,
                     imageWidth: 120,
                     confirmButtonColor: '#85C226',
@@ -206,9 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         didOpen: () => { Swal.getContainer().style.zIndex = '10000'; }
                     }).then(() => {
                         const loginModal = document.getElementById('loginModal');
-                        if (loginModal) {
-                            new bootstrap.Modal(loginModal).show();
-                        }
+                        if (loginModal) new bootstrap.Modal(loginModal).show();
                     });
                 } else {
                     this.classList.add('is-invalid', 'border-danger');
@@ -221,15 +204,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const btnContinuarInv = document.querySelector('#seccion-invitado button');
     const inputRutInv = document.querySelector('#seccion-invitado input[name="rut"]');
-
     if (btnContinuarInv && inputRutInv) {
         const verificarSiEsRegistrado = async () => {
             let rutValor = inputRutInv.value.trim();
             let rutLimpio = rutValor.replace(/[^0-9kK]/g, '').replace(/^0+/, "");
-
             if (rutLimpio.length >= 8 && validarRut(rutValor)) {
                 const existe = await verificarDuplicadoBD('rut', rutValor);
-
                 if (existe) {
                     inputRutInv.value = '';
                     Swal.fire({
@@ -250,15 +230,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             return false;
         };
-
         inputRutInv.addEventListener('blur', verificarSiEsRegistrado);
-
         btnContinuarInv.addEventListener('click', async (e) => {
             e.preventDefault();
             const esRegistrado = await verificarSiEsRegistrado();
-            if (!esRegistrado) {
-                console.log("Invitado válido, enviando al pago...");
-            }
+            if (!esRegistrado) console.log("Invitado válido, enviando al pago...");
         });
     }
 
@@ -393,12 +369,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const comuna = selectComuna ? selectComuna.value : '';
             const calle = inputCalle ? inputCalle.value.trim() : '';
             const numero = inputNumero ? inputNumero.value.trim() : '';
-            if (!comuna) {
-                Swal.fire({ icon: 'error', title: 'Selecciona una comuna', text: 'Es obligatorio elegir una comuna.', confirmButtonColor: '#2A1B5E', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
-                return;
-            }
-            if (!calle || !numero) {
-                Swal.fire({ icon: 'warning', title: 'Datos incompletos', text: 'Ingresa calle y número.', confirmButtonColor: '#2A1B5E', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
+            if (!comuna || !calle || !numero) {
+                Swal.fire({ icon: 'warning', title: 'Datos incompletos', text: 'Ingresa calle, número y comuna.', confirmButtonColor: '#2A1B5E', didOpen: () => Swal.getContainer().style.zIndex = '10000' });
                 return;
             }
             const icon = btnBuscar.querySelector('i');
@@ -434,10 +406,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function initMapRegistro() {
-        if (mapReg) {
-            setTimeout(() => { mapReg.invalidateSize(); }, 200);
-            return;
-        }
+        if (mapReg) { setTimeout(() => { mapReg.invalidateSize(); }, 200); return; }
         const latIni = -32.7889, lngIni = -71.2039;
         const container = document.getElementById('reg-map');
         if (!container) return;
@@ -487,6 +456,78 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('resultadoRastreo').style.display = 'none';
         });
     }
+
+
+// =========================================================
+    // 🔥 NUEVO: ILUMINAR TARJETA VERDE (MUTATION OBSERVER) 🔥
+    // =========================================================
+    
+    // Función central para inyectar o quitar estilos
+    function aplicarColorTarjeta(card, activar) {
+        if (!card) return;
+        const partesInternas = card.querySelectorAll('.fondo-dinamico-imagen, .fondo-dinamico-cuerpo');
+
+        if (activar) {
+            card.classList.remove('bg-white', 'border-light');
+            card.classList.add('tarjeta-seleccionada', 'shadow', 'border-cenco-green');
+            partesInternas.forEach(p => { p.classList.remove('bg-white'); p.classList.add('bg-transparent'); });
+        } else {
+            card.classList.remove('tarjeta-seleccionada', 'shadow', 'border-cenco-green');
+            card.classList.add('bg-white', 'border-light');
+            partesInternas.forEach(p => { p.classList.remove('bg-transparent'); p.classList.add('bg-white'); });
+        }
+    }
+
+    // Función que evalúa el estado actual de una tarjeta específica
+    function evaluarTarjetaPorId(id) {
+        const card = document.getElementById(`card-prod-${id}`);
+        if (!card) return;
+
+        const controlsDiv = document.getElementById(`controls-${id}`);
+        const spanCount = document.getElementById(`card-count-${id}`);
+        
+        let tieneProducto = false;
+
+        // Regla 1: Si los controles de sumar/restar existen y no están ocultos
+        if (controlsDiv && !controlsDiv.classList.contains('d-none')) {
+            tieneProducto = true;
+        }
+
+        // Regla 2: El contador manda. Si dice explícitamente 0, no hay producto.
+        if (spanCount) {
+            const cantidad = parseInt(spanCount.innerText.trim()) || 0;
+            if (cantidad === 0) {
+                tieneProducto = false;
+            } else {
+                tieneProducto = true;
+            }
+        }
+
+        aplicarColorTarjeta(card, tieneProducto);
+    }
+
+    // =========================================================
+    // 🔥 SCROLL CON FLECHAS EN CARRUSEL HORIZONTAL 🔥
+    // =========================================================
+    document.querySelectorAll('.btn-scroll-arrow').forEach(boton => {
+        boton.addEventListener('click', function(e) {
+            e.preventDefault(); // Evita que la página salte al hacer clic
+            
+            // Busca el contenedor de productos que pertenece a esta flecha
+            const contenedor = this.closest('.wrapper-scroll').querySelector('.scroll-horizontal');
+            
+            if (contenedor) {
+                // Si el botón tiene la clase 'left', retrocede 400px. Si es 'right', avanza 400px.
+                const distancia = this.classList.contains('left') ? -400 : 400;
+                
+                contenedor.scrollBy({ 
+                    left: distancia, 
+                    behavior: 'smooth' // Movimiento suave
+                });
+            }
+        });
+    });
+
 });
 // FIN DE DOMContentLoaded
 
@@ -494,10 +535,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // 3. FUNCIÓN DE RASTREO PÚBLICO (GLOBAL)
 // =========================================================
 async function buscarTrazabilidad(event) {
-    // 🛑 Esto detiene el recargo de página de forma definitiva
-    if (event) {
-        event.preventDefault();
-    }
+    if (event) event.preventDefault();
 
     const input = document.getElementById('inputTracking');
     const btn = document.querySelector('#formRastreo button[type="submit"]');
@@ -506,7 +544,6 @@ async function buscarTrazabilidad(event) {
 
     if (!codigo) return;
 
-    // Bloqueamos el botón para evitar múltiples clics y mostramos carga
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     resultadoDiv.style.display = 'none';
@@ -523,20 +560,16 @@ async function buscarTrazabilidad(event) {
         if (res.status === 'error') {
             resultadoDiv.innerHTML = `<div class="alert alert-danger border-0 shadow-sm rounded-3"><i class="bi bi-exclamation-circle me-2"></i>${res.msg}</div>`;
         } else {
-            // RENDERIZAR LA LÍNEA DE TIEMPO
             const p = res.data;
             const estado = p.estado_id;
             const esRetiro = p.tipo_entrega === 2;
-            const h = p.horas || {}; // 🔥 Extraemos el mapa de horas que viene de PHP
+            const h = p.horas || {};
 
             const textoPaso4 = esRetiro ? 'Listo para Retiro' : 'En Ruta';
             const iconoPaso4 = esRetiro ? 'bi-shop' : 'bi-truck';
 
-            // Función interna para armar cada fila
             const getStepHtml = (num, icono, titulo, activo) => {
-                // 🔥 Buscamos si existe una hora registrada para este número de paso
                 const horaHito = h[num] ? h[num] : '';
-
                 return `
         <div class="d-flex mb-3 align-items-center opacity-${activo ? '100' : '50'}">
             <div class="bg-${activo ? 'success' : 'secondary'} text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style="width: 45px; height: 45px; flex-shrink: 0;">
@@ -560,8 +593,6 @@ async function buscarTrazabilidad(event) {
     </div>
     <div class="position-relative ms-2">
 `;
-
-            // Renderizamos cada paso pasando su ID correspondiente para buscar la hora
             html += getStepHtml(1, 'bi-receipt', 'Pedido Recibido', estado >= 1);
             html += getStepHtml(2, 'bi-credit-card-check', 'Pago Confirmado', estado >= 2);
             html += getStepHtml(3, 'bi-box-seam', 'En Preparación', estado >= 3);
@@ -579,88 +610,4 @@ async function buscarTrazabilidad(event) {
         btn.innerHTML = 'Buscar';
         resultadoDiv.style.display = 'block';
     }
-
-    window.ejecutarRastreo = async function () {
-        const input = document.getElementById('inputTracking');
-        const btn = document.getElementById('btnBuscarRastreo');
-        const resultadoDiv = document.getElementById('resultadoRastreo');
-
-        const codigo = input.value.trim().toUpperCase();
-        if (!codigo) return;
-
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-        resultadoDiv.style.display = 'none';
-
-        try {
-            const response = await fetch(BASE_URL + 'home/rastrearPedido', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tracking: codigo })
-            });
-
-            const res = await response.json();
-            console.log("Datos recibidos del servidor:", res); // ← REVISA ESTO EN LA CONSOLA (F12)
-
-            if (res.status === 'error') {
-                resultadoDiv.innerHTML = `<div class="alert alert-danger border-0 shadow-sm rounded-3">${res.msg}</div>`;
-            } else {
-                const p = res.data;
-                const estado = p.estado_id;
-                const esRetiro = p.tipo_entrega === 2;
-                const h = p.horas || {}; // ← Mapa de horas
-
-                const textoPaso4 = esRetiro ? 'Listo para Retiro' : 'En Ruta';
-                const iconoPaso4 = esRetiro ? 'bi-shop' : 'bi-truck';
-
-                // Función de renderizado por paso
-                const getStepHtml = (num, icono, titulo, activo) => {
-                    const horaHito = h[num] || ''; // Busca la hora en el mapa
-
-                    return `
-                    <div class="d-flex mb-3 align-items-center opacity-${activo ? '100' : '50'}">
-                        <div class="bg-${activo ? 'success' : 'secondary'} text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style="width: 45px; height: 45px; flex-shrink: 0;">
-                            <i class="bi ${icono} fs-5"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0 fw-bold ${activo ? 'text-dark' : 'text-muted'}">${titulo}</h6>
-                                ${activo && horaHito ? `<span class="badge bg-white text-dark border shadow-sm fw-normal" style="font-size: 0.75rem;">${horaHito} hrs</span>` : ''}
-                            </div>
-                            ${activo && num === estado && estado < 5 ? `<small class="text-success fw-bold d-block mt-1">Estado actual</small>` : ''}
-                        </div>
-                    </div>
-                `;
-                };
-
-                let html = `
-                <div class="bg-light p-3 rounded-4 border mb-4 text-center shadow-sm">
-                    <h6 class="fw-bold mb-1 text-muted small">Fecha Estimada de Entrega</h6>
-                    <span class="text-cenco-indigo fw-black fs-4">${p.fecha_estimada}</span>
-                </div>
-                <div class="position-relative ms-2">
-            `;
-
-                if (estado === 6) {
-                    html += `<div class="alert alert-danger text-center fw-bold rounded-3">Pedido Anulado</div>`;
-                } else {
-                    html += getStepHtml(1, 'bi-receipt', 'Pedido Recibido', estado >= 1);
-                    html += getStepHtml(2, 'bi-credit-card-check', 'Pago Confirmado', estado >= 2);
-                    html += getStepHtml(3, 'bi-box-seam', 'En Preparación', estado >= 3);
-                    html += getStepHtml(4, iconoPaso4, textoPaso4, estado >= 4);
-                    html += getStepHtml(5, 'bi-house-check', 'Entregado', estado === 5);
-                }
-
-                html += `</div>`;
-                resultadoDiv.innerHTML = html;
-            }
-        } catch (err) {
-            resultadoDiv.innerHTML = `<div class="alert alert-danger">Error de conexión.</div>`;
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = 'Buscar';
-            resultadoDiv.style.display = 'block';
-        }
-    };
 }
-

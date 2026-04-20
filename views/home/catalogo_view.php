@@ -1,6 +1,20 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css">
 <link rel="stylesheet" href="<?= BASE_URL ?>css/shop/catalogo.css">
 
+<style>
+    /* 🔥 Estilo de Tarjeta Seleccionada (Para que funcione en el catálogo) */
+    .tarjeta-seleccionada {
+        background-color: rgba(133, 194, 38, 0.12) !important; 
+        border: 2px solid #85C226 !important;
+        transition: all 0.3s ease;
+    }
+</style>
+
+<?php include __DIR__ . '/../shop/partials/buscador_global.php'; ?>
+
+
+
+
 <div class="container-fluid container-fluid-catalogo py-4">
 
     <button class="btn btn-cenco-indigo d-lg-none w-100 mb-3 fw-bold" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasFiltros">

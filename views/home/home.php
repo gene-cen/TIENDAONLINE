@@ -2,7 +2,6 @@
 // 1. CARGA DE DEPENDENCIAS
 include __DIR__ . '/../componentes/ui/marca_showcase.php';
 
-// Función Helper para crear slugs
 function crearSlug($texto)
 {
     return strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', str_replace(' ', '-', $texto)), '-'));
@@ -15,16 +14,102 @@ function crearSlug($texto)
     .titulo-seccion {
         font-weight: 900 !important;
     }
+
+    /* 🔥 CSS Carrusel Horizontal con Swipe */
+    .scroll-horizontal {
+        display: flex;
+        overflow-x: auto;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 15px;
+        padding-top: 5px;
+    }
+
+    .scroll-horizontal::-webkit-scrollbar {
+        display: none;
+    }
+
+    .scroll-horizontal>.col {
+        flex: 0 0 auto;
+        width: 65vw;
+        max-width: 220px;
+    }
+
+    @media (min-width: 576px) {
+        .scroll-horizontal>.col {
+            width: 40vw;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .scroll-horizontal>.col {
+            width: 30vw;
+        }
+    }
+
+    @media (min-width: 992px) {
+        .scroll-horizontal>.col {
+            width: 220px;
+        }
+    }
+
+    /* 🔥 Estilo de Tarjeta Seleccionada */
+    .tarjeta-seleccionada {
+        background-color: rgba(133, 194, 38, 0.12) !important;
+        border: 2px solid #85C226 !important;
+        transition: all 0.3s ease;
+    }
+
+    /* 🔥 CSS Flechas de los Carruseles Horizontales */
+    .wrapper-scroll {
+        position: relative;
+    }
+
+    .btn-scroll-arrow {
+        position: absolute;
+        top: calc(50% - 15px);
+        /* Compensamos el padding inferior para centrar perfecto */
+        transform: translateY(-50%);
+        z-index: 10;
+        width: 45px;
+        height: 45px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.95;
+        color: #2A1B5E;
+        background-color: white;
+        border: 1px solid #e9ecef;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* FLOTAR FLECHAS A LOS EXTREMOS DEL CONTENEDOR */
+    .btn-scroll-arrow.left {
+        left: 0px;
+    }
+
+    .btn-scroll-arrow.right {
+        right: 0px;
+    }
+
+    /* Ocultamos las flechas en móviles porque el "swipe" con el dedo es mejor */
+    @media (max-width: 768px) {
+        .btn-scroll-arrow {
+            display: none !important;
+        }
+    }
 </style>
 
 <?php include __DIR__ . '/partials/franja_notificacion.php'; ?>
 
-<div class="container-fluid px-3 px-xl-5 my-4">
+<div class="container-fluid px-3 px-xl-5 mt-1 mb-2">
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <div class="position-relative">
                 <form onsubmit="event.preventDefault(); window.location.href='<?= BASE_URL ?>buscar/' + document.getElementById('inputBusqueda').value.trim().toLowerCase().replace(/\s+/g, '-');" class="d-flex shadow-sm rounded-pill bg-white overflow-hidden border border-1 border-secondary border-opacity-25" autocomplete="off">
-                    <input type="text" id="inputBusqueda" class="form-control border-0 shadow-none ps-4 py-3 fs-5" placeholder="¿Qué estás buscando hoy?" required onkeyup="buscarPredictivo(this.value)">
+                    <input type="text" id="inputBusqueda" class="form-control border-0 shadow-none ps-4 py-2 fs-5" placeholder="¿Qué estás buscando hoy?" required onkeyup="buscarPredictivo(this.value)">
                     <button type="submit" class="btn btn-cenco-green rounded-pill px-5 fw-black d-flex align-items-center m-1 fs-5 text-white">
                         <i class="bi bi-search me-2 d-none d-sm-inline"></i> Buscar
                     </button>
@@ -35,7 +120,7 @@ function crearSlug($texto)
     </div>
 </div>
 
-<div class="container-fluid carousel-container px-3 px-xl-5 mb-5">
+<div class="container-fluid carousel-container px-3 px-xl-5 mb-3">
     <div id="carruselPrincipal" class="carousel slide shadow-sm overflow-hidden" style="border-radius: 1.5rem;" data-bs-ride="carousel" data-bs-pause="false">
         <?php if (!empty($bannersHome)): ?>
             <div class="carousel-indicators">
@@ -67,11 +152,61 @@ function crearSlug($texto)
     </div>
 </div>
 
+<div id="catalogo-rapido" class="d-flex justify-content-between align-items-center mb-4 container-fluid px-3 px-xl-5 mt-5">
+    <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">TE OFRECEMOS LOS MEJORES PRECIOS DE LA ZONA</h3>
+    <a href="<?= BASE_URL ?>home/catalogo" class="btn btn-outline-cenco-indigo rounded-pill fw-black px-4 transition-hover">Ver Todo <i class="bi bi-arrow-right"></i></a>
+</div>
+
+<div class="position-relative wrapper-scroll px-0 px-md-5 container-fluid px-3 px-xl-5">
+    <button class="btn rounded-circle btn-scroll-arrow left" onclick="moverCarrusel(this, 'izq')">
+        <i class="bi bi-chevron-left fs-5 fw-bold"></i>
+    </button>
+
+    <div class="scroll-horizontal gap-3 ps-2 pe-2">
+        <?php if (empty($mejoresPrecios)): ?>
+            <div class="text-center text-muted py-4 w-100">Aún no hay suficientes datos.</div>
+        <?php else:
+            foreach ($mejoresPrecios as $p) {
+                $mostrarBadgeNuevo = false;
+                include __DIR__ . '/partials/tarjeta_producto.php';
+            }
+        endif; ?>
+    </div>
+
+    <button class="btn rounded-circle btn-scroll-arrow right" onclick="moverCarrusel(this, 'der')">
+        <i class="bi bi-chevron-right fs-5 fw-bold"></i>
+    </button>
+</div>
+
+
+<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
+    <div class="row">
+        <div class="col-12">
+            <a href="<?= BASE_URL ?>home/locales" class="d-block text-decoration-none rounded-4 overflow-hidden shadow hover-scale transition-hover">
+                <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-4 p-md-4 w-100 position-relative" style="background: linear-gradient(135deg, #1A36B6 0%, #11257a 100%); overflow: hidden;">
+                    <i class="bi bi-headset position-absolute opacity-25 d-none d-md-block" style="font-size: 15rem; right: -20px; top: -40px; color: #ffffff;"></i>
+                    <div class="text-center text-md-start mb-3 mb-md-0 position-relative z-1 w-100 ms-md-4">
+                        <h2 class="fw-black text-white mb-1" style="font-size: 2.2rem; letter-spacing: -1px;">
+                            ¡Visita nuestras sucursales y <span class="text-warning">asistimos tu compra</span> online!
+                        </h2>
+                        <h5 class="text-light opacity-75 mb-0 fw-bold">*Servicio exclusivo en sucursales de La Calera y Villa Alemana</h5>
+                    </div>
+
+                    <div class="position-relative z-1 flex-shrink-0 mt-3 mt-md-0 me-md-4">
+                        <button class="btn btn-warning text-dark btn-lg fw-black rounded-pill shadow px-5">Ver Sucursales <i class="bi bi-geo-alt-fill ms-1"></i></button>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
 <div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
     <div class="d-flex align-items-center mb-4">
         <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">DESCUBRE NUESTRAS CATEGORÍAS</h3>
     </div>
-    <div class="row row-cols-2 row-cols-sm-2 row-cols-md-4 g-3 g-md-4">
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-8 g-3 g-md-4 mb-5 grilla-dinamica">
+
         <?php
         $categoriasPermitidas = ['Bebidas y Refrescos', 'Congelados', 'Despensa', 'Golosinas', 'Conservas', 'Aseo', 'Vinos y Licores', 'Mascotas'];
         $categoriasGrid = array_filter($categorias ?? [], function ($cat) use ($categoriasPermitidas) {
@@ -81,6 +216,8 @@ function crearSlug($texto)
             }
             return false;
         });
+
+        $categoriasGrid = array_slice($categoriasGrid, 0, 8);
 
         if (!empty($categoriasGrid)): foreach ($categoriasGrid as $cat):
                 $nombreCat = $cat['nombre'];
@@ -103,45 +240,6 @@ function crearSlug($texto)
     </div>
 </div>
 
-<div class="container-fluid px-3 px-xl-5 mb-5 mt-4">
-    <div class="row">
-        <div class="col-12">
-            <a href="<?= BASE_URL ?>home/locales" class="d-block text-decoration-none rounded-4 overflow-hidden shadow hover-scale transition-hover">
-                <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-4 p-md-4 w-100 position-relative" style="background: linear-gradient(135deg, #1A36B6 0%, #11257a 100%); overflow: hidden;">
-                    <i class="bi bi-headset position-absolute opacity-10" style="font-size: 15rem; right: -20px; top: -40px; color: #ffffff;"></i>
-
-                    <div class="text-center text-md-start mb-3 mb-md-0 position-relative z-1 w-100 ms-md-4">
-                        <h2 class="fw-black text-white mb-1" style="font-size: 2.2rem; letter-spacing: -1px;">
-                            ¡Visita nuestras sucursales y <span class="text-warning">asistimos tu compra</span> online!
-                        </h2>
-                        <h5 class="text-light opacity-75 mb-0 fw-bold">*Servicio exclusivo en sucursales de La Calera y Villa Alemana</h5>
-                    </div>
-
-                    <div class="position-relative z-1 flex-shrink-0 mt-3 mt-md-0 me-md-4">
-                        <button class="btn btn-warning text-dark btn-lg fw-black rounded-pill shadow px-5">Ver Sucursales <i class="bi bi-geo-alt-fill ms-1"></i></button>
-                    </div>
-                </div>
-            </a>
-        </div>
-    </div>
-</div>
-
-<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">DESCUBRE NUESTROS PRECIOS</h3>
-        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fs-6 fw-black"><i class="bi bi-tags-fill me-1"></i> Increíbles</span>
-    </div>
-    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 g-md-4 mb-5">
-        <?php if (empty($masVendidos)): ?>
-            <div class="col-12 text-center text-muted py-4">Aún no hay suficientes datos.</div>
-        <?php else: foreach ($masVendidos as $p) {
-                $mostrarBadgeNuevo = false;
-                include __DIR__ . '/partials/tarjeta_producto.php';
-            }
-        endif; ?>
-    </div>
-</div>
-
 <div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
     <div class="row">
         <div class="col-12">
@@ -150,12 +248,12 @@ function crearSlug($texto)
                     <div class="position-absolute w-100 h-100" style="background-image: radial-gradient(circle, #ffffff20 2px, transparent 2px); background-size: 20px 20px; top:0; left:0;"></div>
                     <div class="text-center text-md-start mb-3 mb-md-0 position-relative z-1 ms-md-4">
                         <h2 class="fw-black text-white mb-1" style="font-size: 2.2rem; letter-spacing: -1px;">
-                            ¡Retira tu pedido <span style="color:#1A36B6;">gratis</span> en nuestros locales!
+                            ¡Aprovecha tu despacho <span style="color:#1A36B6;">gratis</span> por compras sobre $39.950!
                         </h2>
-                        <h5 class="text-light opacity-75 mb-0 fw-bold">Servicio exclusivo en sucursales de La Calera y Villa Alemana</h5>
+                        <h5 class="text-light opacity-75 mb-0 fw-bold">*Servicio exclusivo en sucursal Villa Alemana</h5>
                     </div>
                     <div class="position-relative z-1 mt-3 mt-md-0 me-md-4">
-                        <button class="btn btn-dark text-white btn-lg fw-black rounded-pill shadow px-5">Conócelos aquí <i class="bi bi-chevron-right ms-1"></i></button>
+                        <button class="btn btn-dark text-white btn-lg fw-black rounded-pill shadow px-5">Conoce nuestra cobertura<i class="bi bi-chevron-right ms-1"></i></button>
                     </div>
                 </div>
             </a>
@@ -165,20 +263,32 @@ function crearSlug($texto)
 
 <?php if (isset($marcasHome[0]) && $marcasHome[0] !== null) echo renderMarcaShowcase($marcasHome[0]); ?>
 
-<div class="container-fluid px-3 px-xl-5 mb-5 mt-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">LOS MÁS VENDIDOS</h3>
-    </div>
-    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 g-md-4 mb-5">
+<div id="catalogo-rapido" class="d-flex justify-content-between align-items-center mb-4 container-fluid px-3 px-xl-5 mt-5">
+    <h3 class="titulo-seccion text-cenco-indigo border-start border-5 border-warning ps-3 mb-0 ls-1">LOS PRODUCTOS MÁS VENDIDOS</h3>
+    <a href="<?= BASE_URL ?>home/catalogo" class="btn btn-outline-cenco-indigo rounded-pill fw-black px-4 transition-hover">Ver Todo <i class="bi bi-arrow-right"></i></a>
+</div>
+
+<div class="position-relative wrapper-scroll px-0 px-md-5 container-fluid px-3 px-xl-5">
+    <button class="btn rounded-circle btn-scroll-arrow left" onclick="moverCarrusel(this, 'izq')">
+        <i class="bi bi-chevron-left fs-5 fw-bold"></i>
+    </button>
+
+    <div class="scroll-horizontal gap-3 ps-2 pe-2">
         <?php if (empty($masVendidos)): ?>
-            <div class="col-12 text-center text-muted py-4">Aún no hay suficientes datos.</div>
-        <?php else: foreach ($masVendidos as $p) {
+            <div class="text-center text-muted py-4 w-100">Aún no hay suficientes datos.</div>
+        <?php else:
+            foreach ($masVendidos as $p) {
                 $mostrarBadgeNuevo = false;
                 include __DIR__ . '/partials/tarjeta_producto.php';
             }
         endif; ?>
     </div>
+
+    <button class="btn rounded-circle btn-scroll-arrow right" onclick="moverCarrusel(this, 'der')">
+        <i class="bi bi-chevron-right fs-5 fw-bold"></i>
+    </button>
 </div>
+
 
 <?php if (isset($marcasHome[1]) && $marcasHome[1] !== null) echo renderMarcaShowcase($marcasHome[1]); ?>
 
@@ -188,12 +298,12 @@ function crearSlug($texto)
 </div>
 
 <div class="container-fluid px-3 px-xl-5 mb-5">
-    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 g-md-4 mb-5">
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 g-md-4 mb-5 grilla-dinamica">
         <?php if (empty($productos)): ?>
             <div class="col-12">
                 <div class="alert bg-white shadow-sm text-center py-5">Pronto novedades.</div>
             </div>
-        <?php else: foreach ($productos as $p) {
+        <?php else: foreach (array_slice($productos, 0, 6) as $p) {
                 $mostrarBadgeNuevo = true;
                 include __DIR__ . '/partials/tarjeta_producto.php';
             }
@@ -285,4 +395,5 @@ function crearSlug($texto)
 <script>
     var BASE_URL = '<?= BASE_URL ?>';
 </script>
+
 <script src="<?= BASE_URL ?>js/home.js"></script>

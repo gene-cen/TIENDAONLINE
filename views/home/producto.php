@@ -13,7 +13,25 @@ $desc = $producto['descripcion'] ?? '';
 $enCarro = isset($_SESSION['carrito'][$producto['id']]);
 $cantEnCarro = $enCarro ? $_SESSION['carrito'][$producto['id']]['cantidad'] : 0;
 $puedeComprar = ($stock > 0 || $enCarro);
+
+// 🔥 CAPTURAMOS EL PPUM Y LE APLICAMOS EL PUNTO DE MIL
+$ppumRaw = $producto['precio_unidad_medida'] ?? '';
+$ppum = '';
+
+if (!empty($ppumRaw)) {
+    if (is_numeric($ppumRaw)) {
+        // Si el PPUM es un número puro (ej: 1500 -> 1.500)
+        $ppum = number_format((float)$ppumRaw, 0, ',', '.');
+    } else {
+        // Si el PPUM es un texto que contiene un número (ej: "$1500 x KG" -> "$1.500 x KG")
+        $ppum = preg_replace_callback('/\b\d{4,}\b/', function($matches) {
+            return number_format($matches[0], 0, ',', '.');
+        }, (string)$ppumRaw);
+    }
+}
 ?>
+
+<?php include __DIR__ . '/../shop/partials/buscador_global.php'; ?>
 
 <div class="container py-5">
     <nav aria-label="breadcrumb" class="mb-4">
@@ -59,23 +77,30 @@ $puedeComprar = ($stock > 0 || $enCarro);
                 <div class="d-flex align-items-center flex-wrap gap-3 mb-4 border-bottom pb-4">
                     <div>
                         <h1 class="fw-black text-cenco-red mb-0">$<?= $precio ?></h1>
-                        <?php if (!empty($producto['precio_unidad_medida'])): ?>
+                        <?php if (!empty($ppum)): ?>
                             <div class="text-muted small mt-1 fw-bold">
-                                <i class="bi bi-info-circle me-1"></i> Precio Ref: <?= htmlspecialchars($producto['precio_unidad_medida']) ?>
+                                <i class="bi bi-info-circle me-1"></i> Precio Ref: <?= htmlspecialchars($ppum) ?>
                             </div>
                         <?php endif; ?>
                     </div>
 
-                    <div class="ms-md-auto d-flex gap-2">
+                 <div class="ms-md-auto d-flex gap-2">
                         <?php if ($puedeComprar): ?>
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 rounded-pill d-flex align-items-center">
-                                <i class="bi bi-check-circle-fill me-1"></i> Disponible
-                            </span>
-                            <span class="<?= $stock <= 10 ? 'text-danger fw-black animate__animated animate__flash animate__infinite' : 'text-success fw-bold' ?> border px-3 py-2 rounded-pill d-flex align-items-center" style="background: rgba(0,0,0,0.02)">
-                                <i class="bi bi-box-seam me-1"></i> Quedan <?= $stock ?> un.
-                            </span>
+                            <?php if ($stock <= 0): // Por si acaso hay un desfase de carrito ?>
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-3 py-2 rounded-pill d-flex align-items-center">
+                                    <i class="bi bi-x-circle me-1"></i> Agotado
+                                </span>
+                            <?php elseif ($stock <= 10): ?>
+                                <span class="badge bg-warning bg-opacity-25 text-danger border border-warning px-3 py-2 rounded-pill d-flex align-items-center fw-bold animate__animated animate__pulse animate__infinite">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> ¡Quedan pocas unidades!
+                                </span>
+                            <?php else: ?>
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 rounded-pill d-flex align-items-center fw-bold">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Stock Disponible
+                                </span>
+                            <?php endif; ?>
                         <?php else: ?>
-                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-3 py-2 rounded-pill">
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-3 py-2 rounded-pill d-flex align-items-center fw-bold">
                                 <i class="bi bi-shop me-1"></i> Exclusivo Tienda Física
                             </span>
                         <?php endif; ?>

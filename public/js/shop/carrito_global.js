@@ -5,20 +5,50 @@
  */
 
 // =========================================================
+// 🔥 CONTROLADOR VISUAL DE TARJETAS DE PRODUCTO 🔥
+// =========================================================
+window.actualizarEstadoTarjeta = function(id, cantidad) {
+    const card = document.getElementById(`card-prod-${id}`);
+    if (!card) return; // Si la tarjeta no está en esta pantalla, no hacemos nada
+
+    const formAdd = document.getElementById(`form-add-${id}`);
+    const controlsDiv = document.getElementById(`controls-${id}`);
+    const counts = document.querySelectorAll(`#card-count-${id}, #count-${id}`);
+    const partesInternas = card.querySelectorAll('.fondo-dinamico-imagen, .fondo-dinamico-cuerpo');
+
+    // Actualizamos los números de los contadores instantáneamente
+    counts.forEach(el => el.innerText = cantidad);
+
+    if (cantidad > 0) {
+        // 1. ESTADO ACTIVO (Producto en Carrito)
+        card.classList.remove('bg-white', 'border-light');
+        card.classList.add('tarjeta-seleccionada', 'shadow', 'border-cenco-green');
+        partesInternas.forEach(p => { p.classList.remove('bg-white'); p.classList.add('bg-transparent'); });
+
+        if (formAdd) { formAdd.classList.remove('d-block'); formAdd.classList.add('d-none'); }
+        if (controlsDiv) { controlsDiv.classList.remove('d-none'); controlsDiv.classList.add('d-flex'); }
+    } else {
+        // 2. ESTADO INACTIVO (Producto removido o en 0)
+        card.classList.remove('tarjeta-seleccionada', 'shadow', 'border-cenco-green');
+        card.classList.add('bg-white', 'border-light');
+        partesInternas.forEach(p => { p.classList.remove('bg-transparent'); p.classList.add('bg-white'); });
+
+        if (formAdd) { formAdd.classList.remove('d-none'); formAdd.classList.add('d-block'); }
+        if (controlsDiv) { controlsDiv.classList.remove('d-flex'); controlsDiv.classList.add('d-none'); }
+    }
+};
+
+// =========================================================
 // 1. AÑADIR AL CARRO (Desde Cero)
 // =========================================================
 function agregarAlCarrito(e, form, id, stockMax) {
     e.preventDefault();
 
-    // 1. Validación preventiva por si acaso
     if (stockMax <= 0) {
         Swal.fire({
-            title: '¡Agotado!',
-            text: 'Lo sentimos, este producto ya no tiene stock disponible.',
+            title: '¡Agotado!', text: 'Lo sentimos, este producto ya no tiene stock disponible.',
             imageUrl: window.BASE_URL + 'img/cencocalin/cencocalin_algo_fallo.png',
-            imageWidth: 120,
-            confirmButtonColor: '#2A1B5E',
-            customClass: { popup: 'rounded-4 shadow-lg' }
+            imageWidth: 120, confirmButtonColor: '#2A1B5E', customClass: { popup: 'rounded-4 shadow-lg' }
         });
         return;
     }
@@ -26,32 +56,14 @@ function agregarAlCarrito(e, form, id, stockMax) {
     const formData = new FormData(form);
 
     fetch(window.BASE_URL + 'carrito/agregarAjax', {
-        method: 'POST',
-        body: formData
+        method: 'POST', body: formData
     })
     .then(res => res.json())
     .then(data => {
         if (data.status === 'success') {
-            // Transformación Visual de la Tarjeta
-            const formAdd = document.getElementById('form-add-' + id);
-            const controls = document.getElementById('controls-' + id);
-            const badgeLlevas = document.getElementById('badge-llevas-' + id);
-            const imgContainer = document.getElementById('img-container-' + id);
-            const cardProd = document.getElementById('card-prod-' + id);
-            const counts = document.querySelectorAll(`#card-count-${id}, #count-${id}`);
-
-            counts.forEach(el => el.innerText = data.cantidadItem);
-
-            if (formAdd) { formAdd.classList.remove('d-block'); formAdd.classList.add('d-none'); }
-            if (controls) { controls.classList.remove('d-none'); controls.classList.add('d-flex'); }
-            if (badgeLlevas) { badgeLlevas.classList.remove('d-none'); badgeLlevas.classList.add('d-inline-block'); }
-            if (imgContainer) imgContainer.classList.replace('bg-white', 'bg-success-subtle');
-            if (cardProd) {
-                cardProd.classList.replace('border-0', 'border-cenco-green');
-                cardProd.classList.add('shadow');
-            }
-
-            // Avisar a toda la página
+            
+            // 🔥 Ejecutamos la transformación visual inmediatamente
+            window.actualizarEstadoTarjeta(id, data.cantidadItem);
             actualizarCarritoGlobal(data.totalCantidad, data.totalMonto);
 
             // Sincronización silenciosa en Checkout
@@ -81,17 +93,12 @@ function agregarAlCarrito(e, form, id, stockMax) {
             }
 
         } else if (data.status === 'error') {
-            Swal.fire({ 
-                icon: 'warning', 
-                title: 'Límite de Stock', 
-                text: data.mensaje, 
-                confirmButtonColor: '#2A1B5E', 
-                customClass: { popup: 'rounded-4 shadow-lg' } 
-            });
+            Swal.fire({ icon: 'warning', title: 'Límite de Stock', text: data.mensaje, confirmButtonColor: '#2A1B5E', customClass: { popup: 'rounded-4 shadow-lg' } });
         }
     })
     .catch(err => console.error('Error al agregar:', err));
 }
+
 // =========================================================
 // 2. PUENTE: Botones "+" y "-" de las tarjetas
 // =========================================================
@@ -100,23 +107,17 @@ function gestionarClickTarjeta(id, accion, stockMax) {
         const countSpan = document.getElementById(`card-count-${id}`);
         const cantidadActual = countSpan ? parseInt(countSpan.innerText) : 0;
 
-        // Si el usuario intenta subir y ya llegó al stock real
         if (cantidadActual >= stockMax) {
             Swal.fire({
                 title: '¡Límite alcanzado!',
                 text: `Lo sentimos, solo tenemos ${stockMax} unidades disponibles de este producto por ahora.`,
                 imageUrl: window.BASE_URL + 'img/cencocalin/cencocalin_preocupado.png',
-                imageWidth: 120,
-                imageAlt: 'Cencocalín Preocupado',
-                confirmButtonColor: '#2A1B5E',
-                confirmButtonText: 'Entendido',
+                imageWidth: 120, confirmButtonColor: '#2A1B5E', confirmButtonText: 'Entendido',
                 customClass: { popup: 'rounded-4 shadow-lg border-0' }
             });
-            return; // Bloqueamos la ejecución
+            return; 
         }
     }
-
-    // Si es 'bajar' o si 'subir' pasó la validación, procedemos
     cambiarCantidad(id, accion);
 }
 
@@ -134,7 +135,11 @@ function cambiarCantidad(id, accion) {
     .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
-            // 1. Stock Dinámico
+            
+            // 🔥 Ejecutamos la actualización visual para la tarjeta principal
+            window.actualizarEstadoTarjeta(id, data.cantidadItem);
+
+            // Stock Dinámico
             const spanStock = document.getElementById('stock-num-' + id);
             const contenedorStatus = document.getElementById('status-stock-' + id);
             if (spanStock && data.stockDisponible !== undefined) {
@@ -148,7 +153,7 @@ function cambiarCantidad(id, accion) {
                 }
             }
 
-            // 2. Cantidades y Subtotales (Vista Carrito)
+            // Cantidades y Subtotales (Vista Carrito interna)
             const inputCant = document.getElementById('input-cant-' + id);
             if (inputCant) {
                 inputCant.value = data.cantidadItem;
@@ -158,7 +163,7 @@ function cambiarCantidad(id, accion) {
                 if (tdSubtotal) tdSubtotal.innerText = '$' + subtotalFmt;
             }
 
-            // 3. Manejo de Eliminación
+            // Manejo de Eliminación (Offcanvas o vista carrito)
             if (data.cantidadItem === 0) {
                 const filaCarrito = document.getElementById('fila-carrito-' + id);
                 if (filaCarrito) filaCarrito.remove();
@@ -166,25 +171,9 @@ function cambiarCantidad(id, accion) {
                 if (data.totalCantidad === 0 && window.location.href.includes('carrito')) {
                     location.reload(); return;
                 }
-
-                // Revertir tarjetas visuales
-                const idsParaOcultar = ['form-add-', 'controls-', 'badge-llevas-', 'img-container-', 'card-prod-'];
-                idsParaOcultar.forEach(prefix => {
-                    const el = document.getElementById(prefix + id);
-                    if (el) {
-                        if (prefix === 'form-add-') el.classList.replace('d-none', 'd-block');
-                        if (prefix === 'controls-') el.classList.replace('d-flex', 'd-none');
-                        if (prefix === 'badge-llevas-') el.classList.add('d-none');
-                        if (prefix === 'img-container-') el.classList.replace('bg-success-subtle', 'bg-white');
-                        if (prefix === 'card-prod-') { el.classList.replace('border-cenco-green', 'border-0'); el.classList.remove('shadow'); }
-                    }
-                });
-            } else {
-                const counts = document.querySelectorAll(`#card-count-${id}, #count-${id}`);
-                counts.forEach(el => el.innerText = data.cantidadItem);
             }
 
-            // 4. Actualizar Resumen (Vista Carrito)
+            // Actualizar Resumen (Vista Carrito interna)
             const resumenTotal = document.getElementById('resumen-total');
             if (resumenTotal) {
                 const montoFmt = new Intl.NumberFormat('es-CL').format(data.totalMonto);
@@ -196,7 +185,7 @@ function cambiarCantidad(id, accion) {
 
             actualizarCarritoGlobal(data.totalCantidad, data.totalMonto);
 
-            // 5. Botón Subir Limitador
+            // Botón Subir Limitador
             const btnSubirLocal = document.getElementById('btn-subir-' + id);
             if (btnSubirLocal) {
                 if (data.stockDisponible <= 0) {
@@ -206,7 +195,7 @@ function cambiarCantidad(id, accion) {
                 }
             }
 
-            // 6. Sincronización silenciosa en Checkout
+            // Sincronización silenciosa en Checkout
             if (window.location.pathname.includes('checkout')) {
                 if (data.totalCantidad === 0) { window.location.reload(); return; }
                 fetch(window.location.href).then(res => res.text()).then(html => {

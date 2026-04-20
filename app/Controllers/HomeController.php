@@ -74,27 +74,103 @@ class HomeController
                          WHERE p.activo = 1 AND ps.sucursal_id = :sucursal
                          AND COALESCE(ps.precio, 0) > 0 
                          AND {$sqlStock} > 0 
-                         ORDER BY p.id DESC LIMIT 5";
+                         ORDER BY p.id DESC LIMIT 6";
         $stmtNov = $this->db->prepare($sqlNovedades);
         $stmtNov->execute([':sucursal' => $sucursal_id]);
         $productos = $stmtNov->fetchAll(\PDO::FETCH_ASSOC);
+        // =========================================================
+        // 4. PRODUCTOS CURADOS (Mejores Precios y Más Vendidos)
+        // =========================================================
 
-        // 4. MÁS VENDIDOS (Orden Aleatorio Seguro)
-        $sqlMasVendidos = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
-                                  COALESCE(ps.precio, 0) as precio, 
-                                  {$sqlStock} as stock, 
-                                  p.imagen, piw.nombre_web, m.nombre as marca 
-                           FROM productos p 
-                           INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
-                           INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
-                           LEFT JOIN marcas m ON piw.marca_id = m.id
-                           WHERE p.activo = 1 AND ps.sucursal_id = :sucursal
-                           AND COALESCE(ps.precio, 0) > 0 
-                           AND {$sqlStock} > 0 
-                           ORDER BY $fnRand LIMIT 5";
-        $stmtMV = $this->db->prepare($sqlMasVendidos);
-        $stmtMV->execute([':sucursal' => $sucursal_id]);
-        $masVendidos = $stmtMV->fetchAll(\PDO::FETCH_ASSOC);
+        // Lista actualizada: 25 códigos para Villa Alemana
+        $codigosVillaAlemana = [
+            '1110061',
+            '2109409',
+            '0510505',
+            '080026K',
+            '1600043',
+            '0801429',
+            '1290039',
+            '4600053',
+            '0500399',
+            '1100091',
+            '1270658',
+            '1340131',
+            '1270138',
+            '7902204',
+            '7711512',
+            '6820752',
+            '6665306',
+            '6627011',
+            '5203009',
+            '5101905',
+            '460015K',
+            '4600100',
+            '4133132',
+            '3600017',
+            '3010706'
+        ];
+
+        // Lista actualizada: 25 códigos para La Calera
+        $codigosLaCalera = [
+            '1110061',
+            '0510505',
+            '2109409',
+            '1180435',
+            '1600043',
+            '1100091',
+            '4600053',
+            '080026K',
+            '1290012',
+            '0500399',
+            '1203244',
+            '0630701',
+            '1270138',
+            '7902204',
+            '7711512',
+            '6820752',
+            '6665306',
+            '6627011',
+            '5203009',
+            '5101905',
+            '460015K',
+            '4600100',
+            '4133132',
+            '3600017',
+            '3010706'
+        ];
+
+        $codigosFiltro = ($sucursal_id == 10) ? $codigosVillaAlemana : $codigosLaCalera;
+
+        $inQuery = implode(',', array_fill(0, count($codigosFiltro), '?'));
+
+        $sqlCurados = "SELECT p.id, p.cod_producto, p.precio_unidad_medida, 
+                              COALESCE(ps.precio, 0) as precio, 
+                              {$sqlStock} as stock, 
+                              p.imagen, piw.nombre_web, m.nombre as marca 
+                       FROM productos p 
+                       INNER JOIN productos_sucursales ps ON p.cod_producto = ps.cod_producto
+                       INNER JOIN productos_info_web piw ON p.cod_producto = piw.cod_producto 
+                       LEFT JOIN marcas m ON piw.marca_id = m.id
+                       WHERE p.cod_producto IN ($inQuery) 
+                       AND p.activo = 1 AND ps.sucursal_id = ?
+                       AND COALESCE(ps.precio, 0) > 0 
+                       AND {$sqlStock} > 0";
+
+        $stmtCurados = $this->db->prepare($sqlCurados);
+        $paramsCurados = array_merge($codigosFiltro, [$sucursal_id]);
+        $stmtCurados->execute($paramsCurados);
+
+        $productosCurados = $stmtCurados->fetchAll(\PDO::FETCH_ASSOC);
+
+        // ¡LA MAGIA DE LA REPARTICIÓN! 
+        shuffle($productosCurados); // Mezclamos la piscina completa
+        $mitad = ceil(count($productosCurados) / 2); // Cortamos a la mitad dinámicamente (Si hay 15, será 8 y 7)
+
+        // Separamos en dos grupos para asegurar que NUNCA se repitan
+        $mejoresPrecios = array_slice($productosCurados, 0, $mitad);
+        $masVendidos    = array_slice($productosCurados, $mitad);
+        // =========================================================
 
         // 5. BANNERS (Principal y Secundario con filtros de tiempo)
         $sqlBanners = "SELECT * FROM carrusel_banners 
@@ -150,32 +226,25 @@ class HomeController
             ]);
             $productosDeMarca = $stmtPM->fetchAll(\PDO::FETCH_ASSOC);
 
-            // SOLO si la marca tiene productos con stock, la agregamos a la lista final
             if (!empty($productosDeMarca)) {
                 $marcaDestacada['productos'] = $productosDeMarca;
                 $marcasValidas[] = $marcaDestacada;
             }
 
-            // Si ya conseguimos 5 marcas listas para mostrar, detenemos el ciclo
-            if (count($marcasValidas) === 5) {
-                break;
-            }
+            if (count($marcasValidas) === 5) break;
         }
 
-        // Rellenamos con null si al final de todo encontramos menos de 5 para que la vista no falle
         $marcasHome = array_pad($marcasValidas, 5, null);
-
-        // Alias para compatibilidad con la vista sidebar
         $listaCategorias = $categorias;
 
-        // Renderizado
         ob_start();
         require __DIR__ . '/../../views/home/home.php';
         $content = ob_get_clean();
         require __DIR__ . '/../../views/layouts/main.php';
     }
+
     // =========================================================
-    // 3. CATÁLOGO GENERAL 
+    // CATÁLOGO Y RESTO DE MÉTODOS... (se mantienen intactos)
     // =========================================================
     public function catalogo()
     {
@@ -321,51 +390,54 @@ class HomeController
         include __DIR__ . '/../../views/home/catalogo_view.php';
         $content = ob_get_clean();
         include __DIR__ . '/../../views/layouts/main.php';
-    }public function rastrearPedido() {
-    if (ob_get_length()) ob_clean(); // Limpia cualquier residuo de texto previo
-    header('Content-Type: application/json');
+    }
 
-    $data = json_decode(file_get_contents("php://input"), true);
-    $tracking = trim($data['tracking'] ?? '');
+    public function rastrearPedido()
+    {
+        if (ob_get_length()) ob_clean(); // Limpia cualquier residuo de texto previo
+        header('Content-Type: application/json');
 
-    // 1. Buscamos el pedido
-    $sql = "SELECT id, estado_pedido_id, tipo_entrega_id, fecha_entrega_estimada 
-            FROM pedidos WHERE numero_seguimiento = ? LIMIT 1";
-    $stmt = $this->db->prepare($sql);
-    $stmt->execute([$tracking]);
-    $pedido = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $data = json_decode(file_get_contents("php://input"), true);
+        $tracking = trim($data['tracking'] ?? '');
 
-    if (!$pedido) {
-        echo json_encode(['status' => 'error', 'msg' => 'No se encontró el código.']);
+        // 1. Buscamos el pedido
+        $sql = "SELECT id, estado_pedido_id, tipo_entrega_id, fecha_entrega_estimada 
+                FROM pedidos WHERE numero_seguimiento = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$tracking]);
+        $pedido = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$pedido) {
+            echo json_encode(['status' => 'error', 'msg' => 'No se encontró el código.']);
+            exit;
+        }
+
+        // 2. 🔥 BUSCAMOS LAS HORAS (Asegúrate que la tabla se llame historial_pedidos)
+        $sqlH = "SELECT estado_pedido_id, DATE_FORMAT(fecha_creacion, '%H:%i') as hora_cambio 
+                 FROM historial_pedidos 
+                 WHERE pedido_id = ? 
+                 ORDER BY fecha_creacion ASC";
+        $stmtH = $this->db->prepare($sqlH);
+        $stmtH->execute([$pedido['id']]);
+        $logs = $stmtH->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Mapeamos los estados a sus horas
+        $mapaHoras = [];
+        foreach ($logs as $l) {
+            $mapaHoras[(int)$l['estado_pedido_id']] = $l['hora_cambio'];
+        }
+
+        echo json_encode([
+            'status' => 'success',
+            'data' => [
+                'estado_id' => (int)$pedido['estado_pedido_id'],
+                'tipo_entrega' => (int)$pedido['tipo_entrega_id'],
+                'fecha_estimada' => date('d-m-Y', strtotime($pedido['fecha_entrega_estimada'])),
+                'horas' => $mapaHoras // ← Este es el "paquete" que el JS debe leer
+            ]
+        ]);
         exit;
     }
-
-    // 2. 🔥 BUSCAMOS LAS HORAS (Asegúrate que la tabla se llame historial_pedidos)
-    $sqlH = "SELECT estado_pedido_id, DATE_FORMAT(fecha_creacion, '%H:%i') as hora_cambio 
-             FROM historial_pedidos 
-             WHERE pedido_id = ? 
-             ORDER BY fecha_creacion ASC";
-    $stmtH = $this->db->prepare($sqlH);
-    $stmtH->execute([$pedido['id']]);
-    $logs = $stmtH->fetchAll(\PDO::FETCH_ASSOC);
-
-    // Mapeamos los estados a sus horas
-    $mapaHoras = [];
-    foreach ($logs as $l) {
-        $mapaHoras[(int)$l['estado_pedido_id']] = $l['hora_cambio'];
-    }
-
-    echo json_encode([
-        'status' => 'success',
-        'data' => [
-            'estado_id' => (int)$pedido['estado_pedido_id'],
-            'tipo_entrega' => (int)$pedido['tipo_entrega_id'],
-            'fecha_estimada' => date('d-m-Y', strtotime($pedido['fecha_entrega_estimada'])),
-            'horas' => $mapaHoras // ← Este es el "paquete" que el JS debe leer
-        ]
-    ]);
-    exit;
-}
 
     public function autocomplete()
     {
@@ -375,7 +447,7 @@ class HomeController
             echo json_encode([]);
             exit;
         }
-        $stmt = $this->db->prepare("SELECT DISTINCT nombre_web FROM productos_info_web WHERE nombre_web LIKE ? LIMIT 6");
+        $stmt = $this->db->prepare("SELECT DISTINCT nombre_web FROM productos_info_web WHERE nombre_web LIKE ? LIMIT 8");
         $stmt->execute(["%$q%"]);
         echo json_encode($stmt->fetchAll(\PDO::FETCH_ASSOC));
         exit;
@@ -485,28 +557,23 @@ class HomeController
     {
         $codigoErp = (int)$codigoErp;
 
-        // 1. Mapeo de seguridad por si el HTML envía IDs internos (1 y 2) en vez de códigos ERP (29 y 10)
         if ($codigoErp === 1) $codigoErp = 29;
         if ($codigoErp === 2) $codigoErp = 10;
 
         if (in_array($codigoErp, [10, 29])) {
-            // 2. Actualizamos la sesión global
             $_SESSION['sucursal_activa'] = $codigoErp;
             $_SESSION['comuna_nombre'] = ($codigoErp === 10) ? 'Villa Alemana' : 'La Calera';
 
-            // 3. 🔥 MAGIA: Avisarle al carrito que recalculen precios y stock de inmediato
             if (class_exists('\App\Controllers\CarritoController')) {
                 $carritoCtrl = new \App\Controllers\CarritoController($this->db);
                 $validacion = $carritoCtrl->validarCambioSucursal($codigoErp, true);
 
-                // Si hubo cambios (productos eliminados o cantidad ajustada por stock en la nueva tienda)
                 if (!empty($validacion['cambios'])) {
                     $_SESSION['checkout_errors'] = $validacion['mensajes'];
                 }
             }
         }
 
-        // 4. Volver a la página donde estaba el usuario
         $referer = $_SERVER['HTTP_REFERER'] ?? BASE_URL . 'home';
         header("Location: " . $referer);
         exit();

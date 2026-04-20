@@ -1,5 +1,16 @@
 /* public/css/shop/home.css */
 
+/* Magia responsiva:
+  Por defecto se muestran los 6 productos (para celulares y tablets).
+  Pero cuando la pantalla es grande (min-width: 992px, que es el tamaño 'lg' de Bootstrap para Laptops), 
+  ocultamos el elemento número 6.
+*/
+@media (min-width: 992px) {
+    .grilla-dinamica > div:nth-child(6) {
+        display: none !important;
+    }
+}
+
 /* --- FRANJA DE NOTIFICACIONES --- */
 .franja-wrapper { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 0.6s ease-in-out, opacity 0.5s ease-in-out; }
 .franja-wrapper.desplegado { max-height: 180px; opacity: 1; }
